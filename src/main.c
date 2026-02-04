@@ -25,6 +25,11 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/dfu/mcuboot.h>
 
+#if defined(CONFIG_POSIX_API)
+#include <zephyr/posix/netdb.h>
+#include <zephyr/posix/sys/socket.h>
+#endif
+
 #include "mflt_ota_triggers.h"
 
 #include <zephyr/logging/log.h>
@@ -57,6 +62,9 @@ LOG_MODULE_REGISTER(memfault_sample, CONFIG_MEMFAULT_SAMPLE_LOG_LEVEL);
 #define L4_EVENT_MASK         (NET_EVENT_L4_CONNECTED | NET_EVENT_L4_DISCONNECTED)
 #define CONN_LAYER_EVENT_MASK (NET_EVENT_CONN_IF_FATAL_ERROR)
 
+#define DNS_CHECK_INTERVAL_SEC 10
+#define MEMFAULT_HOSTNAME      "chunks-nrf.memfault.com"
+
 #define LONG_PRESS_THRESHOLD_MS 3000
 
 static K_SEM_DEFINE(net_conn_sem, 0, 1);
@@ -71,6 +79,24 @@ static int64_t button_press_ts_btn2;
 static struct net_mgmt_event_callback l4_cb;
 static struct net_mgmt_event_callback conn_cb;
 
+/* Check if DNS is ready by attempting to resolve a hostname */
+static bool check_dns_ready(const char *hostname)
+{
+	int err;
+	struct addrinfo *res = NULL;
+	struct addrinfo hints = {
+		.ai_family = AF_INET,
+		.ai_socktype = SOCK_STREAM,
+	};
+
+	err = getaddrinfo(hostname, "443", &hints, &res);
+	if (res) {
+		freeaddrinfo(res);
+	}
+
+	return (err == 0);
+}
+
 /* Recursive Fibonacci calculation used to trigger stack overflow. */
 static int fib(int n)
 {
@@ -84,7 +110,8 @@ static int fib(int n)
 void memfault_metrics_heartbeat_collect_data(void)
 {
 #if CONFIG_MEMFAULT_NCS_STACK_METRICS
-	/* Maintain default NCS metrics collection (stack, connectivity, etc.) */
+	/* Maintain default NCS metrics collection (stack, connectivity, etc.)
+	 */
 	memfault_ncs_metrics_collect_data();
 #endif
 
@@ -94,9 +121,9 @@ void memfault_metrics_heartbeat_collect_data(void)
 
 /* Handle button presses and trigger faults that can be captured and sent to
  * the Memfault cloud for inspection after rebooting:
- * Only button 1 is available on Thingy:91, the rest are available on nRF9160 DK.
- *	Button 1: Trigger stack overflow.
- *	Button 2: Trigger NULL-pointer dereference.
+ * Only button 1 is available on Thingy:91, the rest are available on nRF9160
+ *DK. Button 1: Trigger stack overflow. Button 2: Trigger NULL-pointer
+ *dereference.
  */
 static void button_handler(uint32_t button_states, uint32_t has_changed)
 {
@@ -113,23 +140,27 @@ static void button_handler(uint32_t button_states, uint32_t has_changed)
 			LOG_WRN("Stack overflow will now be triggered");
 			fib(10000);
 		} else {
-			LOG_INF("Button 1 short press detected, triggering Memfault heartbeat");
+			LOG_INF("Button 1 short press detected, triggering "
+				"Memfault heartbeat");
 			if (wifi_connected) {
 				memfault_metrics_heartbeat_debug_trigger();
 #ifdef CONFIG_NRF70_FW_STATS_CDR_ENABLED
 				int cdr_err = mflt_nrf70_fw_stats_cdr_collect();
 				if (cdr_err) {
-					LOG_WRN("nRF70 FW stats CDR collection failed: %d",
+					LOG_WRN("nRF70 FW stats CDR collection "
+						"failed: %d",
 						cdr_err);
 				} else {
-					LOG_INF("nRF70 FW stats CDR collected (%zu bytes), "
+					LOG_INF("nRF70 FW stats CDR collected "
+						"(%zu bytes), "
 						"uploading...",
 						mflt_nrf70_fw_stats_cdr_get_size());
 				}
 #endif
 				memfault_zephyr_port_post_data();
 			} else {
-				LOG_WRN("WiFi not connected, cannot collect metrics");
+				LOG_WRN("WiFi not connected, cannot collect "
+					"metrics");
 			}
 		}
 	}
@@ -150,7 +181,8 @@ static void button_handler(uint32_t button_states, uint32_t has_changed)
 #pragma GCC diagnostic pop
 			ARG_UNUSED(i);
 		} else {
-			LOG_INF("Button 2 short press detected, scheduling Memfault OTA check");
+			LOG_INF("Button 2 short press detected, scheduling "
+				"Memfault OTA check");
 			mflt_ota_triggers_notify_button();
 		}
 	}
@@ -167,9 +199,11 @@ static void button_handler(uint32_t button_states, uint32_t has_changed)
 
 	if (buttons_pressed & DK_BTN4_MSK) {
 		/* DK_BTN4_MSK is Switch 2 on nRF9160 DK. */
-		MEMFAULT_TRACE_EVENT_WITH_LOG(switch_2_toggled, "Switch state: %d",
-					      buttons_pressed & DK_BTN4_MSK ? 1 : 0);
-		LOG_INF("switch_2_toggled event has been traced, button state: %d",
+		MEMFAULT_TRACE_EVENT_WITH_LOG(
+			switch_2_toggled, "Switch state: %d",
+			buttons_pressed & DK_BTN4_MSK ? 1 : 0);
+		LOG_INF("switch_2_toggled event has been traced, button state: "
+			"%d",
 			buttons_pressed & DK_BTN4_MSK ? 1 : 0);
 	}
 }
@@ -180,13 +214,15 @@ static void on_connect(void)
 	uint32_t time_to_lte_connection;
 
 	/* Retrieve the LTE time to connect metric. */
-	memfault_metrics_heartbeat_timer_read(MEMFAULT_METRICS_KEY(ncs_lte_time_to_connect_ms),
-					      &time_to_lte_connection);
+	memfault_metrics_heartbeat_timer_read(
+		MEMFAULT_METRICS_KEY(ncs_lte_time_to_connect_ms),
+		&time_to_lte_connection);
 
 	LOG_INF("Time to connect: %d ms", time_to_lte_connection);
 #endif /* IS_ENABLED(MEMFAULT_NCS_LTE_METRICS) */
 
-	if (IS_ENABLED(CONFIG_MEMFAULT_NCS_POST_COREDUMP_ON_NETWORK_CONNECTED) &&
+	if (IS_ENABLED(
+		    CONFIG_MEMFAULT_NCS_POST_COREDUMP_ON_NETWORK_CONNECTED) &&
 	    memfault_coredump_has_valid_coredump(NULL)) {
 		/* Coredump sending handled internally */
 		return;
@@ -208,14 +244,14 @@ static void on_connect(void)
 	LOG_DBG("Sending stored data...");
 
 	/* Send the data that has been captured to the memfault cloud.
-	 * This will also happen periodically, with an interval that can be configured using
-	 * CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS.
+	 * This will also happen periodically, with an interval that can be
+	 * configured using CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS.
 	 */
 	memfault_zephyr_port_post_data();
 }
 
-static void l4_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_event,
-			     struct net_if *iface)
+static void l4_event_handler(struct net_mgmt_event_callback *cb,
+			     uint64_t mgmt_event, struct net_if *iface)
 {
 	switch (mgmt_event) {
 	case NET_EVENT_L4_CONNECTED:
@@ -279,7 +315,8 @@ static void l4_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_e
 	}
 }
 
-static void connectivity_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_event,
+static void connectivity_event_handler(struct net_mgmt_event_callback *cb,
+				       uint64_t mgmt_event,
 				       struct net_if *iface)
 {
 	switch (mgmt_event) {
@@ -321,19 +358,23 @@ int main(void)
 {
 	int err;
 
-	LOG_INF("Memfault sample has started! Version: %s", CONFIG_MEMFAULT_NCS_FW_VERSION);
+	LOG_INF("Memfault sample has started! Version: %s",
+		CONFIG_MEMFAULT_NCS_FW_VERSION);
 
 	if (!boot_is_img_confirmed()) {
 		err = boot_write_img_confirmed();
 		if (err) {
-			LOG_ERR("New OTA FW confirm failed: %d, rollback to previous version", err);
+			LOG_ERR("New OTA FW confirm failed: %d, rollback to "
+				"previous version",
+				err);
 		} else {
 			LOG_INF("New OTA FW confirmed!");
 		}
 	}
 
-	/* Lower the Memfault log capture threshold so debug logs are stored & uploaded, which need
-	 * set CONFIG_MEMFAULT_LOGGING_RAM_SIZE bigger enough*/
+	/* Lower the Memfault log capture threshold so debug logs are stored &
+	 * uploaded, which need set CONFIG_MEMFAULT_LOGGING_RAM_SIZE bigger
+	 * enough*/
 	memfault_log_set_min_save_level(kMemfaultPlatformLogLevel_Debug);
 
 	err = dk_buttons_init(button_handler);
@@ -345,11 +386,14 @@ int main(void)
 	net_mgmt_init_event_callback(&l4_cb, l4_event_handler, L4_EVENT_MASK);
 	net_mgmt_add_event_callback(&l4_cb);
 
-	/* Setup handler for Zephyr NET Connection Manager Connectivity layer. */
-	net_mgmt_init_event_callback(&conn_cb, connectivity_event_handler, CONN_LAYER_EVENT_MASK);
+	/* Setup handler for Zephyr NET Connection Manager Connectivity layer.
+	 */
+	net_mgmt_init_event_callback(&conn_cb, connectivity_event_handler,
+				     CONN_LAYER_EVENT_MASK);
 	net_mgmt_add_event_callback(&conn_cb);
 
-	/* Signal to Memfault that we're starting connectivity (attempting to connect) */
+	/* Signal to Memfault that we're starting connectivity (attempting to
+	 * connect) */
 	memfault_metrics_connectivity_connected_state_change(
 		kMemfaultMetricsConnectivityState_Started);
 
@@ -435,6 +479,40 @@ int main(void)
 	while (1) {
 		k_sem_take(&net_conn_sem, K_FOREVER);
 		LOG_INF("Connected to network");
+
+		/* Wait for DNS resolver to be ready before triggering Memfault
+		 * uploads */
+		LOG_INF("Waiting for DNS resolver to be ready for Memfault");
+		int dns_wait_time = 0;
+		const int dns_timeout = 300; /* 5 minutes */
+		while (wifi_connected && !check_dns_ready(MEMFAULT_HOSTNAME)) {
+			if (dns_wait_time >= dns_timeout) {
+				LOG_ERR("DNS timeout after %d seconds for %s, "
+					"continuing anyway",
+					dns_timeout, MEMFAULT_HOSTNAME);
+				break;
+			}
+			LOG_INF("DNS not ready for %s, checking again in %d "
+				"seconds",
+				MEMFAULT_HOSTNAME, DNS_CHECK_INTERVAL_SEC);
+			k_sleep(K_SECONDS(DNS_CHECK_INTERVAL_SEC));
+			dns_wait_time += DNS_CHECK_INTERVAL_SEC;
+		}
+
+		if (!wifi_connected) {
+			LOG_WRN("Network disconnected during DNS wait, "
+				"aborting Memfault upload");
+			continue;
+		}
+
+		if (dns_wait_time < dns_timeout) {
+			LOG_INF("DNS ready for %s after %d seconds, triggering "
+				"Memfault data upload",
+				MEMFAULT_HOSTNAME, dns_wait_time);
+		} else {
+			LOG_WRN("Attempting Memfault upload without DNS "
+				"confirmation");
+		}
 		on_connect();
 	}
 }

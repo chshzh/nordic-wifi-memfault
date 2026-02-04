@@ -12,7 +12,14 @@
 #include <hw_id.h>
 #include <memfault/metrics/metrics.h>
 
+#if defined(CONFIG_POSIX_API)
+#include <zephyr/posix/netdb.h>
+#include <zephyr/posix/sys/socket.h>
+#endif
+
 LOG_MODULE_REGISTER(mqtt_client, CONFIG_MQTT_CLIENT_LOG_LEVEL);
+
+#define DNS_CHECK_INTERVAL_SEC 10
 
 /* MQTT client states - prefixed to avoid conflict with mqtt_helper.h */
 enum app_mqtt_client_state {
@@ -32,15 +39,18 @@ static K_SEM_DEFINE(mqtt_thread_sem, 0, 1);
 
 /* Client ID and topic buffers */
 static char client_id[CONFIG_MQTT_CLIENT_ID_BUFFER_SIZE];
-static char pub_topic[CONFIG_MQTT_CLIENT_ID_BUFFER_SIZE + sizeof(CONFIG_MQTT_CLIENT_PUBLISH_TOPIC)];
+static char pub_topic[CONFIG_MQTT_CLIENT_ID_BUFFER_SIZE +
+		      sizeof(CONFIG_MQTT_CLIENT_PUBLISH_TOPIC)];
 
 /* MQTT helper callbacks */
-static void on_mqtt_connack(enum mqtt_conn_return_code return_code, bool session_present)
+static void on_mqtt_connack(enum mqtt_conn_return_code return_code,
+			    bool session_present)
 {
 	ARG_UNUSED(session_present);
 
 	if (return_code != MQTT_CONNECTION_ACCEPTED) {
-		LOG_ERR("MQTT broker rejected connection, return code: %d", return_code);
+		LOG_ERR("MQTT broker rejected connection, return code: %d",
+			return_code);
 		current_state = APP_MQTT_STATE_DISCONNECTED;
 		return;
 	}
@@ -79,18 +89,27 @@ static void on_mqtt_disconnect(int result)
 	LOG_INF("Disconnected from MQTT broker, result: %d", result);
 	current_state = APP_MQTT_STATE_DISCONNECTED;
 
-	/* If network is still ready, this was an unexpected disconnect
-	 * (e.g., NAT timeout, broker kicked us). Signal for reconnection.
+	/* If network is still ready, this was an unexpected disconnect.
+	 * Could be transient network issue, NAT timeout, or broker disconnect.
 	 */
 	if (network_ready) {
-		LOG_WRN("Unexpected disconnect, will attempt reconnection");
+		if (result == -128) {
+			/* Socket closed - common during network startup */
+			LOG_DBG("Connection closed (network stabilizing), will "
+				"retry");
+		} else {
+			LOG_WRN("Unexpected disconnect (code %d), will attempt "
+				"reconnection",
+				result);
+		}
 	}
 }
 
-static void on_mqtt_publish(struct mqtt_helper_buf topic, struct mqtt_helper_buf payload)
+static void on_mqtt_publish(struct mqtt_helper_buf topic,
+			    struct mqtt_helper_buf payload)
 {
-	LOG_INF("Received payload: %.*s on topic: %.*s", payload.size, payload.ptr, topic.size,
-		topic.ptr);
+	LOG_INF("Received payload: %.*s on topic: %.*s", payload.size,
+		payload.ptr, topic.size, topic.ptr);
 
 	/* Update MQTT echo metrics - message received back successfully */
 	mqtt_echo_total++;
@@ -112,15 +131,32 @@ static int setup_topics(void)
 {
 	int len;
 
-	len = snprintk(pub_topic, sizeof(pub_topic), "Memfault/%s/%s", client_id,
-		       CONFIG_MQTT_CLIENT_PUBLISH_TOPIC);
+	len = snprintk(pub_topic, sizeof(pub_topic), "Memfault/%s/%s",
+		       client_id, CONFIG_MQTT_CLIENT_PUBLISH_TOPIC);
 	if ((len < 0) || (len >= sizeof(pub_topic))) {
 		LOG_ERR("Publish topic buffer too small");
 		return -EMSGSIZE;
 	}
 
-	LOG_INF("Publish topic: %s", pub_topic);
+	LOG_DBG("Configured publish topic: %s", pub_topic);
 	return 0;
+}
+
+static bool check_dns_ready(const char *hostname)
+{
+	int err;
+	struct addrinfo *res = NULL;
+	struct addrinfo hints = {
+		.ai_family = AF_INET,
+		.ai_socktype = SOCK_STREAM,
+	};
+
+	err = getaddrinfo(hostname, "8883", &hints, &res);
+	if (res) {
+		freeaddrinfo(res);
+	}
+
+	return (err == 0);
 }
 
 static int app_mqtt_connect(void)
@@ -162,7 +198,8 @@ static int app_mqtt_connect(void)
 		.device_id.size = strlen(client_id),
 	};
 
-	LOG_INF("Connecting to MQTT broker: %s", CONFIG_MQTT_CLIENT_BROKER_HOSTNAME);
+	LOG_INF("Connecting to MQTT broker: %s",
+		CONFIG_MQTT_CLIENT_BROKER_HOSTNAME);
 
 	err = mqtt_helper_connect(&conn_params);
 	if (err) {
@@ -178,6 +215,11 @@ static int mqtt_publish_message(void)
 {
 	int err;
 	char payload[128];
+
+	if (!network_ready) {
+		LOG_WRN("Network not ready, skipping publish");
+		return -ENETDOWN;
+	}
 
 	if (current_state != APP_MQTT_STATE_CONNECTED) {
 		LOG_WRN("Not connected to MQTT broker, skipping publish");
@@ -201,11 +243,13 @@ static int mqtt_publish_message(void)
 		LOG_WRN("Failed to publish message: %d", err);
 		/* Update failure metric */
 		mqtt_echo_failures++;
-		MEMFAULT_METRIC_SET_UNSIGNED(mqtt_echo_fail_count, mqtt_echo_failures);
+		MEMFAULT_METRIC_SET_UNSIGNED(mqtt_echo_fail_count,
+					     mqtt_echo_failures);
 		return err;
 	}
 
-	LOG_INF("Published message: \"%s\" on topic: \"%s\"", payload, pub_topic);
+	LOG_INF("Published message: \"%s\" on topic: \"%s\"", payload,
+		pub_topic);
 	return 0;
 }
 
@@ -244,25 +288,96 @@ static void mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 			break;
 		}
 
-		network_ready = true;
-		LOG_INF("Network ready, starting MQTT operations");
+		if (!network_ready) {
+			LOG_WRN("Network not ready after semaphore signal, "
+				"skipping");
+			continue;
+		}
 
-		/* Wait a few seconds for network stack to stabilize */
-		k_sleep(K_SECONDS(5));
+		LOG_INF("Network ready, waiting for DNS resolver");
 
-		/* Main MQTT operation loop - handles connect, publish, and reconnect */
+		/* Wait for DNS to be ready - check every 10 seconds, timeout
+		 * after 5 minutes */
+		int dns_wait_time = 0;
+		const int dns_timeout = 300; /* 5 minutes */
+		while (network_ready &&
+		       !check_dns_ready(CONFIG_MQTT_CLIENT_BROKER_HOSTNAME)) {
+			if (dns_wait_time >= dns_timeout) {
+				LOG_ERR("DNS timeout after %d seconds for %s, "
+					"continuing anyway",
+					dns_timeout,
+					CONFIG_MQTT_CLIENT_BROKER_HOSTNAME);
+				break;
+			}
+			LOG_INF("DNS not ready for %s, checking again in %d "
+				"seconds",
+				CONFIG_MQTT_CLIENT_BROKER_HOSTNAME,
+				DNS_CHECK_INTERVAL_SEC);
+			k_sleep(K_SECONDS(DNS_CHECK_INTERVAL_SEC));
+			dns_wait_time += DNS_CHECK_INTERVAL_SEC;
+		}
+
+		/* Verify network is still ready after DNS checks */
+		if (!network_ready) {
+			LOG_WRN("Network disconnected during DNS wait, "
+				"aborting");
+			continue;
+		}
+
+		if (dns_wait_time < dns_timeout) {
+			LOG_INF("DNS ready for %s after %d seconds, starting "
+				"MQTT operations",
+				CONFIG_MQTT_CLIENT_BROKER_HOSTNAME,
+				dns_wait_time);
+		} else {
+			LOG_WRN("Starting MQTT operations without DNS "
+				"confirmation");
+		}
+
+		/* Main MQTT operation loop - handles connect, publish, and
+		 * reconnect */
 		while (mqtt_client_running && network_ready) {
+			int retry_count = 0;
+			const int max_quick_retries = 3;
+
 			/* Try to connect to MQTT broker if not connected */
 			while (mqtt_client_running && network_ready &&
 			       current_state != APP_MQTT_STATE_CONNECTED) {
 				err = app_mqtt_connect();
 				if (err == -EINPROGRESS) {
-					/* Connection in progress, wait briefly and check again */
+					/* Connection in progress, wait briefly
+					 * and check again */
 					k_sleep(K_MSEC(500));
 				} else if (err) {
-					LOG_INF("Retrying MQTT connection in %d seconds",
-						CONFIG_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC);
-					k_sleep(K_SECONDS(CONFIG_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC));
+					retry_count++;
+					if (retry_count <= max_quick_retries) {
+						/* Quick retries for transient
+						 * network startup issues */
+						LOG_INF("Initial connection "
+							"attempt %d/%d failed, "
+							"retrying in 5 seconds",
+							retry_count,
+							max_quick_retries);
+						k_sleep(K_SECONDS(5));
+					} else {
+						/* Longer backoff after initial
+						 * retries */
+						LOG_WRN("MQTT connection "
+							"failed after %d "
+							"attempts, "
+							"retrying in %d "
+							"seconds",
+							retry_count,
+							CONFIG_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC);
+						k_sleep(K_SECONDS(
+							CONFIG_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC));
+					}
+				} else {
+					/* Connection initiated successfully,
+					 * reset retry counter */
+					retry_count = 0;
+					/* Wait for callback to update state */
+					k_sleep(K_MSEC(500));
 				}
 			}
 
@@ -270,17 +385,20 @@ static void mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 			while (mqtt_client_running && network_ready &&
 			       current_state == APP_MQTT_STATE_CONNECTED) {
 				mqtt_publish_message();
-				k_sleep(K_SECONDS(CONFIG_MQTT_CLIENT_PUBLISH_INTERVAL_SEC));
+				k_sleep(K_SECONDS(
+					CONFIG_MQTT_CLIENT_PUBLISH_INTERVAL_SEC));
 			}
 
-			/* If we get here and network is still ready, broker disconnected us.
-			 * Wait briefly then reconnect.
+			/* If we get here and network is still ready, broker
+			 * disconnected us. Wait briefly then reconnect.
 			 */
 			if (mqtt_client_running && network_ready &&
 			    current_state == APP_MQTT_STATE_DISCONNECTED) {
-				LOG_INF("Broker connection lost, reconnecting in %d seconds",
+				LOG_INF("Broker connection lost, reconnecting "
+					"in %d seconds",
 					CONFIG_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC);
-				k_sleep(K_SECONDS(CONFIG_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC));
+				k_sleep(K_SECONDS(
+					CONFIG_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC));
 			}
 		}
 
@@ -290,8 +408,9 @@ static void mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 	LOG_INF("MQTT client thread exiting");
 }
 
-K_THREAD_DEFINE(mqtt_client_tid, CONFIG_MQTT_CLIENT_STACK_SIZE, mqtt_client_thread, NULL, NULL,
-		NULL, CONFIG_MQTT_CLIENT_THREAD_PRIORITY, 0, 0);
+K_THREAD_DEFINE(mqtt_client_tid, CONFIG_MQTT_CLIENT_STACK_SIZE,
+		mqtt_client_thread, NULL, NULL, NULL,
+		CONFIG_MQTT_CLIENT_THREAD_PRIORITY, 0, 0);
 
 int app_mqtt_client_init(void)
 {
@@ -302,10 +421,13 @@ int app_mqtt_client_init(void)
 
 void app_mqtt_client_notify_connected(void)
 {
-	if (mqtt_client_running) {
+	if (mqtt_client_running && !network_ready) {
 		LOG_INF("Network connected, notifying MQTT client");
 		network_ready = true;
 		k_sem_give(&mqtt_thread_sem);
+	} else if (network_ready) {
+		LOG_DBG("Network already marked as ready, skipping duplicate "
+			"notification");
 	}
 }
 
@@ -349,6 +471,7 @@ int app_mqtt_client_publish(const char *payload)
 		return err;
 	}
 
-	LOG_INF("Published message: \"%s\" on topic: \"%s\"", payload, pub_topic);
+	LOG_INF("Published message: \"%s\" on topic: \"%s\"", payload,
+		pub_topic);
 	return 0;
 }
