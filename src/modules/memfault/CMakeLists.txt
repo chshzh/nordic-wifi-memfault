@@ -1,9 +1,11 @@
 # Memfault module group: core, metrics, ota, cdr
+if(CONFIG_MEMFAULT)
 target_sources(app PRIVATE
 	core/memfault_core.c
 	metrics/wifi_metrics.c
 	ota/ota_triggers.c
 )
+endif()
 
 if(CONFIG_MEMFAULT_NCS_STACK_METRICS)
 	target_sources(app PRIVATE metrics/stack_metrics.c)

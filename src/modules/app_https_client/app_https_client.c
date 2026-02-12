@@ -15,7 +15,11 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/init.h>
+#ifdef CONFIG_MEMFAULT
 #include <memfault/metrics/metrics.h>
+#else
+#define MEMFAULT_METRIC_SET_UNSIGNED(...) ((void)0)
+#endif
 
 #if defined(CONFIG_POSIX_API)
 #include <zephyr/posix/arpa/inet.h>
@@ -24,14 +28,14 @@
 #include <zephyr/posix/sys/socket.h>
 #endif
 
-#if CONFIG_MODEM_KEY_MGMT
+#if defined(CONFIG_MODEM_KEY_MGMT)
 #include <modem/modem_key_mgmt.h>
 #endif
 
 LOG_MODULE_REGISTER(app_https_client, CONFIG_APP_HTTPS_CLIENT_LOG_LEVEL);
 
 #define HTTPS_PORT "443"
-#define HTTP_HEAD                                                               \
+#define HTTP_HEAD                                                              \
 	"HEAD / HTTP/1.1\r\n"                                                  \
 	"Host: " CONFIG_APP_HTTPS_HOSTNAME ":" HTTPS_PORT "\r\n"               \
 	"Connection: close\r\n\r\n"
@@ -216,7 +220,8 @@ static void send_http_request(void)
 
 	/* Increment total request count (both local and Memfault) */
 	https_req_total++;
-	MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_total_count, https_req_total);
+	MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_total_count,
+				     https_req_total);
 
 	LOG_INF("Looking up %s", CONFIG_APP_HTTPS_HOSTNAME);
 
@@ -386,8 +391,7 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 			if (dns_wait_time >= dns_timeout) {
 				LOG_ERR("DNS timeout after %d seconds for %s, "
 					"continuing anyway",
-					dns_timeout,
-					CONFIG_APP_HTTPS_HOSTNAME);
+					dns_timeout, CONFIG_APP_HTTPS_HOSTNAME);
 				break;
 			}
 			LOG_INF("DNS not ready for %s, checking again in %d "

@@ -13,7 +13,11 @@
 #include <zephyr/init.h>
 #include <net/mqtt_helper.h>
 #include <hw_id.h>
+#ifdef CONFIG_MEMFAULT
 #include <memfault/metrics/metrics.h>
+#else
+#define MEMFAULT_METRIC_SET_UNSIGNED(...) ((void)0)
+#endif
 
 #if defined(CONFIG_POSIX_API)
 #include <zephyr/posix/netdb.h>
@@ -116,7 +120,8 @@ static void on_mqtt_publish(struct mqtt_helper_buf topic,
 
 	/* Update MQTT echo metrics - message received back successfully */
 	mqtt_echo_total++;
-	MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_total_count, mqtt_echo_total);
+	MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_total_count,
+				     mqtt_echo_total);
 	LOG_INF("App MQTT Echo Metrics - Total: %u, Failures: %u",
 		mqtt_echo_total, mqtt_echo_failures);
 }

@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  *
  * Memfault core: boot confirm, connectivity state, DNS wait, upload on connect,
- * heartbeat callback, and button-triggered actions (heartbeat, OTA, crash demos).
+ * heartbeat callback, and button-triggered actions (heartbeat, OTA, crash
+ * demos).
  */
 
 #include "memfault_core.h"
@@ -87,7 +88,8 @@ static bool check_dns_ready(const char *hostname)
 
 static void on_connect(void)
 {
-	if (IS_ENABLED(CONFIG_MEMFAULT_NCS_POST_COREDUMP_ON_NETWORK_CONNECTED) &&
+	if (IS_ENABLED(
+		    CONFIG_MEMFAULT_NCS_POST_COREDUMP_ON_NETWORK_CONNECTED) &&
 	    memfault_coredump_has_valid_coredump(NULL)) {
 		return;
 	}
@@ -116,7 +118,8 @@ static void upload_thread_fn(void *a, void *b, void *c)
 		int dns_wait_time = 0;
 		while (wifi_connected && !check_dns_ready(MEMFAULT_HOSTNAME)) {
 			if (dns_wait_time >= DNS_TIMEOUT_SEC) {
-				LOG_ERR("DNS timeout after %d seconds, continuing anyway",
+				LOG_ERR("DNS timeout after %d seconds, "
+					"continuing anyway",
 					DNS_TIMEOUT_SEC);
 				break;
 			}
@@ -132,7 +135,8 @@ static void upload_thread_fn(void *a, void *b, void *c)
 	}
 }
 
-K_THREAD_DEFINE(memfault_upload_tid, 2048, upload_thread_fn, NULL, NULL, NULL, 5, 0, 0);
+K_THREAD_DEFINE(memfault_upload_tid, 2048, upload_thread_fn, NULL, NULL, NULL,
+		5, 0, 0);
 
 /* WIFI_CHAN listener */
 extern const struct zbus_channel WIFI_CHAN;
@@ -190,7 +194,8 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 				memfault_metrics_heartbeat_debug_trigger();
 				memfault_zephyr_port_post_data();
 			} else {
-				LOG_WRN("WiFi not connected, cannot collect metrics");
+				LOG_WRN("WiFi not connected, cannot collect "
+					"metrics");
 			}
 		}
 		return;
@@ -206,7 +211,8 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 #pragma GCC diagnostic pop
 			ARG_UNUSED(i);
 		}
-		/* Button 2 short: OTA check is handled by ota_triggers module */
+		/* Button 2 short: OTA check is handled by ota_triggers module
+		 */
 		return;
 	}
 
@@ -221,7 +227,8 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 	}
 
 	if (btn == 4) {
-		MEMFAULT_TRACE_EVENT_WITH_LOG(switch_2_toggled, "Switch state: 1");
+		MEMFAULT_TRACE_EVENT_WITH_LOG(switch_2_toggled,
+					      "Switch state: 1");
 		LOG_INF("switch_2_toggled event traced");
 	}
 }

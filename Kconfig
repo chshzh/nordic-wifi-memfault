@@ -11,8 +11,8 @@ module-str = Memfault sample
 source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
 
 rsource "src/modules/button/Kconfig.button"
-rsource "src/modules/wifi/Kconfig.wifi"
-rsource "src/modules/ble_prov/Kconfig.ble_prov"
+rsource "src/modules/network/Kconfig"
+rsource "src/modules/wifi_prov_over_ble/Kconfig.wifi_prov_over_ble"
 rsource "src/modules/memfault/Kconfig.memfault"
 rsource "src/modules/app_https_client/Kconfig.app_https_client"
 rsource "src/modules/app_mqtt_client/Kconfig.app_mqtt_client"

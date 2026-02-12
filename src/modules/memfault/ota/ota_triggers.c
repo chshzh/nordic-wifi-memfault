@@ -35,7 +35,8 @@ static const char *consume_trigger_context(void)
 	if (flags == 0) {
 		return "manual";
 	}
-	if ((flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG) && (flags & MFLT_OTA_TRIGGERS_CONNECT_FLAG)) {
+	if ((flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG) &&
+	    (flags & MFLT_OTA_TRIGGERS_CONNECT_FLAG)) {
 		return "button+connect";
 	}
 	if (flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG) {
@@ -64,7 +65,8 @@ static void schedule_ota_check(const char *context)
 	static bool warned;
 
 	if (!warned) {
-		LOG_WRN("Memfault OTA support is disabled. Enable CONFIG_MEMFAULT_FOTA to use OTA "
+		LOG_WRN("Memfault OTA support is disabled. Enable "
+			"CONFIG_MEMFAULT_FOTA to use OTA "
 			"checks");
 		warned = true;
 	}
@@ -81,7 +83,8 @@ static void mflt_ota_triggers_thread(void *p1, void *p2, void *p3)
 	LOG_INF("Memfault OTA trigger thread started");
 
 	while (true) {
-		int ret = k_sem_take(&mflt_ota_triggers_sem, OTA_CHECK_INTERVAL);
+		int ret =
+			k_sem_take(&mflt_ota_triggers_sem, OTA_CHECK_INTERVAL);
 		k_sleep(K_SECONDS(10));
 
 		if (ret == 0) {
@@ -96,8 +99,8 @@ static void mflt_ota_triggers_thread(void *p1, void *p2, void *p3)
 }
 
 K_THREAD_DEFINE(mflt_ota_triggers_tid, MFLT_OTA_TRIGGERS_THREAD_STACK_SIZE,
-		mflt_ota_triggers_thread, NULL, NULL, NULL, MFLT_OTA_TRIGGERS_THREAD_PRIORITY, 0,
-		0);
+		mflt_ota_triggers_thread, NULL, NULL, NULL,
+		MFLT_OTA_TRIGGERS_THREAD_PRIORITY, 0, 0);
 
 void mflt_ota_triggers_notify_button(void)
 {
@@ -123,7 +126,8 @@ void mflt_ota_triggers_notify_connected(void)
 	}
 }
 
-/* Zbus: Button 2 short press -> OTA check; WIFI_STA_CONNECTED -> OTA on connect */
+/* Zbus: Button 2 short press -> OTA check; WIFI_STA_CONNECTED -> OTA on connect
+ */
 extern const struct zbus_channel BUTTON_CHAN;
 extern const struct zbus_channel WIFI_CHAN;
 

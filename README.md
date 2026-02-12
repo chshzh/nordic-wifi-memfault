@@ -1,6 +1,6 @@
 # Memfault nRF7002DK Sample
 
-A comprehensive Memfault integration sample for Nordic nRF7002DK, demonstrating IoT device management with Wi-Fi connectivity, BLE provisioning, HTTPS communication, and cloud-based monitoring.
+A comprehensive Memfault integration sample for Nordic nRF7002DK, demonstrating IoT device management with Wi-Fi connectivity, WiFi provisioning over BLE, HTTPS communication, and cloud-based monitoring.
 
 ## Overview
 
@@ -12,7 +12,7 @@ This sample application showcases:
 ### Key Features
 
 - ✅ **Wi-Fi Connectivity** - WPA2/WPA3 with automatic reconnection
-- ✅ **BLE Provisioning** - Wireless WiFi credential configuration via mobile app
+- ✅ **WiFi Provisioning over BLE** - Wireless WiFi credential configuration via mobile app
 - ✅ **Crash Reporting** - Automatic coredump collection and upload to cloud
 - ✅ **Metrics Collection** - WiFi stats, stack usage, heap, CPU temperature
 - ✅ **nRF70 WiFi Diagnostics** - Firmware statistics (PHY/LMAC/UMAC) via CDR
@@ -100,7 +100,7 @@ memfault-nrf7002dk/
 │       ├── messages.h                # Zbus message types (button, wifi, memfault)
 │       ├── button/                   # Button SMF, BUTTON_CHAN
 │       ├── wifi/                     # WiFi STA SMF, WIFI_CHAN, conn_mgr
-│       ├── ble_prov/                 # BLE provisioning (subscribes WIFI_CHAN)
+│       ├── wifi_prov_over_ble/       # WiFi provisioning over BLE (subscribes WIFI_CHAN)
 │       ├── memfault/                 # Memfault group
 │       │   ├── core/                 # Upload, heartbeat, boot confirm, WIFI/BUTTON
 │       │   ├── metrics/              # WiFi + stack metrics
@@ -126,11 +126,13 @@ memfault-nrf7002dk/
 
 ## Building Firmware
 
+> **📘 Configuration Guide**: See [FEATURE_CONFIG_GUIDE.md](FEATURE_CONFIG_GUIDE.md) for complete feature overlay system documentation, including which overlays to use for each feature and how configs are merged.
+
 > **Note**: Default build uses a placeholder key; for production use `-DEXTRA_CONF_FILE="overlay-project-key.conf"`. Combine overlays with semicolons (e.g. `overlay-project-key.conf;overlay-app-https-req.conf`).
 
 ### Default Build (Recommended)
 
-**Includes**: BLE provisioning + WiFi metrics + nRF70 diagnostics CDR
+**Includes**: WiFi provisioning over BLE + WiFi metrics + nRF70 diagnostics CDR
 
 ```bash
 west build -b nrf7002dk/nrf5340/cpuapp -p -- \
@@ -139,7 +141,7 @@ west flash --erase
 ```
 
 **Features enabled**:
-- ✅ BLE WiFi provisioning
+- ✅ WiFi provisioning over BLE
 - ✅ Memfault crash reporting, metrics, OTA
 - ✅ nRF70 firmware statistics CDR (Button 1)
 - ✅ WiFi vendor detection (AP OUI lookup)
@@ -432,3 +434,10 @@ Edit `pm_static_nrf7002dk_nrf5340_cpuapp.yml`:
 ## License
 
 Based on Nordic Semiconductor's Memfault sample (LicenseRef-Nordic-5-Clause).
+
+## TODO
+
+- Improve app_https_client and app_mqtt_client listener for network instead of wifi
+- Memory optimization
+- Add support for nRF54LM20DK+nRF7002EBII
+- Solve firmware stuck issue

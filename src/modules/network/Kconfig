@@ -1,0 +1,76 @@
+#
+# Copyright (c) 2025 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config WIFI_MODULE
+	bool "WiFi and Network Event Management Module"
+	default y
+	help
+	  Enable WiFi and network event management module with L2/L3 event handling.
+	  Provides semaphore-based synchronization for network readiness.
+
+if WIFI_MODULE
+
+config WIFI_MODULE_INIT_PRIORITY
+	int "WiFi module initialization priority"
+	default 90
+	help
+	  Set the initialization priority for the WiFi module.
+	  Must be high enough to ensure network stack is ready.
+
+module = WIFI_MODULE
+module-str = wifi_module
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # WIFI_MODULE
+
+#------------------------------------------------------------------------#
+menu "SoftAP Configuration"
+
+config SOFTAP_REG_DOMAIN
+	string "SoftAP regulatory domain"
+	default "00"
+	help
+	  Regulatory domain for SoftAP mode.
+
+config SOFTAP_SSID
+	string "SoftAP SSID"
+	default "device_AP"
+	help
+	  SSID for SoftAP mode.
+
+config SOFTAP_PASSWORD
+	string "SoftAP password"
+	default "password@123"
+	help
+	  Password for SoftAP mode.
+
+choice SOFTAP_BAND
+	prompt "SoftAP Wi-Fi band"
+	default SOFTAP_BAND_2_4_GHZ
+	help
+	  Select the Wi-Fi band used when hosting the SoftAP.
+
+config SOFTAP_BAND_2_4_GHZ
+	bool "2.4 GHz"
+	help
+	  Use 2.4 GHz band for SoftAP operation.
+
+config SOFTAP_BAND_5_GHZ
+	bool "5 GHz"
+	help
+	  Use 5 GHz band for SoftAP operation.
+
+endchoice
+
+config SOFTAP_CHANNEL
+	int "SoftAP channel"
+	default 1
+	range 1 196
+	help
+	  Wi-Fi channel number used for SoftAP operation. Ensure the selected
+	  channel is valid within the chosen band and regulatory domain.
+
+endmenu # "SoftAP Configuration"

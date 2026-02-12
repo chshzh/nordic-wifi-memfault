@@ -1,0 +1,82 @@
+#
+# WiFi Provisioning over BLE Module Configuration
+# 
+# This is a CONFIG TEMPLATE - merge into prj.conf when enabling BLE provisioning.
+# DO NOT use as overlay file for builds.
+#
+# To enable: Copy sections below into prj.conf and set:
+# CONFIG_WIFI_PROV_OVER_BLE_ENABLED=y
+#
+
+# ============================================================================
+# WiFi Provisioning over BLE Module
+# ============================================================================
+CONFIG_WIFI_PROV_OVER_BLE_ENABLED=y
+CONFIG_WIFI_PROV_OVER_BLE_LOG_LEVEL_INF=y
+
+# Nordic WiFi Provisioning Libraries
+CONFIG_BT_WIFI_PROV=y
+CONFIG_WIFI_PROV_CORE=y
+CONFIG_BT_WIFI_PROV_LOG_LEVEL_INF=y
+CONFIG_NANOPB=y
+
+# ============================================================================
+# Bluetooth LE Stack
+# ============================================================================
+CONFIG_BT=y
+CONFIG_BT_PERIPHERAL=y
+CONFIG_BT_SMP=y
+CONFIG_BT_BONDABLE=n
+CONFIG_BT_DEVICE_NAME_DYNAMIC=y
+
+# BT Buffer Sizes (ACL MTU)
+CONFIG_BT_BUF_ACL_RX_SIZE=151
+CONFIG_BT_L2CAP_TX_MTU=147
+CONFIG_BT_BUF_ACL_TX_SIZE=151
+
+# BT RX Stack - CRITICAL: Both BLE and WiFi use same BT RX workqueue during provisioning
+CONFIG_BT_RX_STACK_SIZE=22000
+
+# BT Supervision Timeout - 75 units (750ms) to avoid timeout during WiFi scan
+CONFIG_BT_PERIPHERAL_PREF_TIMEOUT=75
+
+# ============================================================================
+# WiFi/BLE Coexistence (SR-COEX)
+# ============================================================================
+CONFIG_NRF70_SR_COEX=y
+CONFIG_NRF70_SR_COEX_RF_SWITCH=y
+
+# ============================================================================
+# Storage (for WiFi credentials)
+# ============================================================================
+# Note: Already using CONFIG_SETTINGS_ZMS=y in base prj.conf
+# Just ensure WiFi credentials backend is enabled
+CONFIG_WIFI_CREDENTIALS_BACKEND_SETTINGS=y
+
+# ============================================================================
+# Memory Adjustments for BLE + WiFi
+# ============================================================================
+# MbedTLS heap (BT enables this but default is too small for WiFi)
+CONFIG_MBEDTLS_HEAP_SIZE=8192
+
+# Total heap needs to accommodate both BLE and WiFi
+# Base prj.conf has 50KB, BLE adds ~44KB, total ~98KB minimum
+# Adjust CONFIG_HEAP_MEM_POOL_SIZE in prj.conf if needed
+
+# Network event queue timeout (ensure events get served during provisioning)
+CONFIG_NET_MGMT_EVENT_QUEUE_TIMEOUT=5000
+
+# ============================================================================
+# Optional: Advertisement Data Updates
+# ============================================================================
+# Uncomment to periodically update BLE advertisement with WiFi status
+# CONFIG_WIFI_PROV_ADV_DATA_UPDATE=y
+# CONFIG_WIFI_PROV_ADV_DATA_UPDATE_INTERVAL=10
+
+# ============================================================================
+# Memory Impact Summary
+# ============================================================================
+# Flash: +60 KB
+# RAM: +20 KB  
+# Heap: Shared with WiFi (ensure total heap >= 98 KB)
+# BT RX Stack: 22 KB (required for WiFi scan during BLE connection)

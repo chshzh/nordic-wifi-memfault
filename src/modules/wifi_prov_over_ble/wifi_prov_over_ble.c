@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include "ble_prov.h"
+#include "wifi_prov_over_ble.h"
 #include "../messages.h"
 
 #include <stdbool.h>
@@ -29,7 +29,7 @@
 #include <net/wifi_prov_core/wifi_prov_core.h>
 #include <bluetooth/services/wifi_provisioning.h>
 
-LOG_MODULE_REGISTER(ble_prov, CONFIG_BLE_PROV_LOG_LEVEL);
+LOG_MODULE_REGISTER(wifi_prov_over_ble, CONFIG_WIFI_PROV_OVER_BLE_LOG_LEVEL);
 
 #define WIFI_RECONNECT_DELAY_SEC 5
 #define WIFI_RECONNECT_RETRY_SEC 180
@@ -38,7 +38,7 @@ LOG_MODULE_REGISTER(ble_prov, CONFIG_BLE_PROV_LOG_LEVEL);
 #define ADV_DATA_UPDATE_INTERVAL CONFIG_WIFI_PROV_ADV_DATA_UPDATE_INTERVAL
 #endif
 
-#define ADV_PARAM_UPDATE_DELAY 1
+#define ADV_PARAM_UPDATE_DELAY        1
 #define ADV_DATA_VERSION_IDX          (BT_UUID_SIZE_128 + 0)
 #define ADV_DATA_FLAG_IDX             (BT_UUID_SIZE_128 + 1)
 #define ADV_DATA_FLAG_PROV_STATUS_BIT BIT(0)
@@ -170,20 +170,25 @@ static void update_wifi_status_in_adv(void)
 	last_prov_state = current_prov_state;
 
 	if (!current_prov_state) {
-		prov_svc_data[ADV_DATA_FLAG_IDX] &= ~ADV_DATA_FLAG_PROV_STATUS_BIT;
+		prov_svc_data[ADV_DATA_FLAG_IDX] &=
+			~ADV_DATA_FLAG_PROV_STATUS_BIT;
 	} else {
-		prov_svc_data[ADV_DATA_FLAG_IDX] |= ADV_DATA_FLAG_PROV_STATUS_BIT;
+		prov_svc_data[ADV_DATA_FLAG_IDX] |=
+			ADV_DATA_FLAG_PROV_STATUS_BIT;
 		if (!connection_requested_after_provisioning &&
 		    !wifi_credentials_is_empty() &&
 		    !credentials_existed_at_boot) {
 			rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface,
 				      &status, sizeof(status));
 			bool wifi_is_connected =
-				(rc == 0 && status.state >= WIFI_STATE_ASSOCIATED);
+				(rc == 0 &&
+				 status.state >= WIFI_STATE_ASSOCIATED);
 			if (!wifi_is_connected) {
 				connection_requested_after_provisioning = true;
-				k_work_reschedule(&wifi_connect_work, K_SECONDS(2));
-				LOG_INF("WiFi credentials provisioned, scheduling connection");
+				k_work_reschedule(&wifi_connect_work,
+						  K_SECONDS(2));
+				LOG_INF("WiFi credentials provisioned, "
+					"scheduling connection");
 			}
 		}
 	}
@@ -191,10 +196,12 @@ static void update_wifi_status_in_adv(void)
 	rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status,
 		      sizeof(struct wifi_iface_status));
 	if ((rc != 0) || (status.state < WIFI_STATE_ASSOCIATED)) {
-		prov_svc_data[ADV_DATA_FLAG_IDX] &= ~ADV_DATA_FLAG_CONN_STATUS_BIT;
+		prov_svc_data[ADV_DATA_FLAG_IDX] &=
+			~ADV_DATA_FLAG_CONN_STATUS_BIT;
 		prov_svc_data[ADV_DATA_RSSI_IDX] = INT8_MIN;
 	} else {
-		prov_svc_data[ADV_DATA_FLAG_IDX] |= ADV_DATA_FLAG_CONN_STATUS_BIT;
+		prov_svc_data[ADV_DATA_FLAG_IDX] |=
+			ADV_DATA_FLAG_CONN_STATUS_BIT;
 		prov_svc_data[ADV_DATA_RSSI_IDX] = status.rssi;
 	}
 }
@@ -252,7 +259,7 @@ static void auth_cancel(struct bt_conn *conn)
 	LOG_WRN("BT Pairing cancelled");
 }
 
-static struct bt_conn_auth_cb auth_cb_display = { .cancel = auth_cancel };
+static struct bt_conn_auth_cb auth_cb_display = {.cancel = auth_cancel};
 
 static void pairing_complete(struct bt_conn *conn, bool bonded)
 {
@@ -279,8 +286,9 @@ static void update_adv_data_task(struct k_work *item)
 	update_wifi_status_in_adv();
 	if (current_conn != NULL) {
 #ifdef CONFIG_WIFI_PROV_ADV_DATA_UPDATE
-		k_work_reschedule_for_queue(&adv_daemon_work_q, &update_adv_data_work,
-					    K_SECONDS(ADV_DATA_UPDATE_INTERVAL));
+		k_work_reschedule_for_queue(
+			&adv_daemon_work_q, &update_adv_data_work,
+			K_SECONDS(ADV_DATA_UPDATE_INTERVAL));
 #endif
 		return;
 	}
@@ -328,19 +336,29 @@ static void update_dev_name(struct net_linkaddr *mac_addr)
 	byte_to_hex(&device_name[6], mac_addr->addr[5], 'A');
 }
 
-int ble_prov_init(void)
+int wifi_prov_over_ble_init(void)
 {
 	int rc;
 	struct net_if *iface = net_if_get_default();
-	struct net_linkaddr *mac_addr = net_if_get_link_addr(iface);
+	struct net_linkaddr *mac_addr =
+		iface ? net_if_get_link_addr(iface) : NULL;
 	char device_name_str[sizeof(device_name) + 1];
 
 	credentials_existed_at_boot = !wifi_credentials_is_empty();
 	last_prov_state = wifi_prov_state_get();
 	if (credentials_existed_at_boot) {
 		connection_requested_after_provisioning = true;
-		LOG_INF("WiFi credentials exist at boot, skipping BLE auto-connect");
+		LOG_INF("WiFi credentials exist at boot, skipping BLE "
+			"auto-connect");
 	}
+
+	k_work_queue_init(&adv_daemon_work_q);
+	k_work_queue_start(&adv_daemon_work_q, adv_daemon_stack_area,
+			   K_THREAD_STACK_SIZEOF(adv_daemon_stack_area),
+			   ADV_DAEMON_PRIORITY, NULL);
+	k_work_init_delayable(&wifi_connect_work, wifi_connect_work_handler);
+	k_work_init_delayable(&update_adv_param_work, update_adv_param_task);
+	k_work_init_delayable(&update_adv_data_work, update_adv_data_task);
 
 	bt_conn_auth_cb_register(&auth_cb_display);
 	bt_conn_auth_info_cb_register(&auth_info_cb_display);
@@ -360,12 +378,14 @@ int ble_prov_init(void)
 		return rc;
 	}
 
-	if (mac_addr) {
+	if (mac_addr && mac_addr->len >= 6U) {
 		update_dev_name(mac_addr);
 	}
 	device_name_str[sizeof(device_name_str) - 1] = '\0';
 	memcpy(device_name_str, device_name, sizeof(device_name));
 	bt_set_name(device_name_str);
+
+	update_wifi_status_in_adv();
 
 	rc = bt_le_adv_start(prov_svc_data[ADV_DATA_FLAG_IDX] &
 					     ADV_DATA_FLAG_PROV_STATUS_BIT
@@ -377,22 +397,17 @@ int ble_prov_init(void)
 		return rc;
 	}
 	LOG_INF("BT Advertising started");
-
-	update_wifi_status_in_adv();
+	LOG_INF("********************************************");
+	LOG_INF("* BLE PROVISIONING READY");
+	LOG_INF("* Device Name: %s", device_name_str);
+	LOG_INF("* Open 'nRF Wi-Fi Provisioner' app to");
+	LOG_INF("* connect and provision WiFi credentials");
+	LOG_INF("********************************************");
 
 	net_mgmt_init_event_callback(&wifi_mgmt_cb, wifi_mgmt_event_handler,
 				     NET_EVENT_WIFI_DISCONNECT_RESULT |
 					     NET_EVENT_WIFI_CONNECT_RESULT);
 	net_mgmt_add_event_callback(&wifi_mgmt_cb);
-
-	k_work_queue_init(&adv_daemon_work_q);
-	k_work_queue_start(&adv_daemon_work_q, adv_daemon_stack_area,
-			   K_THREAD_STACK_SIZEOF(adv_daemon_stack_area),
-			   ADV_DAEMON_PRIORITY, NULL);
-
-	k_work_init_delayable(&wifi_connect_work, wifi_connect_work_handler);
-	k_work_init_delayable(&update_adv_param_work, update_adv_param_task);
-	k_work_init_delayable(&update_adv_data_work, update_adv_data_task);
 #ifdef CONFIG_WIFI_PROV_ADV_DATA_UPDATE
 	k_work_schedule_for_queue(&adv_daemon_work_q, &update_adv_data_work,
 				  K_SECONDS(ADV_DATA_UPDATE_INTERVAL));
@@ -400,7 +415,7 @@ int ble_prov_init(void)
 	return 0;
 }
 
-void ble_prov_update_wifi_status(bool connected)
+void wifi_prov_over_ble_update_wifi_status(bool connected)
 {
 	if (connected) {
 		wifi_connect_requested = false;
@@ -410,19 +425,26 @@ void ble_prov_update_wifi_status(bool connected)
 				    K_NO_WAIT);
 }
 
-/* Zbus: update BLE advertisement when WiFi connect/disconnect (from wifi module) */
+/* Zbus: update BLE advertisement when WiFi connect/disconnect (from wifi
+ * module) */
 extern const struct zbus_channel WIFI_CHAN;
 
-static void ble_prov_wifi_listener(const struct zbus_channel *chan)
+static void wifi_prov_over_ble_listener(const struct zbus_channel *chan)
 {
 	const struct wifi_msg *msg = zbus_chan_const_msg(chan);
 
 	if (msg->type == WIFI_STA_CONNECTED) {
-		ble_prov_update_wifi_status(true);
+		LOG_INF("WiFi connected - BLE advertisement updated");
+		wifi_prov_over_ble_update_wifi_status(true);
 	} else if (msg->type == WIFI_STA_DISCONNECTED) {
-		ble_prov_update_wifi_status(false);
+		LOG_INF("WiFi disconnected - BLE advertisement updated");
+		wifi_prov_over_ble_update_wifi_status(false);
 	}
 }
 
-ZBUS_LISTENER_DEFINE(ble_prov_wifi_listener_def, ble_prov_wifi_listener);
-ZBUS_CHAN_ADD_OBS(WIFI_CHAN, ble_prov_wifi_listener_def, 0);
+ZBUS_LISTENER_DEFINE(wifi_prov_over_ble_listener_def,
+		     wifi_prov_over_ble_listener);
+ZBUS_CHAN_ADD_OBS(WIFI_CHAN, wifi_prov_over_ble_listener_def, 0);
+
+/* Initialize BLE provisioning after network event module init (default 90). */
+SYS_INIT(wifi_prov_over_ble_init, APPLICATION, 95);

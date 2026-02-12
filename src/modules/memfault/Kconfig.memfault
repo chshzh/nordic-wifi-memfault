@@ -6,6 +6,7 @@
 
 config MEMFAULT_MODULE
 	bool "Memfault module group"
+	depends on MEMFAULT
 	default y
 	help
 	  Memfault core, metrics, OTA triggers, and optional nRF70 CDR.
