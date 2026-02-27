@@ -380,18 +380,29 @@ int wifi_print_status(void)
 }
 
 #if defined(CONFIG_NET_DHCPV4)
-void wifi_print_dhcp_ip(struct net_mgmt_event_callback *cb)
+void wifi_print_dhcp_ip(struct net_if *iface, struct net_mgmt_event_callback *cb)
 {
 	const struct net_if_dhcpv4 *dhcpv4 = cb->info;
 	const struct in_addr *addr = &dhcpv4->requested_ip;
 	char dhcp_info[128];
+	char netmask_info[128];
+	char gw_info[128];
 
 	net_addr_ntop(AF_INET, addr, dhcp_info, sizeof(dhcp_info));
-	LOG_INF("\r\n\r\nDevice IP address: %s\r\n", dhcp_info);
+
+	struct in_addr netmask = net_if_ipv4_get_netmask_by_addr(iface, addr);
+	net_addr_ntop(AF_INET, &netmask, netmask_info, sizeof(netmask_info));
+
+	struct in_addr gw = net_if_ipv4_get_gw(iface);
+	net_addr_ntop(AF_INET, &gw, gw_info, sizeof(gw_info));
+
+	LOG_INF("\r\n\r\nDevice IP address: %s\r\nSubnet mask: %s\r\nGateway: %s\r\n", 
+		dhcp_info, netmask_info, gw_info);
 }
 #else
-void wifi_print_dhcp_ip(struct net_mgmt_event_callback *cb)
+void wifi_print_dhcp_ip(struct net_if *iface, struct net_mgmt_event_callback *cb)
 {
+	ARG_UNUSED(iface);
 	ARG_UNUSED(cb);
 }
 #endif

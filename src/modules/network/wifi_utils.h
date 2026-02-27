@@ -27,9 +27,10 @@ int wifi_print_status(void);
 /**
  * @brief Print DHCP IP address when bound
  *
+ * @param iface Pointer to the network interface
  * @param cb Network management event callback containing DHCP info
  */
-void wifi_print_dhcp_ip(struct net_mgmt_event_callback *cb);
+void wifi_print_dhcp_ip(struct net_if *iface, struct net_mgmt_event_callback *cb);
 
 /**
  * @brief Get the last connected SSID string

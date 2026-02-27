@@ -471,7 +471,7 @@ static void l3_ipv4_event_handler(struct net_mgmt_event_callback *cb,
 		LOG_INF("[DHCP] DHCP bound - IP address assigned");
 		network_connected = true;
 		/* Print IP address information */
-		wifi_print_dhcp_ip(cb);
+		wifi_print_dhcp_ip(iface, cb);
 		/* Signal network connectivity */
 		k_sem_give(&ipv4_dhcp_bond_sem);
 		publish_wifi_event(WIFI_STA_CONNECTED, 0);
