@@ -15,8 +15,8 @@ if(CONFIG_HTTPS_CLIENT_ENABLED)
     zephyr_include_directories(${gen_dir})
     generate_inc_file_for_target(
         app
-        cert/SSLcom-TLS-Root-2022-ECC.pem
-        ${gen_dir}/SSLcom-TLS-Root-2022-ECC.pem.inc
+        cert/Comodo-AAA-Certificate-Services.pem
+        ${gen_dir}/Comodo-AAA-Certificate-Services.pem.inc
     )
 endif()
 
