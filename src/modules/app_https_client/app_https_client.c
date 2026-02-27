@@ -58,7 +58,7 @@ static uint32_t https_req_failures; /* Local counter for failed requests */
 
 /* Certificate for hostname */
 static const char cert[] = {
-#include "SSLcom-TLS-Root-2022-ECC.pem.inc"
+#include "Comodo-AAA-Certificate-Services.pem.inc"
 
 	/* Null terminate certificate if running Mbed TLS on the application
 	 * core. Required by TLS credentials API.
