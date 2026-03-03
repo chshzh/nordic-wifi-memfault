@@ -11,7 +11,7 @@
 #include <memfault/metrics/metrics.h>
 #include <memfault_ncs_metrics.h>
 
-LOG_MODULE_REGISTER(stack_metrics, CONFIG_MEMFAULT_MODULE_LOG_LEVEL);
+LOG_MODULE_REGISTER(stack_metrics, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 
 #if CONFIG_MEMFAULT_NCS_STACK_METRICS
 static struct memfault_ncs_metrics_thread stack_metrics_threads[] = {
@@ -32,10 +32,10 @@ static struct memfault_ncs_metrics_thread stack_metrics_threads[] = {
 	{.thread_name = "tcp_work", .key = MEMFAULT_METRICS_KEY(ncs_tcp_work_unused_stack)},
 	{.thread_name = "memfault_upload_tid", .key = MEMFAULT_METRICS_KEY(memfault_upload_unused_stack)},
 	{.thread_name = "mflt_ota_triggers_tid", .key = MEMFAULT_METRICS_KEY(mflt_ota_triggers_unused_stack)},
-#if CONFIG_APP_HTTPS_CLIENT_ENABLED
+#if CONFIG_APP_HTTPS_CLIENT_MODULE
 	{.thread_name = "app_https_client_tid", .key = MEMFAULT_METRICS_KEY(app_https_client_unused_stack)},
 #endif
-#if CONFIG_APP_MQTT_CLIENT_ENABLED
+#if CONFIG_APP_MQTT_CLIENT_MODULE
 	{.thread_name = "app_mqtt_client_tid", .key = MEMFAULT_METRICS_KEY(app_mqtt_client_unused_stack)},
 #endif
 	{.thread_name = "shell_uart", .key = MEMFAULT_METRICS_KEY(ncs_shell_uart_unused_stack)},

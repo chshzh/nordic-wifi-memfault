@@ -5,12 +5,17 @@
 #
 
 config WIFI_STA_PROV_OVER_BLE_ENABLED
-		bool "Enable WiFi provisioning over BLE"
-		depends on BT_WIFI_PROV
-		default n
-		help
-			Enable Bluetooth LE based WiFi provisioning.
-			WiFi credentials can be configured via nRF Wi-Fi Provisioner app.
+	bool "Enable WiFi provisioning over BLE"
+	select BT
+	select BT_PERIPHERAL
+	select BT_SMP
+	select BT_WIFI_PROV
+	select WIFI_PROV_CORE
+	select NANOPB
+	default n
+	help
+	  Enable Bluetooth LE based WiFi provisioning.
+	  WiFi credentials can be configured via nRF Wi-Fi Provisioner app.
 
 if WIFI_STA_PROV_OVER_BLE_ENABLED
 

@@ -1,0 +1,23 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+# Default values for app_https_client module symbols.
+# Override in prj.conf as needed.
+#
+
+config APP_HTTPS_CLIENT_MODULE
+	default n
+
+config APP_HTTPS_HOSTNAME
+	default "example.com"
+
+config APP_HTTPS_REQUEST_INTERVAL_SEC
+	default 300
+
+config APP_HTTPS_CLIENT_STACK_SIZE
+	default 6144
+
+config APP_HTTPS_CLIENT_THREAD_PRIORITY
+	default 5

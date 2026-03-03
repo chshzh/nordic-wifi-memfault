@@ -13,9 +13,15 @@ source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
 rsource "src/modules/button/Kconfig.button"
 rsource "src/modules/network/Kconfig"
 rsource "src/modules/wifi_prov_over_ble/Kconfig.wifi_prov_over_ble"
-rsource "src/modules/app_memfault/Kconfig.memfault"
+rsource "src/modules/app_memfault/Kconfig.app_memfault"
 rsource "src/modules/app_https_client/Kconfig.app_https_client"
 rsource "src/modules/app_mqtt_client/Kconfig.app_mqtt_client"
+
+rsource "src/modules/network/Kconfig.defaults"
+rsource "src/modules/wifi_prov_over_ble/Kconfig.defaults"
+rsource "src/modules/app_memfault/Kconfig.defaults"
+rsource "src/modules/app_https_client/Kconfig.defaults"
+rsource "src/modules/app_mqtt_client/Kconfig.defaults"
 
 endmenu
 

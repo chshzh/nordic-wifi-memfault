@@ -1,0 +1,42 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+# Default values for wifi_prov_over_ble module symbols.
+# Override in prj.conf as needed.
+# Note: choice symbols (log levels) cannot be set here; use prj.conf.
+#
+
+config WIFI_STA_PROV_OVER_BLE_ENABLED
+	default n
+
+# ---------------------------------------------------------------------------
+# Bluetooth LE stack tuning for WiFi provisioning over BLE
+# ---------------------------------------------------------------------------
+
+# Do not store BLE bonds; provisioning app re-pairs each session.
+config BT_BONDABLE
+	default n if WIFI_STA_PROV_OVER_BLE_ENABLED
+
+config BT_DEVICE_NAME_DYNAMIC
+	default y if WIFI_STA_PROV_OVER_BLE_ENABLED
+
+# BT buffer sizes tuned for the nRF Wi-Fi Provisioner MTU (147 bytes L2CAP).
+config BT_BUF_ACL_RX_SIZE
+	default 151 if WIFI_STA_PROV_OVER_BLE_ENABLED
+
+config BT_L2CAP_TX_MTU
+	default 147 if WIFI_STA_PROV_OVER_BLE_ENABLED
+
+config BT_BUF_ACL_TX_SIZE
+	default 151 if WIFI_STA_PROV_OVER_BLE_ENABLED
+
+# CRITICAL: BLE and WiFi share the same BT RX workqueue during provisioning.
+# 22000 bytes required to handle concurrent WiFi scan + BLE traffic.
+config BT_RX_STACK_SIZE
+	default 22000 if WIFI_STA_PROV_OVER_BLE_ENABLED
+
+# 75 units (750 ms) — avoids supervision timeout during WiFi scan delays.
+config BT_PERIPHERAL_PREF_TIMEOUT
+	default 75 if WIFI_STA_PROV_OVER_BLE_ENABLED

@@ -7,6 +7,7 @@
  * logic lives in modules under src/modules/ and starts via SYS_INIT / zbus.
  */
 
+#include <ctype.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/net/net_if.h>
@@ -50,14 +51,14 @@ int main(void)
 	/* CONFIG_WIFI_DIRECT_CLI_ENABLED    not yet implemented */
 
 	/* Application */
-#if CONFIG_MEMFAULT_MODULE
+#if CONFIG_APP_MEMFAULT_MODULE
 	LOG_INF("  [app]    app_memfault");
 #endif
-#if CONFIG_APP_HTTPS_CLIENT_ENABLED
+#if CONFIG_APP_HTTPS_CLIENT_MODULE
 	LOG_INF("  [app]    app_https_client  (host: %s, interval: %ds)",
 		CONFIG_APP_HTTPS_HOSTNAME, CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC);
 #endif
-#if CONFIG_APP_MQTT_CLIENT_ENABLED
+#if CONFIG_APP_MQTT_CLIENT_MODULE
 	LOG_INF("  [app]    app_mqtt_client   (broker: %s, interval: %ds)",
 		CONFIG_APP_MQTT_CLIENT_BROKER_HOSTNAME,
 		CONFIG_APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC);

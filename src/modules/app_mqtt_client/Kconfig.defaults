@@ -1,0 +1,64 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+# Default values for app_mqtt_client module symbols.
+# Override in prj.conf as needed.
+# Note: choice symbols (log levels) cannot be set here; use prj.conf.
+#
+
+config APP_MQTT_CLIENT_MODULE
+	default n
+
+config APP_MQTT_CLIENT_BROKER_HOSTNAME
+	default "test.mosquitto.org"
+
+config APP_MQTT_CLIENT_PUBLISH_TOPIC
+	default "count"
+
+config APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC
+	default 300
+
+config APP_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC
+	default 60
+
+# 6144: mqtt_helper_init() calls tls_credential_add() (cert parsing via mbedTLS)
+# before the semaphore wait — needs more than the library default of 4096.
+config APP_MQTT_CLIENT_STACK_SIZE
+	default 6144 if APP_MQTT_CLIENT_MODULE
+
+config APP_MQTT_CLIENT_THREAD_PRIORITY
+	default 5
+
+config APP_MQTT_CLIENT_ID_BUFFER_SIZE
+	default 50
+
+# ---------------------------------------------------------------------------
+# Hardware ID source (MAC address used as MQTT client ID)
+# ---------------------------------------------------------------------------
+# HW_ID_LIBRARY_SOURCE_NET_MAC is a choice symbol - set in prj.conf.
+
+# ---------------------------------------------------------------------------
+# MQTT helper library settings
+# ---------------------------------------------------------------------------
+config MQTT_CLEAN_SESSION
+	default y if APP_MQTT_CLIENT_MODULE
+
+config MQTT_LIB_TLS
+	default y if APP_MQTT_CLIENT_MODULE
+
+config MQTT_HELPER_PORT
+	default 8883 if APP_MQTT_CLIENT_MODULE
+
+# Keepalive reduced to 15 s for networks with aggressive NAT timeouts.
+config MQTT_KEEPALIVE
+	default 15 if APP_MQTT_CLIENT_MODULE
+
+# Note: MQTT_HELPER_SEC_TAG is project-specific; set in prj.conf.
+
+config MQTT_HELPER_PROVISION_CERTIFICATES
+	default y if APP_MQTT_CLIENT_MODULE
+
+config MQTT_HELPER_CERTIFICATES_FOLDER
+	default "src/modules/app_mqtt_client/cert" if APP_MQTT_CLIENT_MODULE

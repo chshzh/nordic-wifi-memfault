@@ -4,24 +4,22 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-config MEMFAULT_MODULE
+config APP_MEMFAULT_MODULE
 	bool "Memfault module group"
 	depends on MEMFAULT
-	default y
 	help
 	  Memfault core, metrics, OTA triggers, and optional nRF70 CDR.
 
-if MEMFAULT_MODULE
+if APP_MEMFAULT_MODULE
 
-module = MEMFAULT_MODULE
-module-str = memfault_module
+module = APP_MEMFAULT_MODULE
+module-str = app_memfault_module
 source "subsys/logging/Kconfig.template.log_config"
 
 config NRF70_FW_STATS_CDR_ENABLED
 	bool "Enable nRF70 firmware statistics CDR upload to Memfault"
 	depends on MEMFAULT_CDR_ENABLE
 	depends on WIFI_NRF70
-	default n
 	help
 	  Collect and upload nRF70 WiFi firmware statistics (PHY, LMAC, UMAC)
 	  as Custom Data Recording. Trigger: Button 1 short press.
@@ -29,7 +27,6 @@ config NRF70_FW_STATS_CDR_ENABLED
 
 config MEMFAULT_UPLOAD_THREAD_STACK_SIZE
 	int "Stack size for the Memfault on-connect upload thread (bytes)"
-	default 6144
 	help
 	  Stack size for the thread that performs an immediate Memfault data
 	  upload on WiFi connect.  The thread calls getaddrinfo() (DNS) and
@@ -37,4 +34,4 @@ config MEMFAULT_UPLOAD_THREAD_STACK_SIZE
 	  several kilobytes of stack.  6144 bytes is the recommended minimum
 	  for the nRF7002DK.  Override in prj.conf if needed.
 
-endif # MEMFAULT_MODULE
+endif # APP_MEMFAULT_MODULE

@@ -26,7 +26,7 @@
 
 extern struct nrf_wifi_drv_priv_zep rpu_drv_priv_zep;
 
-LOG_MODULE_REGISTER(nrf70_fw_stats_cdr, CONFIG_MEMFAULT_MODULE_LOG_LEVEL);
+LOG_MODULE_REGISTER(nrf70_fw_stats_cdr, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 
 #define NRF70_FW_STATS_BLOB_MAX_SIZE 1024
 

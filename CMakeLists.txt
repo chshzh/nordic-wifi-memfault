@@ -10,7 +10,7 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(memfault-nrf7002dk)
 
 # Generate hex files from pem files for app HTTPS client
-if(CONFIG_APP_HTTPS_CLIENT_ENABLED)
+if(CONFIG_APP_HTTPS_CLIENT_MODULE)
     set(gen_dir ${CMAKE_CURRENT_BINARY_DIR}/certs)
     zephyr_include_directories(${gen_dir})
     generate_inc_file_for_target(
@@ -30,7 +30,7 @@ target_sources(app PRIVATE src/main.c)
 add_subdirectory(src/modules/button)
 add_subdirectory(src/modules/network)
 add_subdirectory(src/modules/wifi_prov_over_ble)
-if(CONFIG_MEMFAULT_MODULE)
+if(CONFIG_APP_MEMFAULT_MODULE)
     add_subdirectory(src/modules/app_memfault)
 endif()
 add_subdirectory(src/modules/app_https_client)

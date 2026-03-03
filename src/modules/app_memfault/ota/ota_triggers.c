@@ -13,7 +13,7 @@
 #include <zephyr/zbus/zbus.h>
 #include <memfault/nrfconnect_port/fota.h>
 
-LOG_MODULE_REGISTER(ota_triggers, CONFIG_MEMFAULT_MODULE_LOG_LEVEL);
+LOG_MODULE_REGISTER(ota_triggers, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 
 #ifndef OTA_CHECK_INTERVAL
 #define OTA_CHECK_INTERVAL K_MINUTES(60)

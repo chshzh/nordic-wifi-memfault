@@ -35,7 +35,7 @@
 #include <zephyr/posix/sys/socket.h>
 #endif
 
-LOG_MODULE_REGISTER(memfault_core, CONFIG_MEMFAULT_MODULE_LOG_LEVEL);
+LOG_MODULE_REGISTER(memfault_core, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 
 #define DNS_CHECK_INTERVAL_SEC 10
 #define MEMFAULT_HOSTNAME      "chunks-nrf.memfault.com"

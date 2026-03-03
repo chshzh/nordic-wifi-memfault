@@ -1,0 +1,188 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+# Default values for app_memfault module symbols.
+# Override in prj.conf as needed.
+# Note: choice symbols (log levels) cannot be set here; use prj.conf.
+#
+
+config APP_MEMFAULT_MODULE
+	default n
+
+config NRF70_FW_STATS_CDR_ENABLED
+	default n
+
+config MEMFAULT_UPLOAD_THREAD_STACK_SIZE
+	default 6144
+
+# ---------------------------------------------------------------------------
+# Memfault SDK logging
+# ---------------------------------------------------------------------------
+config MEMFAULT_LOGGING_ENABLE
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_LOGGING_RAM_SIZE
+	default 8192 if APP_MEMFAULT_MODULE
+
+config MEMFAULT_SHELL
+	default n
+
+config MEMFAULT_FOTA_CLI_CMD
+	default n
+
+# ---------------------------------------------------------------------------
+# Memfault HTTP upload
+# ---------------------------------------------------------------------------
+config MEMFAULT_HTTP_ENABLE
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_HTTP_PERIODIC_UPLOAD
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_HTTP_PERIODIC_UPLOAD_LOGS
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS
+	default 60 if APP_MEMFAULT_MODULE
+
+# ---------------------------------------------------------------------------
+# Coredump
+# ---------------------------------------------------------------------------
+config MEMFAULT_COREDUMP_FULL_THREAD_STACKS
+	default n
+
+config MEMFAULT_COREDUMP_COLLECT_BSS_REGIONS
+	default n
+
+config MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP
+	default y if APP_MEMFAULT_MODULE
+
+# ---------------------------------------------------------------------------
+# Firmware version
+# ---------------------------------------------------------------------------
+# MEMFAULT_NCS_FW_VERSION_STATIC is a choice symbol - set in prj.conf.
+# MEMFAULT_NCS_FW_VERSION is project-specific - set in prj.conf.
+
+# ---------------------------------------------------------------------------
+# Metrics
+# ---------------------------------------------------------------------------
+config MEMFAULT_METRICS
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_METRICS_HEARTBEAT_INTERVAL_SECS
+	default 60 if APP_MEMFAULT_MODULE
+
+config MEMFAULT_NCS_IMPLEMENT_METRICS_COLLECTION
+	default n
+
+config MEMFAULT_NCS_BT_METRICS
+	default n
+
+config MEMFAULT_NCS_LTE_METRICS
+	default n
+
+config MEMFAULT_NCS_STACK_METRICS
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_METRICS_CPU_TEMP
+	default n
+
+config MEMFAULT_METRICS_WIFI
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_METRICS_CONNECTIVITY_CONNECTED_TIME
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_METRICS_BLUETOOTH
+	default n
+
+config MEMFAULT_METRICS_DEFAULT_SET_ENABLE
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_METRICS_SYNC_SUCCESS
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_METRICS_MEMFAULT_SYNC_SUCCESS
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_METRICS_THREADS_DEFAULTS
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_METRICS_BOOT_TIME
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_METRICS_TCP_IP
+	default n
+
+config MEMFAULT_METRICS_MEMORY_USAGE
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_HEAP_STATS
+	default y if APP_MEMFAULT_MODULE
+
+config SYS_HEAP_RUNTIME_STATS
+	default y if APP_MEMFAULT_MODULE
+
+config MEMFAULT_METRICS_THREADS
+	default y if APP_MEMFAULT_MODULE
+
+# ---------------------------------------------------------------------------
+# CDR (Custom Data Recording)
+# ---------------------------------------------------------------------------
+config MEMFAULT_CDR_ENABLE
+	default y if APP_MEMFAULT_MODULE
+
+# NRF70_FW_STATS_CDR_ENABLED default n - override to y in prj.conf to enable.
+# WARNING: CDR uploads are limited to 1 per device per 24 hours.
+
+# ---------------------------------------------------------------------------
+# Certificate management
+# ---------------------------------------------------------------------------
+# MEMFAULT_ROOT_CERT_STORAGE_TLS_CREDENTIAL_STORAGE is a choice symbol - set in prj.conf.
+
+config MEMFAULT_NCS_PROVISION_CERTIFICATES
+	default y if APP_MEMFAULT_MODULE
+
+# ---------------------------------------------------------------------------
+# FOTA (Firmware Over-The-Air update)
+# ---------------------------------------------------------------------------
+config MEMFAULT_FOTA
+	default y if APP_MEMFAULT_MODULE
+
+config DFU_TARGET
+	default y if APP_MEMFAULT_MODULE
+
+config DFU_TARGET_MCUBOOT
+	default y if APP_MEMFAULT_MODULE
+
+config IMG_MANAGER
+	default y if APP_MEMFAULT_MODULE
+
+config STREAM_FLASH
+	default y if APP_MEMFAULT_MODULE
+
+config IMG_ERASE_PROGRESSIVELY
+	default y if APP_MEMFAULT_MODULE
+
+config FOTA_DOWNLOAD
+	default y if APP_MEMFAULT_MODULE
+
+config FOTA_DOWNLOAD_PROGRESS_EVT
+	default y if APP_MEMFAULT_MODULE
+
+config DOWNLOADER
+	default y if APP_MEMFAULT_MODULE
+
+config DOWNLOADER_MAX_FILENAME_SIZE
+	default 400 if APP_MEMFAULT_MODULE
+
+config DOWNLOADER_STACK_SIZE
+	default 4096 if APP_MEMFAULT_MODULE
+
+# ---------------------------------------------------------------------------
+# Misc optimizations required by app_memfault
+# ---------------------------------------------------------------------------
+config POSIX_FILE_SYSTEM
+	default n

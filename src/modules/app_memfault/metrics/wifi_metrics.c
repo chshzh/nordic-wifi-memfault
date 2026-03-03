@@ -16,7 +16,7 @@
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/wifi_mgmt.h>
 
-LOG_MODULE_REGISTER(wifi_metrics, CONFIG_MEMFAULT_MODULE_LOG_LEVEL);
+LOG_MODULE_REGISTER(wifi_metrics, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 
 void mflt_wifi_metrics_collect(void)
 {

@@ -1,0 +1,176 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+# Default values for the network / WiFi infrastructure module.
+# Override in prj.conf as needed.
+# Note: choice symbols (log levels) cannot be set here; use prj.conf.
+#
+
+# ---------------------------------------------------------------------------
+# WiFi driver (nRF70)
+# ---------------------------------------------------------------------------
+config WIFI
+	default y if WIFI_MODULE
+
+config WIFI_NRF70
+	default y if WIFI_MODULE
+
+# ---------------------------------------------------------------------------
+# WPA supplicant
+# ---------------------------------------------------------------------------
+config WIFI_NM_WPA_SUPPLICANT
+	default y if WIFI_MODULE
+
+config WIFI_NM_WPA_SUPPLICANT_THREAD_STACK_SIZE
+	default 8192 if WIFI_MODULE
+
+config WIFI_NM_WPA_SUPPLICANT_WQ_STACK_SIZE
+	default 5632 if WIFI_MODULE
+
+# ---------------------------------------------------------------------------
+# nRF70 driver settings
+# ---------------------------------------------------------------------------
+config NRF_WIFI_SCAN_MAX_BSS_CNT
+	default 20 if WIFI_MODULE
+
+config NRF_WIFI_CTRL_HEAP_SIZE
+	default 20000 if WIFI_MODULE
+
+config NRF_WIFI_DATA_HEAP_SIZE
+	default 54856 if WIFI_MODULE
+
+config NRF70_RX_NUM_BUFS
+	default 16 if WIFI_MODULE
+
+config NRF70_MAX_TX_AGGREGATION
+	default 4 if WIFI_MODULE
+
+# ---------------------------------------------------------------------------
+# WiFi / BLE coexistence
+# ---------------------------------------------------------------------------
+config NRF70_SR_COEX
+	default y if WIFI_MODULE
+
+config NRF70_SR_COEX_RF_SWITCH
+	default y if WIFI_MODULE
+
+# ---------------------------------------------------------------------------
+# L2 WiFi connectivity (connection manager)
+# ---------------------------------------------------------------------------
+config NET_CONNECTION_MANAGER
+	default y if WIFI_MODULE
+
+config NET_CONNECTION_MANAGER_MONITOR_STACK_SIZE
+	default 5168 if WIFI_MODULE
+
+config L2_WIFI_CONNECTIVITY
+	default y if WIFI_MODULE
+
+config L2_WIFI_CONNECTIVITY_AUTO_CONNECT
+	default y if WIFI_MODULE
+
+config L2_WIFI_CONNECTIVITY_AUTO_DOWN
+	default n
+
+# ---------------------------------------------------------------------------
+# WiFi credentials (persistent storage via ZMS)
+# ---------------------------------------------------------------------------
+config WIFI_CREDENTIALS
+	default y if WIFI_MODULE
+
+# WIFI_CREDENTIALS_BACKEND_SETTINGS is a choice symbol - set in prj.conf.
+
+# ---------------------------------------------------------------------------
+# Network stack
+# ---------------------------------------------------------------------------
+config NETWORKING
+	default y if WIFI_MODULE
+
+config NET_IPV4
+	default y if WIFI_MODULE
+
+config NET_IPV6
+	default n
+
+config NET_UDP
+	default y if WIFI_MODULE
+
+config NET_TCP
+	default y if WIFI_MODULE
+
+config NET_TCP_TIME_WAIT_DELAY
+	default 1000 if WIFI_MODULE
+
+config NET_DHCPV4
+	default y if WIFI_MODULE
+
+# ---------------------------------------------------------------------------
+# Network buffers
+# ---------------------------------------------------------------------------
+config NET_PKT_RX_COUNT
+	default 8 if WIFI_MODULE
+
+config NET_PKT_TX_COUNT
+	default 8 if WIFI_MODULE
+
+config NET_BUF_RX_COUNT
+	default 16 if WIFI_MODULE
+
+config NET_BUF_TX_COUNT
+	default 64 if WIFI_MODULE
+
+# NET_BUF_FIXED_DATA_SIZE is a choice symbol - set in prj.conf.
+
+config NET_BUF_DATA_SIZE
+	default 128 if WIFI_MODULE
+
+config NET_TC_TX_COUNT
+	default 1 if WIFI_MODULE
+
+# ---------------------------------------------------------------------------
+# Network interface
+# ---------------------------------------------------------------------------
+config NET_IF_UNICAST_IPV4_ADDR_COUNT
+	default 1 if WIFI_MODULE
+
+config NET_MAX_CONTEXTS
+	default 10 if WIFI_MODULE
+
+config NET_MAX_CONN
+	default 10 if WIFI_MODULE
+
+# ---------------------------------------------------------------------------
+# Sockets
+# ---------------------------------------------------------------------------
+config NET_SOCKETS
+	default y if WIFI_MODULE
+
+config NET_SOCKETS_POLL_MAX
+	default 20 if WIFI_MODULE
+
+# ---------------------------------------------------------------------------
+# DNS resolution
+# Allow concurrent lookups from app_https_client, app_mqtt_client, app_memfault.
+# ---------------------------------------------------------------------------
+config DNS_RESOLVER
+	default y if WIFI_MODULE
+
+config DNS_RESOLVER_ADDITIONAL_BUF_CTR
+	default 2 if WIFI_MODULE
+
+config DNS_RESOLVER_ADDITIONAL_QUERIES
+	default 2 if WIFI_MODULE
+
+# ---------------------------------------------------------------------------
+# Net management event queue
+# ---------------------------------------------------------------------------
+config NET_MGMT_EVENT_QUEUE_SIZE
+	default 150 if WIFI_MODULE
+
+config NET_MGMT_EVENT_STACK_SIZE
+	default 11000 if WIFI_MODULE
+
+config NET_MGMT_EVENT_QUEUE_TIMEOUT
+	default 5000 if WIFI_MODULE
