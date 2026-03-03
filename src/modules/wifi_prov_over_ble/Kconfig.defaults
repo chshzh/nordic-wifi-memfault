@@ -34,6 +34,9 @@ config BT_BUF_ACL_TX_SIZE
 
 # CRITICAL: BLE and WiFi share the same BT RX workqueue during provisioning.
 # 22000 bytes required to handle concurrent WiFi scan + BLE traffic.
+# Do NOT increase this value: the nRF5340 RAM budget is already at ~93% and
+# any additional static allocation squeezes the BLE heap pool, causing
+# immediate OOM panics during SMP pairing.
 config BT_RX_STACK_SIZE
 	default 22000 if WIFI_STA_PROV_OVER_BLE_ENABLED
 

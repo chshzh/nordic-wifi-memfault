@@ -90,7 +90,22 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb,
 		return;
 	}
 	switch (mgmt_event) {
-	case NET_EVENT_WIFI_DISCONNECT_RESULT:
+	case NET_EVENT_WIFI_DISCONNECT_RESULT: {
+		const struct wifi_status *status =
+			(const struct wifi_status *)cb->info;
+		/*
+		 * Skip auto-reconnect for provisioner-initiated disconnects
+		 * (status == 0 means intentional/locally-generated, which is
+		 * what the provisioner does before a WiFi scan).  The
+		 * provisioner library owns reconnect in that case; scheduling
+		 * our own reconnect work races against it and can crash the
+		 * WPA supplicant.
+		 */
+		if (status && status->status == 0) {
+			LOG_INF("WiFi disconnected (intentional), deferring "
+				"reconnect to provisioner");
+			break;
+		}
 		if (!wifi_reconnect_pending) {
 			wifi_reconnect_pending = true;
 			k_work_reschedule(&wifi_connect_work,
@@ -98,6 +113,7 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb,
 			LOG_INF("WiFi disconnected, scheduling reconnect");
 		}
 		break;
+	}
 	case NET_EVENT_WIFI_CONNECT_RESULT:
 		wifi_reconnect_pending = false;
 		k_work_cancel_delayable(&wifi_connect_work);
@@ -128,6 +144,19 @@ static void wifi_connect_work_handler(struct k_work *work)
 	if (wifi_credentials_is_empty()) {
 		LOG_WRN("No stored WiFi credentials, skipping reconnect");
 		wifi_reconnect_pending = false;
+		return;
+	}
+	/*
+	 * If the provisioner just set credentials and is driving its own
+	 * internal reconnect (wifi_prov_state_get() == true), don't race it
+	 * with a second NET_REQUEST_WIFI_CONNECT_STORED call.  Reschedule as
+	 * a fallback; the provisioner's NET_EVENT_WIFI_CONNECT_RESULT handler
+	 * will cancel this work if reconnect succeeds first.
+	 */
+	if (wifi_prov_state_get()) {
+		LOG_INF("Provisioner active, deferring connect attempt");
+		k_work_reschedule(&wifi_connect_work,
+				  K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
 		return;
 	}
 	if (wifi_is_connecting) {
