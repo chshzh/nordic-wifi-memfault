@@ -325,11 +325,14 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb,
 			/* Decode common error codes */
 			switch (status->status) {
 			case 1:
-				LOG_ERR("[WiFi] Reason: Generic failure");
+				/* Transient: supplicant will auto-retry */
+				LOG_WRN("[WiFi] Reason: Generic failure "
+					"(retrying)");
 				break;
 			case 2:
-				LOG_ERR("[WiFi] Reason: Authentication "
-					"timeout");
+				/* Transient: EAPOL handshake timeout, retrying */
+				LOG_WRN("[WiFi] Reason: Authentication timeout "
+					"(retrying)");
 				break;
 			case 3:
 				LOG_ERR("[WiFi] Reason: Authentication failed");
@@ -338,7 +341,9 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb,
 				LOG_ERR("[WiFi] Reason: AP not found");
 				break;
 			case 16:
-				LOG_ERR("[WiFi] Reason: Association timeout");
+				/* Transient: association timeout, retrying */
+				LOG_WRN("[WiFi] Reason: Association timeout "
+					"(retrying)");
 				break;
 			case -ETIMEDOUT:
 				LOG_ERR("[WiFi] Reason: Connection timed out "
@@ -361,51 +366,48 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb,
 			(const struct wifi_status *)cb->info;
 
 		if (status) {
-			LOG_ERR("=== WiFi DISCONNECTED ===");
-			LOG_ERR("[WiFi] Status code: %d", status->status);
+			LOG_WRN("=== WiFi DISCONNECTED (reason: %d) ===",
+				status->status);
 
 			/* Common disconnect reasons (from WiFi spec) */
 			switch (status->status) {
 			case 0:
-				LOG_ERR("[WiFi] Reason: Success (intentional "
+				LOG_INF("[WiFi] Reason: Success (intentional "
 					"disconnect)");
 				break;
 			case 1:
-				LOG_ERR("[WiFi] Reason: Unspecified");
+				LOG_WRN("[WiFi] Reason: Unspecified");
 				break;
 			case 2:
-				LOG_ERR("[WiFi] Reason: Previous auth no "
-					"longer "
-					"valid");
+				LOG_WRN("[WiFi] Reason: Previous auth no "
+					"longer valid");
 				break;
 			case 3:
-				LOG_ERR("[WiFi] Reason: Deauth - leaving "
+				LOG_WRN("[WiFi] Reason: Deauth - leaving "
 					"network");
 				break;
 			case 4:
-				LOG_ERR("[WiFi] Reason: Disassoc - inactivity "
+				LOG_WRN("[WiFi] Reason: Disassoc - inactivity "
 					"timeout");
 				break;
 			case 6:
-				LOG_ERR("[WiFi] Reason: Class 2 frame from "
-					"non-auth "
-					"STA");
+				LOG_WRN("[WiFi] Reason: Class 2 frame from "
+					"non-auth STA");
 				break;
 			case 7:
-				LOG_ERR("[WiFi] Reason: Class 3 frame from "
-					"non-assoc "
-					"STA");
+				LOG_WRN("[WiFi] Reason: Class 3 frame from "
+					"non-assoc STA");
 				break;
 			case 8:
-				LOG_ERR("[WiFi] Reason: Disassoc - STA "
+				LOG_WRN("[WiFi] Reason: Disassoc - STA "
 					"leaving");
 				break;
 			case 15:
-				LOG_ERR("[WiFi] Reason: 4-way handshake "
+				LOG_WRN("[WiFi] Reason: 4-way handshake "
 					"timeout");
 				break;
 			case 16:
-				LOG_ERR("[WiFi] Reason: Group key handshake "
+				LOG_WRN("[WiFi] Reason: Group key handshake "
 					"timeout");
 				break;
 			case 23:
@@ -413,13 +415,12 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb,
 					"failed");
 				break;
 			default:
-				LOG_ERR("[WiFi] Reason: Unknown (%d)",
+				LOG_WRN("[WiFi] Reason: Unknown (%d)",
 					status->status);
 				break;
 			}
-			LOG_ERR("=========================");
 		} else {
-			LOG_ERR("[WiFi] WiFi disconnected: status=NULL");
+			LOG_WRN("[WiFi] WiFi disconnected: status=NULL");
 		}
 
 		network_connected = false;

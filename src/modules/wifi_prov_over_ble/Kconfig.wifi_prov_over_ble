@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-config WIFI_PROV_OVER_BLE_ENABLED
+config WIFI_STA_PROV_OVER_BLE_ENABLED
 		bool "Enable WiFi provisioning over BLE"
 		depends on BT_WIFI_PROV
 		default n
@@ -12,10 +12,10 @@ config WIFI_PROV_OVER_BLE_ENABLED
 			Enable Bluetooth LE based WiFi provisioning.
 			WiFi credentials can be configured via nRF Wi-Fi Provisioner app.
 
-if WIFI_PROV_OVER_BLE_ENABLED
+if WIFI_STA_PROV_OVER_BLE_ENABLED
 
 module = WIFI_PROV_OVER_BLE
 module-str = wifi_prov_over_ble
 source "subsys/logging/Kconfig.template.log_config"
 
-endif # WIFI_PROV_OVER_BLE_ENABLED
+endif # WIFI_STA_PROV_OVER_BLE_ENABLED

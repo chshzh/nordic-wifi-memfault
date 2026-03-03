@@ -19,10 +19,10 @@ This sample application showcases:
 - ✅ **OTA Updates** - Secure firmware updates via Memfault cloud
 - ✅ **MCUBoot Bootloader** - Dual-bank updates with rollback protection
 
-### Optional Features (via overlays)
+### Always-Enabled Application Modules
 
-- 📡 **App HTTPS Request Test** - Periodic connectivity testing (`overlay-app-https-req.conf`)
-- 📨 **App MQTT Echo Test** - MQTT broker connectivity testing with TLS (`overlay-app-mqtt-echo.conf`)
+- 📡 **App HTTPS Request Test** - Periodic HTTPS connectivity testing to `example.com`
+- 📨 **App MQTT Echo Test** - TLS-secured MQTT broker connectivity testing to `test.mosquitto.org`
 
 ## Hardware Requirements
 
@@ -55,16 +55,17 @@ west build -p -b nrf7002dk/nrf5340/cpuapp /path/to/memfault-nrf7002dk
 
 ## Quick Start
 
-1. **Memfault project key**: `prj.conf` uses a placeholder so the project builds without an overlay. For production, create `overlay-project-key.conf` with your key:
-   ```properties
-   CONFIG_MEMFAULT_NCS_PROJECT_KEY="your_project_key_here"
+1. **Memfault project key**: `prj.conf` uses a placeholder so the project builds without an overlay. For production, create `overlay-app-memfault-project-key.conf` from the template:
+   ```bash
+   cp overlay-app-memfault-project-key.conf.template overlay-app-memfault-project-key.conf
+   # Edit the file and set your project key
    ```
-   Add `overlay-project-key.conf` to `.git/info/exclude` to keep your key out of version control.
+   Add `overlay-app-memfault-project-key.conf` to `.git/info/exclude` to keep your key out of version control.
 
 2. **Build and flash** (from NCS workspace root, or from app dir if you used `west init -l`):
    ```bash
    west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-     -DEXTRA_CONF_FILE="overlay-project-key.conf"
+     -DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"
    west flash --erase
    ```
 
@@ -101,21 +102,19 @@ memfault-nrf7002dk/
 │       ├── button/                   # Button SMF, BUTTON_CHAN
 │       ├── wifi/                     # WiFi STA SMF, WIFI_CHAN, conn_mgr
 │       ├── wifi_prov_over_ble/       # WiFi provisioning over BLE (subscribes WIFI_CHAN)
-│       ├── memfault/                 # Memfault group
+│       ├── app_memfault/             # Memfault application module
 │       │   ├── core/                 # Upload, heartbeat, boot confirm, WIFI/BUTTON
 │       │   ├── metrics/              # WiFi + stack metrics
 │       │   ├── ota/                  # OTA triggers (button 2, WiFi connect)
 │       │   └── cdr/                  # nRF70 FW stats CDR
-│       ├── app_https_client/          # App HTTPS request test (optional, WIFI_CHAN)
+│       ├── app_https_client/         # App HTTPS request test (WIFI_CHAN)
 │       │   └── cert/                 # HTTPS root CA certificate
-│       └── app_mqtt_client/          # App MQTT echo test (optional, WIFI_CHAN)
+│       └── app_mqtt_client/          # App MQTT echo test (WIFI_CHAN)
 │           └── cert/                 # MQTT broker CA certificate
 ├── boards/
 │   └── nrf7002dk_nrf5340_cpuapp.conf # Board-specific config
 ├── sysbuild/                         # Multi-image (MCUboot, hci_ipc, app)
-├── overlay-project-key.conf         # Memfault key (create from template, git-ignored)
-├── overlay-app-https-req.conf       # App HTTPS request test (optional)
-├── overlay-app-mqtt-echo.conf       # App MQTT echo test (optional)
+├── overlay-app-memfault-project-key.conf  # Memfault key (create from template, git-ignored)
 ├── pm_static_*.yml                   # Flash partition layout
 ├── PRD.md                            # Product requirements
 ├── LICENSE                           # Nordic 5-Clause
@@ -128,15 +127,15 @@ memfault-nrf7002dk/
 
 > **📘 Configuration Guide**: See [FEATURE_CONFIG_GUIDE.md](FEATURE_CONFIG_GUIDE.md) for complete feature overlay system documentation, including which overlays to use for each feature and how configs are merged.
 
-> **Note**: Default build uses a placeholder key; for production use `-DEXTRA_CONF_FILE="overlay-project-key.conf"`. Combine overlays with semicolons (e.g. `overlay-project-key.conf;overlay-app-https-req.conf`).
+> **Note**: `prj.conf` uses a placeholder project key. For production, supply your real key via `-DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"`.
 
-### Default Build (Recommended)
+### Standard Build
 
-**Includes**: WiFi provisioning over BLE + WiFi metrics + nRF70 diagnostics CDR
+**Includes**: WiFi provisioning over BLE + HTTPS client + MQTT client + Memfault + nRF70 CDR
 
 ```bash
 west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-  -DEXTRA_CONF_FILE="overlay-project-key.conf"
+  -DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"
 west flash --erase
 ```
 
@@ -145,45 +144,11 @@ west flash --erase
 - ✅ Memfault crash reporting, metrics, OTA
 - ✅ nRF70 firmware statistics CDR (Button 1)
 - ✅ WiFi vendor detection (AP OUI lookup)
-
-### With App HTTPS Request Test (Optional)
-
-Adds periodic HTTPS connectivity testing:
-
-```bash
-west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-  -DEXTRA_CONF_FILE="overlay-project-key.conf;overlay-app-https-req.conf"
-west flash --erase
-```
-
-**Additional features**:
-- ✅ Periodic HTTPS HEAD requests to `example.com` (every 60s)
-- ✅ Network connectivity monitoring
+- ✅ Periodic HTTPS HEAD requests to `example.com` (every 300s)
 - ✅ Metrics: `app_https_req_total_count`, `app_https_req_fail_count`
-
-### With App MQTT Echo Test (Optional)
-
-Adds MQTT broker connectivity testing with TLS:
-
-```bash
-west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-  -DEXTRA_CONF_FILE="overlay-project-key.conf;overlay-app-mqtt-echo.conf"
-west flash --erase
-```
-
-**Additional features**:
 - ✅ TLS-secured MQTT connection to `test.mosquitto.org:8883`
 - ✅ Publishes messages and subscribes to same topic (echo test)
-- ✅ Automatic reconnection on broker disconnect
 - ✅ Metrics: `app_mqtt_echo_total_count`, `app_mqtt_echo_fail_count`
-
-### With Both App HTTPS and MQTT (Optional)
-
-```bash
-west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-  -DEXTRA_CONF_FILE="overlay-project-key.conf;overlay-app-https-req.conf;overlay-app-mqtt-echo.conf"
-west flash --erase
-```
 
 ---
 
@@ -405,7 +370,7 @@ python3 script/nrf70_fw_stats_parser.py \
 
 ### Custom Metrics
 
-Add to `src/modules/memfault/config/memfault_metrics_heartbeat_config.def`:
+Add to `src/modules/app_memfault/config/memfault_metrics_heartbeat_config.def`:
 
 ```c
 MEMFAULT_METRICS_KEY_DEFINE(custom_counter, kMemfaultMetricType_Unsigned)

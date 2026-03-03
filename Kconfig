@@ -4,16 +4,16 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-menu "Memfault nRF7002DK"
+menu "Application configuration"
 
-module = MEMFAULT_SAMPLE
-module-str = Memfault sample
+module = APP_MAIN
+module-str = Application main
 source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
 
 rsource "src/modules/button/Kconfig.button"
 rsource "src/modules/network/Kconfig"
 rsource "src/modules/wifi_prov_over_ble/Kconfig.wifi_prov_over_ble"
-rsource "src/modules/memfault/Kconfig.memfault"
+rsource "src/modules/app_memfault/Kconfig.memfault"
 rsource "src/modules/app_https_client/Kconfig.app_https_client"
 rsource "src/modules/app_mqtt_client/Kconfig.app_mqtt_client"
 

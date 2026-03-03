@@ -52,7 +52,7 @@ Memfault nRF7002DK is a comprehensive Memfault integration sample for Nordic nRF
 
 | Feature | Selected | Config | Description |
 |---------|----------|--------|-------------|
-| WiFi Provisioning over BLE | ☑ (default in board conf) | `CONFIG_WIFI_PROV_OVER_BLE_ENABLED=y` | Wi‑Fi credentials via nRF Wi‑Fi Provisioner |
+| WiFi Provisioning over BLE | ☑ (default in board conf) | `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED=y` | Wi‑Fi credentials via nRF Wi‑Fi Provisioner |
 | HTTPS Client | ☐ | `CONFIG_HTTPS_CLIENT_ENABLED=y` | Periodic HEAD requests |
 | MQTT Client | ☐ | `CONFIG_MQTT_CLIENT_ENABLED=y` | MQTT echo test with TLS |
 | nRF70 FW Stats CDR | ☑ (default) | `CONFIG_NRF70_FW_STATS_CDR_ENABLED=y` | PHY/LMAC/UMAC stats to Memfault |
@@ -223,7 +223,7 @@ graph TB
 - **State Machine**: Not SMF - uses BLE callbacks and delayed work
 - **Dependencies**: Bluetooth stack, WiFi provisioning service, Zbus
 - **Files**: `src/modules/wifi_prov_over_ble/wifi_prov_over_ble.c`, `wifi_prov_over_ble.h`
-- **Enabled**: `CONFIG_WIFI_PROV_OVER_BLE_ENABLED=y` (default in board conf)
+- **Enabled**: `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED=y` (default in board conf)
 
 **Module 6: HTTPS Client Module (Optional)**
 - **Purpose**: Periodic HTTPS HEAD requests to example.com for connectivity testing

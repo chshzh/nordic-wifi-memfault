@@ -27,4 +27,14 @@ config NRF70_FW_STATS_CDR_ENABLED
 	  as Custom Data Recording. Trigger: Button 1 short press.
 	  CDR uploads are limited to 1 per device per 24 hours.
 
+config MEMFAULT_UPLOAD_THREAD_STACK_SIZE
+	int "Stack size for the Memfault on-connect upload thread (bytes)"
+	default 6144
+	help
+	  Stack size for the thread that performs an immediate Memfault data
+	  upload on WiFi connect.  The thread calls getaddrinfo() (DNS) and
+	  memfault_zephyr_port_post_data() (TLS + HTTPS), both of which need
+	  several kilobytes of stack.  6144 bytes is the recommended minimum
+	  for the nRF7002DK.  Override in prj.conf if needed.
+
 endif # MEMFAULT_MODULE

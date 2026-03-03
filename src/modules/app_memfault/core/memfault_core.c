@@ -135,8 +135,8 @@ static void upload_thread_fn(void *a, void *b, void *c)
 	}
 }
 
-K_THREAD_DEFINE(memfault_upload_tid, 2048, upload_thread_fn, NULL, NULL, NULL,
-		5, 0, 0);
+K_THREAD_DEFINE(memfault_upload_tid, CONFIG_MEMFAULT_UPLOAD_THREAD_STACK_SIZE,
+		upload_thread_fn, NULL, NULL, NULL, 5, 0, 0);
 
 /* WIFI_CHAN listener */
 extern const struct zbus_channel WIFI_CHAN;

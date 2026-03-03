@@ -24,12 +24,24 @@ MEMFAULT_METRICS_KEY_DEFINE(ncs_shell_uart_unused_stack, kMemfaultMetricType_Uns
 MEMFAULT_METRICS_KEY_DEFINE(ncs_logging_unused_stack, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(ncs_main_unused_stack, kMemfaultMetricType_Unsigned)
 
-/* Application thread metrics - stack usage monitoring */
-MEMFAULT_METRICS_KEY_DEFINE(app_https_client_unused_stack, kMemfaultMetricType_Unsigned)
-MEMFAULT_METRICS_KEY_DEFINE(app_mqtt_client_unused_stack, kMemfaultMetricType_Unsigned)
+/* app_memfault internal thread metrics - stack usage monitoring */
+MEMFAULT_METRICS_KEY_DEFINE(memfault_upload_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(mflt_ota_triggers_unused_stack, kMemfaultMetricType_Unsigned)
 
-/* Application protocol metrics - HTTPS and MQTT statistics */
+/* Application thread metrics - stack usage monitoring (conditional on enabled modules) */
+#if CONFIG_APP_HTTPS_CLIENT_ENABLED
+MEMFAULT_METRICS_KEY_DEFINE(app_https_client_unused_stack, kMemfaultMetricType_Unsigned)
+#endif
+#if CONFIG_APP_MQTT_CLIENT_ENABLED
+MEMFAULT_METRICS_KEY_DEFINE(app_mqtt_client_unused_stack, kMemfaultMetricType_Unsigned)
+#endif
+
+/* Application protocol metrics - HTTPS and MQTT statistics (conditional on enabled modules) */
+#if CONFIG_APP_HTTPS_CLIENT_ENABLED
 MEMFAULT_METRICS_KEY_DEFINE(app_https_req_total_count, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(app_https_req_fail_count, kMemfaultMetricType_Unsigned)
+#endif
+#if CONFIG_APP_MQTT_CLIENT_ENABLED
 MEMFAULT_METRICS_KEY_DEFINE(app_mqtt_echo_total_count, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(app_mqtt_echo_fail_count, kMemfaultMetricType_Unsigned)
+#endif

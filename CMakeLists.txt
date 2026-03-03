@@ -22,7 +22,7 @@ endif()
 
 
 zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
-zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/modules/memfault/config)
+zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/modules/app_memfault/config)
 
 target_sources(app PRIVATE src/main.c)
 
@@ -31,13 +31,13 @@ add_subdirectory(src/modules/button)
 add_subdirectory(src/modules/network)
 add_subdirectory(src/modules/wifi_prov_over_ble)
 if(CONFIG_MEMFAULT_MODULE)
-    add_subdirectory(src/modules/memfault)
+    add_subdirectory(src/modules/app_memfault)
 endif()
 add_subdirectory(src/modules/app_https_client)
 add_subdirectory(src/modules/app_mqtt_client)
 
 # Add BLE provisioning library when enabled
-if(CONFIG_WIFI_PROV_OVER_BLE_ENABLED)
+if(CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED)
     zephyr_library_include_directories($<TARGET_PROPERTY:wifi_prov_core,BINARY_DIR>)
     target_link_libraries(app PRIVATE wifi_prov_ble)
 endif()
