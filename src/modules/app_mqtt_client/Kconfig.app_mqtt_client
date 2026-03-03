@@ -25,6 +25,7 @@ config APP_MQTT_CLIENT_PUBLISH_TOPIC
 
 config APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC
 	int "MQTT publish interval in seconds"
+	range 1 86400
 	help
 	  The interval between periodic MQTT message publishes.
 

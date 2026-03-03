@@ -19,6 +19,7 @@ config APP_HTTPS_HOSTNAME
 
 config APP_HTTPS_REQUEST_INTERVAL_SEC
 	int "HTTPS request interval in seconds"
+	range 1 86400
 	help
 	  The interval between periodic HTTPS requests.
 

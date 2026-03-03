@@ -4,8 +4,9 @@
 
 - **Product Name**: Memfault nRF7002DK Sample
 - **Product ID**: memfault-nrf7002dk
-- **Document Version**: 1.0
+- **Document Version**: 1.1
 - **Date Created**: 2026-02-06
+- **Last Updated**: 2026-03-03
 - **Status**: Draft
 - **Target Release**: Refactoring (dev/refactoring branch)
 - **Architecture**: SMF + zbus modular
@@ -52,9 +53,9 @@ Memfault nRF7002DK is a comprehensive Memfault integration sample for Nordic nRF
 
 | Feature | Selected | Config | Description |
 |---------|----------|--------|-------------|
-| WiFi Provisioning over BLE | ☑ (default in board conf) | `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED=y` | Wi‑Fi credentials via nRF Wi‑Fi Provisioner |
-| HTTPS Client | ☐ | `CONFIG_HTTPS_CLIENT_ENABLED=y` | Periodic HEAD requests |
-| MQTT Client | ☐ | `CONFIG_MQTT_CLIENT_ENABLED=y` | MQTT echo test with TLS |
+| WiFi Provisioning over BLE | ☑ (default) | `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED=y` | Wi‑Fi credentials via nRF Wi‑Fi Provisioner |
+| HTTPS Client | ☑ (always-on) | `CONFIG_APP_HTTPS_CLIENT_MODULE=y` | Periodic HTTPS HEAD requests to example.com (300s interval) |
+| MQTT Client | ☑ (always-on) | `CONFIG_APP_MQTT_CLIENT_MODULE=y` | TLS-secured MQTT echo test to test.mosquitto.org (300s interval) |
 | nRF70 FW Stats CDR | ☑ (default) | `CONFIG_NRF70_FW_STATS_CDR_ENABLED=y` | PHY/LMAC/UMAC stats to Memfault |
 
 #### Cloud & OTA
@@ -78,7 +79,7 @@ Memfault nRF7002DK is a comprehensive Memfault integration sample for Nordic nRF
 - **FR-002**: On L4 connected, Memfault data (heartbeat, coredump, CDR) uploads after DNS ready.
 - **FR-003**: Button 1 short press: trigger heartbeat + optional nRF70 CDR; long press: stack overflow (demo).
 - **FR-004**: Button 2 short press: OTA check; long press: division-by-zero (demo).
-- **FR-005**: Optional WiFi provisioning over BLE for Wi‑Fi credentials; optional HTTPS/MQTT clients react to Wi‑Fi state via zbus.
+- **FR-005**: Optional WiFi provisioning over BLE for Wi‑Fi credentials; HTTPS and MQTT client modules are always-on and react to Wi‑Fi state via zbus (WIFI_CHAN).
 
 ### 2.3 Architecture
 
@@ -124,9 +125,9 @@ graph TB
         ButtonMod[Button Module<br/>SMF: Idle/Pressed/Released]
         WiFiMod[WiFi Module<br/>SMF: Not applicable - event driven]
         MemfaultCore[Memfault Core Module<br/>SMF: Not applicable]
-        WifiProvOverBLE[WiFi Provisioning over BLE Module<br/>Optional]
-        HTTPSClient[HTTPS Client Module<br/>Optional]
-        MQTTClient[MQTT Client Module<br/>Optional]
+        WifiProvOverBLE[WiFi Provisioning over BLE Module<br/>Optional - default on]
+        HTTPSClient[HTTPS Client Module<br/>Always-On]
+        MQTTClient[MQTT Client Module<br/>Always-On]
         OTATriggers[OTA Triggers Module]
     end
     
@@ -225,21 +226,22 @@ graph TB
 - **Files**: `src/modules/wifi_prov_over_ble/wifi_prov_over_ble.c`, `wifi_prov_over_ble.h`
 - **Enabled**: `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED=y` (default in board conf)
 
-**Module 6: HTTPS Client Module (Optional)**
+**Module 6: HTTPS Client Module (Always-On)**
 - **Purpose**: Periodic HTTPS HEAD requests to example.com for connectivity testing
 - **Inputs**: WIFI_CHAN (connection state)
-- **Outputs**: HTTPS requests, Memfault metrics (request count, failures)
+- **Outputs**: HTTPS requests, Memfault metrics (`app_https_req_total_count`, `app_https_req_fail_count`)
 - **Dependencies**: TLS, HTTP client, Zbus
 - **Files**: `src/modules/app_https_client/app_https_client.c`
-- **Enabled**: `CONFIG_APP_HTTPS_CLIENT_ENABLED=y` (overlay-app-https-req.conf)
+- **Enabled**: `CONFIG_APP_HTTPS_CLIENT_MODULE=y` (set in `prj.conf` — always-on)
+- **Interval**: 300 s (configurable via `CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC`)
 
-**Module 7: MQTT Client Module (Optional)**
-- **Purpose**: MQTT echo test with TLS to test.mosquitto.org
+**Module 7: MQTT Client Module (Always-On)**
+- **Purpose**: TLS-secured MQTT echo test to test.mosquitto.org:8883
 - **Inputs**: WIFI_CHAN (connection state)
-- **Outputs**: MQTT pub/sub, Memfault metrics (echo count, failures)
+- **Outputs**: MQTT pub/sub, Memfault metrics (`app_mqtt_echo_total_count`, `app_mqtt_echo_fail_count`)
 - **Dependencies**: MQTT library, TLS, Zbus
 - **Files**: `src/modules/app_mqtt_client/app_mqtt_client.c`
-- **Enabled**: `CONFIG_APP_MQTT_CLIENT_ENABLED=y` (overlay-app-mqtt-echo.conf)
+- **Enabled**: `CONFIG_APP_MQTT_CLIENT_MODULE=y` (set in `prj.conf` — always-on)
 
 #### 2.3.4 Zbus Channels
 
@@ -476,14 +478,16 @@ sequenceDiagram
 ### 2.5 Build & Workspace
 
 - **Workspace**: `west.yml` pins `sdk-nrf` to v3.2.1; app path `memfault-nrf7002dk`.
-- **Build**: `west build -p -b nrf7002dk/nrf5340/cpuapp` with optional `-DEXTRA_CONF_FILE="overlay-project-key.conf;overlay-app-https-req.conf;overlay-app-mqtt-echo.conf"`.
+- **Build**: `west build -p -b nrf7002dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"`. HTTPS and MQTT clients are always-on; no separate overlay needed.
+- **Project Key**: Copy `overlay-app-memfault-project-key.conf.template` → `overlay-app-memfault-project-key.conf` and set your Memfault project key.
 
 ---
 
 ## 3. Quality Assurance
 
 - **Definition of Done**: All P0 features implemented, build passes, no hardcoded credentials, README and PRD updated.
-- **Test**: Wi‑Fi connect, Memfault upload, button actions, optional WiFi-over-BLE/HTTPS/MQTT per overlay.
+- **Test**: Wi‑Fi connect, Memfault upload, button actions, WiFi-over-BLE provisioning, HTTPS client, MQTT client.
+- **Kconfig pattern**: `APP_MEMFAULT_MODULE` uses `select MEMFAULT` (not `depends on`). Users no longer need an explicit `CONFIG_MEMFAULT=y` in `prj.conf`.
 
 ---
 

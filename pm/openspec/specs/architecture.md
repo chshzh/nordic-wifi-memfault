@@ -89,6 +89,29 @@ struct wifi_msg {
 - `WIFI_STA_CONNECTED` - L4 network ready (IP assigned)
 - `WIFI_STA_DISCONNECTED` - Network lost
 
+---
+
+### NETWORK_CHAN
+
+**Type**: `struct network_msg`
+```c
+struct network_msg {
+    enum network_msg_type type;  // NETWORK_READY, NETWORK_NOT_READY
+    bool ready;
+};
+```
+
+**Publishers**: Network Event Manager (`net_event_mgmt.c`)  
+**Subscribers**: None currently (reserved for future modules that need finer-grained IP-layer readiness vs Wi-Fi L2 state)
+
+**Messages**:
+- `NETWORK_READY` - IP address assigned (DHCP bound) — published alongside `WIFI_STA_CONNECTED`
+- `NETWORK_NOT_READY` - IP address removed (DHCP stop or address deleted)
+
+> **Note**: Application modules currently subscribe to `WIFI_CHAN` for connectivity state.
+> `NETWORK_CHAN` is published for forward compatibility and for modules that need
+> IP-layer readiness independently of the Wi-Fi STA association state.
+
 ## Module Initialization Order
 
 Uses `SYS_INIT` with priorities (lower number = earlier init):

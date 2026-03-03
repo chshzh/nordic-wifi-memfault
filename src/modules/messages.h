@@ -35,8 +35,8 @@ struct button_msg {
 	uint32_t timestamp;
 };
 
-/* Long-press threshold (ms) - used by button module */
-#define BUTTON_LONG_PRESS_THRESHOLD_MS 3000
+/* Long-press threshold (ms) - driven by CONFIG_BUTTON_LONG_PRESS_MS (Kconfig.button) */
+#define BUTTON_LONG_PRESS_THRESHOLD_MS CONFIG_BUTTON_LONG_PRESS_MS
 
 /* ============================================================================
  * WIFI MESSAGES (STA mode)
@@ -69,22 +69,6 @@ enum network_msg_type {
 struct network_msg {
 	enum network_msg_type type;
 	bool ready;
-};
-
-/* ============================================================================
- * MEMFAULT MESSAGES
- * ============================================================================
- */
-
-enum memfault_msg_type {
-	MEMFAULT_HEARTBEAT_TRIGGERED,
-	MEMFAULT_DATA_UPLOADED,
-	MEMFAULT_OTA_AVAILABLE,
-};
-
-struct memfault_msg {
-	enum memfault_msg_type type;
-	uint32_t timestamp;
 };
 
 #endif /* MESSAGES_H */

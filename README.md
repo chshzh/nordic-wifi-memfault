@@ -111,8 +111,6 @@ memfault-nrf7002dk/
 │       │   └── cert/                 # HTTPS root CA certificate
 │       └── app_mqtt_client/          # App MQTT echo test (WIFI_CHAN)
 │           └── cert/                 # MQTT broker CA certificate
-├── boards/
-│   └── nrf7002dk_nrf5340_cpuapp.conf # Board-specific config
 ├── sysbuild/                         # Multi-image (MCUboot, hci_ipc, app)
 ├── overlay-app-memfault-project-key.conf  # Memfault key (create from template, git-ignored)
 ├── pm_static_*.yml                   # Flash partition layout
@@ -124,8 +122,6 @@ memfault-nrf7002dk/
 ---
 
 ## Building Firmware
-
-> **📘 Configuration Guide**: See [FEATURE_CONFIG_GUIDE.md](FEATURE_CONFIG_GUIDE.md) for complete feature overlay system documentation, including which overlays to use for each feature and how configs are merged.
 
 > **Note**: `prj.conf` uses a placeholder project key. For production, supply your real key via `-DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"`.
 
@@ -144,7 +140,7 @@ west flash --erase
 - ✅ Memfault crash reporting, metrics, OTA
 - ✅ nRF70 firmware statistics CDR (Button 1)
 - ✅ WiFi vendor detection (AP OUI lookup)
-- ✅ Periodic HTTPS HEAD requests to `example.com` (every 300s)
+- ✅ Periodic HTTPS HEAD requests to `example.com` (every 300 s, configurable via `CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC`)
 - ✅ Metrics: `app_https_req_total_count`, `app_https_req_fail_count`
 - ✅ TLS-secured MQTT connection to `test.mosquitto.org:8883`
 - ✅ Publishes messages and subscribes to same topic (echo test)
@@ -358,7 +354,7 @@ Download CDR blob from Memfault and parse:
 
 ```bash
 python3 script/nrf70_fw_stats_parser.py \
-  /opt/nordic/ncs/v3.2.0/modules/lib/nrf_wifi/fw_if/umac_if/inc/fw/host_rpu_sys_if.h \
+  /opt/nordic/ncs/v3.2.1/nrf/modules/lib/nrf_wifi/fw_if/umac_if/inc/fw/host_rpu_sys_if.h \
   ~/Downloads/F4CE36006EB1_nrf70-fw-stats_20251128-111955.bin
 ```
 
@@ -387,6 +383,61 @@ Edit `pm_static_nrf7002dk_nrf5340_cpuapp.yml`:
 - Ensure `app` and `mcuboot_secondary` match sizes
 - Keep `settings_storage` for WiFi credentials
 - Rebuild with `-p` flag
+
+---
+
+## Troubleshooting
+
+### No WiFi credentials after flash
+
+Device advertises as `PV<MAC>` over BLE but never connects to WiFi.
+
+**Fix**: Use the [nRF Wi-Fi Provisioner](https://www.nordicsemi.com/Products/Development-tools/nRF-Wi-Fi-Provisioner) app (Android/iOS) to provision credentials. Once provisioned, credentials are stored in the settings partition and survive reboots.
+
+Alternatively, if the shell is enabled (`CONFIG_SHELL=y`):
+```
+uart:~$ wifi_cred add "MySSID" 3 "MyPassword"
+uart:~$ kernel reboot cold
+```
+
+---
+
+### Memfault upload fails / no data in dashboard
+
+**Check**:
+1. Verify the project key: `overlay-app-memfault-project-key.conf` must contain your real key from the Memfault dashboard.
+2. Verify DNS: the device must reach `chunks-nrf.memfault.com:443`. Check firewall/router rules.
+3. Check logs for `[memfault_core] DNS check: chunks-nrf.memfault.com resolved` — if missing, DNS is blocked.
+4. Ensure the symbol file (`zephyr.elf`) has been uploaded for the current firmware version.
+
+**DNS timeout log** (expected if DNS is temporarily slow — uploads still proceed after 300 s):
+```
+[memfault_core] DNS timeout after 300 seconds, continuing anyway
+```
+
+---
+
+### OTA update not triggering
+
+**Check**:
+1. A release must be created and activated in the Memfault dashboard for your device's cohort.
+2. Verify the firmware version in `prj.conf` (`CONFIG_MEMFAULT_NCS_FW_VERSION`) is lower than the release version.
+3. Press **Button 2** (short) to force an immediate OTA check, or wait up to `CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN` minutes (default: 60).
+
+---
+
+### High flash usage warning
+
+Flash is at ~94%. If a future build fails with a linker error:
+1. Disable unused features in `prj.conf` (`CONFIG_APP_HTTPS_CLIENT_MODULE=n` or `CONFIG_APP_MQTT_CLIENT_MODULE=n`).
+2. Disable `CONFIG_SHELL=n` (already off by default).
+3. Reduce `CONFIG_LOG_BUFFER_SIZE`.
+
+---
+
+### Device crashes on boot after OTA
+
+MCUboot will automatically roll back to the previous image if the new firmware does not call `boot_write_img_confirmed()`. The Memfault core module calls this on a successful boot. If rollback occurs repeatedly, check for early-boot crashes in the Memfault **Issues** tab.
 
 ---
 

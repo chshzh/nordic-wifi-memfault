@@ -175,7 +175,7 @@ MEMFAULT_METRIC_ADD(my_counter, 1);  // Increment
 **Parsing**:
 ```bash
 python3 script/nrf70_fw_stats_parser.py \
-  /opt/nordic/ncs/v3.2.1/modules/lib/nrf_wifi/fw_if/umac_if/inc/fw/host_rpu_sys_if.h \
+  /opt/nordic/ncs/v3.2.1/nrf/modules/lib/nrf_wifi/fw_if/umac_if/inc/fw/host_rpu_sys_if.h \
   ~/Downloads/F4CE36006EB1_nrf70-fw-stats_20251128-111955.bin
 ```
 
@@ -253,21 +253,21 @@ CONFIG_MEMFAULT_NCS_PROJECT_KEY="<your_key>"
 
 ### Project Key Setup
 
-**Template**: `overlay-project-key.conf.template`
+**Template**: `overlay-app-memfault-project-key.conf.template`
 ```properties
 CONFIG_MEMFAULT_NCS_PROJECT_KEY="YOUR_PROJECT_KEY_HERE"
 ```
 
-**Create**: `overlay-project-key.conf` (git-ignored)
+**Create**: `overlay-app-memfault-project-key.conf` (git-ignored)
 ```bash
-cp overlay-project-key.conf.template overlay-project-key.conf
+cp overlay-app-memfault-project-key.conf.template overlay-app-memfault-project-key.conf
 # Edit with your key from Memfault dashboard
 ```
 
 **Build**:
 ```bash
 west build -p -b nrf7002dk/nrf5340/cpuapp -- \
-  -DEXTRA_CONF_FILE="overlay-project-key.conf"
+  -DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"
 ```
 
 ## Memory Footprint
@@ -287,7 +287,7 @@ west build -p -b nrf7002dk/nrf5340/cpuapp -- \
 ### Build Test
 ```bash
 west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-  -DEXTRA_CONF_FILE="overlay-project-key.conf"
+  -DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"
 west flash --erase
 ```
 

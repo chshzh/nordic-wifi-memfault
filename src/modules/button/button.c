@@ -16,7 +16,6 @@ LOG_MODULE_REGISTER(button_module, CONFIG_BUTTON_MODULE_LOG_LEVEL);
 #include <zephyr/zbus/zbus.h>
 
 #define BUTTON_COUNT 4
-#define LONG_PRESS_MS CONFIG_BUTTON_LONG_PRESS_MS
 
 /* Map DK mask to button number (1-based) */
 static const uint32_t button_masks[] = {
@@ -81,15 +80,6 @@ static void button_pressed_entry(void *obj)
 
 	sm->press_count++;
 	sm->press_timestamp_ms = k_uptime_get();
-
-	struct button_msg msg = {
-		.type = BUTTON_PRESSED,
-		.button_number = sm->button_number,
-		.duration_ms = 0,
-		.press_count = sm->press_count,
-		.timestamp = k_uptime_get_32(),
-	};
-	zbus_chan_pub(&BUTTON_CHAN, &msg, K_MSEC(100));
 }
 
 static enum smf_state_result button_pressed_run(void *obj)

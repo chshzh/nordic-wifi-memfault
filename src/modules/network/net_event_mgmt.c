@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Nordic Semiconductor ASA
+ * Copyright (c) 2026 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
@@ -7,7 +7,9 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/net/net_if.h>
+#if IS_ENABLED(CONFIG_WIFI_NM_WPA_SUPPLICANT_AP)
 #include <zephyr/net/dhcpv4_server.h>
+#endif
 #include <supp_events.h>
 #include <zephyr/net/socket.h>
 #include <inttypes.h>

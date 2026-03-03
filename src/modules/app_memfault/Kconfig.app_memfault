@@ -6,7 +6,7 @@
 
 config APP_MEMFAULT_MODULE
 	bool "Memfault module group"
-	depends on MEMFAULT
+	select MEMFAULT
 	help
 	  Memfault core, metrics, OTA triggers, and optional nRF70 CDR.
 
@@ -33,5 +33,20 @@ config MEMFAULT_UPLOAD_THREAD_STACK_SIZE
 	  memfault_zephyr_port_post_data() (TLS + HTTPS), both of which need
 	  several kilobytes of stack.  6144 bytes is the recommended minimum
 	  for the nRF7002DK.  Override in prj.conf if needed.
+
+config MEMFAULT_OTA_CHECK_INTERVAL_MIN
+	int "Periodic OTA check interval in minutes"
+	range 1 1440
+	help
+	  How often the OTA trigger thread checks Memfault cloud for a new
+	  firmware release when no manual trigger (button or connect event)
+	  has fired.  Default is 60 minutes.
+
+config MEMFAULT_OTA_THREAD_STACK_SIZE
+	int "Stack size for the Memfault OTA trigger thread (bytes)"
+	help
+	  Stack size for the thread that calls memfault_fota_start().
+	  4096 bytes is sufficient as the Memfault NCS port spawns its own
+	  HTTPS transfer internally.  Override in prj.conf if needed.
 
 endif # APP_MEMFAULT_MODULE
