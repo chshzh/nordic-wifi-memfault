@@ -23,10 +23,9 @@ config APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC
 config APP_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC
 	default 60
 
-# 6144: mqtt_helper_init() calls tls_credential_add() (cert parsing via mbedTLS)
-# before the semaphore wait — needs more than the library default of 4096.
+# HWM 1972 B (TLS/MQTT incl. tls_credential_add at init) × 1.5 = 2958 → 3072
 config APP_MQTT_CLIENT_STACK_SIZE
-	default 6144 if APP_MQTT_CLIENT_MODULE
+	default 3072 if APP_MQTT_CLIENT_MODULE
 
 config APP_MQTT_CLIENT_THREAD_PRIORITY
 	default 5
