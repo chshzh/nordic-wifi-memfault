@@ -51,6 +51,9 @@ int main(void)
 	/* CONFIG_WIFI_DIRECT_CLI_ENABLED    not yet implemented */
 
 	/* Application */
+#if CONFIG_HEAPS_MONITOR
+	LOG_INF("  [app]    heap_monitor");
+#endif
 #if CONFIG_APP_MEMFAULT_MODULE
 	LOG_INF("  [app]    app_memfault");
 #endif

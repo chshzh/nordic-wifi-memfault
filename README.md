@@ -15,6 +15,7 @@ This sample application showcases:
 - ✅ **WiFi Provisioning over BLE** - Wireless WiFi credential configuration via mobile app
 - ✅ **Crash Reporting** - Automatic coredump collection and upload to cloud
 - ✅ **Metrics Collection** - WiFi stats, stack usage, heap, CPU temperature
+- ✅ **Reusable Heap Monitor Module** - Auto-detects system and mbedTLS heaps and logs them in a shared format
 - ✅ **nRF70 WiFi Diagnostics** - Firmware statistics (PHY/LMAC/UMAC) via CDR
 - ✅ **OTA Updates** - Secure firmware updates via Memfault cloud
 - ✅ **MCUBoot Bootloader** - Dual-bank updates with rollback protection
@@ -100,11 +101,12 @@ memfault-nrf7002dk/
 │   └── modules/
 │       ├── messages.h                # Zbus message types (button, wifi, memfault)
 │       ├── button/                   # Button SMF, BUTTON_CHAN
-│       ├── wifi/                     # WiFi STA SMF, WIFI_CHAN, conn_mgr
+│       ├── network/                  # WiFi/network event management, WIFI_CHAN
+│       ├── heap_monitor/             # Heap monitor module (system + mbedTLS)
 │       ├── wifi_prov_over_ble/       # WiFi provisioning over BLE (subscribes WIFI_CHAN)
 │       ├── app_memfault/             # Memfault application module
 │       │   ├── core/                 # Upload, heartbeat, boot confirm, WIFI/BUTTON
-│       │   ├── metrics/              # WiFi + stack metrics
+│       │   ├── metrics/              # WiFi + stack + heap metrics
 │       │   ├── ota/                  # OTA triggers (button 2, WiFi connect)
 │       │   └── cdr/                  # nRF70 FW stats CDR
 │       ├── app_https_client/         # App HTTPS request test (WIFI_CHAN)
@@ -138,9 +140,10 @@ west flash --erase
 **Features enabled**:
 - ✅ WiFi provisioning over BLE
 - ✅ Memfault crash reporting, metrics, OTA
+- ✅ Heap monitor module via `CONFIG_HEAPS_MONITOR`
 - ✅ nRF70 firmware statistics CDR (Button 1)
 - ✅ WiFi vendor detection (AP OUI lookup)
-- ✅ Periodic HTTPS HEAD requests to `example.com` (every 300 s, configurable via `CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC`)
+- ✅ Periodic HTTPS HEAD requests to `example.com` (every 60 s, configurable via `CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC`)
 - ✅ Metrics: `app_https_req_total_count`, `app_https_req_fail_count`
 - ✅ TLS-secured MQTT connection to `test.mosquitto.org:8883`
 - ✅ Publishes messages and subscribes to same topic (echo test)
@@ -289,7 +292,8 @@ The nRF5340 network core runs the BLE controller (`hci_ipc`):
 | `wifi_rssi` | Gauge | Signal strength (dBm) |
 | `wifi_sta_*` | Gauge | Channel, beacon interval, DTIM, TWT |
 | `wifi_ap_oui_vendor` | String | AP vendor (Cisco, Apple, ASUS, etc.) |
-| `heap_free` | Gauge | Free heap memory |
+| `ncs_system_heap_*` | Gauge | System heap total, current usage, and peak usage |
+| `ncs_mbedtls_heap_*` | Gauge | mbedTLS heap total, current usage, and peak usage |
 | `stack_free_*` | Gauge | Per-thread stack usage |
 
 ### OTA Updates
@@ -376,6 +380,28 @@ Record in code:
 ```c
 MEMFAULT_METRIC_SET_UNSIGNED(custom_counter, value);
 ```
+
+### Heap Monitor Module
+
+Heap monitoring is implemented as a reusable module in `src/modules/heap_monitor/`
+and is enabled with `CONFIG_HEAPS_MONITOR=y`.
+
+What it does:
+- Automatically monitors the system heap when `CONFIG_HEAP_MEM_POOL_SIZE > 0`
+- Automatically monitors the mbedTLS heap when `CONFIG_MBEDTLS_ENABLE_HEAP=y`
+- Updates Memfault heartbeat metrics automatically when `CONFIG_APP_MEMFAULT_MODULE=y`
+- Emits standardized logs for both heaps, for example:
+
+```text
+System Heap: used=51712/98304 (52%) blocks=n/a, peak=64752/98304 (65%), peak_blocks=n/a
+mbedTLS Heap: used=19136/110592 (17%) blocks=49, peak=72684/110592 (65%), peak_blocks=197
+```
+
+Useful Kconfig options:
+- `CONFIG_HEAPS_MONITOR`
+- `CONFIG_HEAPS_MONITOR_WARN_PCT`
+- `CONFIG_HEAPS_MONITOR_STEP_BYTES`
+- `CONFIG_HEAPS_MONITOR_PERIODIC_INTERVAL_SEC`
 
 ### Partition Layout Customization
 

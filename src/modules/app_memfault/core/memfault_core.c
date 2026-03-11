@@ -88,8 +88,7 @@ static bool check_dns_ready(const char *hostname)
 
 static void on_connect(void)
 {
-	if (IS_ENABLED(
-		    CONFIG_MEMFAULT_NCS_POST_COREDUMP_ON_NETWORK_CONNECTED) &&
+	if (IS_ENABLED(CONFIG_MEMFAULT_NCS_POST_COREDUMP_ON_NETWORK_CONNECTED) &&
 	    memfault_coredump_has_valid_coredump(NULL)) {
 		return;
 	}
@@ -135,8 +134,8 @@ static void upload_thread_fn(void *a, void *b, void *c)
 	}
 }
 
-K_THREAD_DEFINE(memfault_upload_tid, CONFIG_MEMFAULT_UPLOAD_THREAD_STACK_SIZE,
-		upload_thread_fn, NULL, NULL, NULL, 5, 0, 0);
+K_THREAD_DEFINE(memfault_upload_tid, CONFIG_MEMFAULT_UPLOAD_THREAD_STACK_SIZE, upload_thread_fn,
+		NULL, NULL, NULL, 5, 0, 0);
 
 /* WIFI_CHAN listener */
 extern const struct zbus_channel WIFI_CHAN;
@@ -227,8 +226,7 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 	}
 
 	if (btn == 4) {
-		MEMFAULT_TRACE_EVENT_WITH_LOG(switch_2_toggled,
-					      "Switch state: 1");
+		MEMFAULT_TRACE_EVENT_WITH_LOG(switch_2_toggled, "Switch state: 1");
 		LOG_INF("switch_2_toggled event traced");
 	}
 }
@@ -239,6 +237,13 @@ ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, memfault_button_listener_def, 0);
 static int memfault_core_init(void)
 {
 	LOG_INF("Memfault core init");
+
+#if CONFIG_MEMFAULT_NCS_STACK_METRICS
+	/* Register stack monitors at boot so early connect/auth peaks are not missed.
+	 * Late-created threads will be retried on Wi-Fi connect.
+	 */
+	mflt_stack_metrics_init();
+#endif
 
 	if (!boot_is_img_confirmed()) {
 		int err = boot_write_img_confirmed();

@@ -4,6 +4,20 @@
 
 MEMFAULT_METRICS_KEY_DEFINE(switch_1_toggle_count, kMemfaultMetricType_Unsigned)
 
+/* Heap metrics */
+#if CONFIG_HEAPS_MONITOR
+#if CONFIG_HEAP_MEM_POOL_SIZE > 0
+MEMFAULT_METRICS_KEY_DEFINE(ncs_system_heap_total, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_system_heap_used, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_system_heap_peak, kMemfaultMetricType_Unsigned)
+#endif
+#if CONFIG_MBEDTLS_ENABLE_HEAP
+MEMFAULT_METRICS_KEY_DEFINE(ncs_mbedtls_heap_total, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_mbedtls_heap_used, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_mbedtls_heap_peak, kMemfaultMetricType_Unsigned)
+#endif
+#endif
+
 /* WiFi stack thread metrics - stack usage monitoring */
 MEMFAULT_METRICS_KEY_DEFINE(ncs_wifi_hostap_iface_unused_stack, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(ncs_wifi_hostap_handler_unused_stack, kMemfaultMetricType_Unsigned)
@@ -12,6 +26,7 @@ MEMFAULT_METRICS_KEY_DEFINE(ncs_wifi_bh_unused_stack, kMemfaultMetricType_Unsign
 
 /* Network thread metrics - stack usage monitoring */
 MEMFAULT_METRICS_KEY_DEFINE(ncs_mflt_http_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_mqtt_helper_unused_stack, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(ncs_conn_mgr_monitor_unused_stack, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(ncs_net_socket_service_unused_stack, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(ncs_rx_q0_unused_stack, kMemfaultMetricType_Unsigned)
