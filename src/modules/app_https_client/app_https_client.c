@@ -10,6 +10,7 @@
 #include <string.h>
 #include <zephyr/kernel.h>
 #include <stdlib.h>
+#include <zephyr/random/random.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/tls_credentials.h>
 #include <zephyr/logging/log.h>
@@ -195,6 +196,15 @@ static bool check_dns_ready(const char *hostname)
 	}
 
 	return (err == 0);
+}
+
+static uint32_t random_initial_delay_sec(uint32_t interval_sec)
+{
+	if (interval_sec == 0U) {
+		return 0U;
+	}
+
+	return sys_rand32_get() % (interval_sec + 1U);
 }
 
 static void send_http_request(void)
@@ -418,6 +428,20 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 			LOG_WRN("Starting HTTPS operations without DNS "
 				"confirmation");
 		}
+
+		uint32_t initial_delay = random_initial_delay_sec(
+			HTTPS_REQUEST_INTERVAL_SEC);
+		if (initial_delay > 0U) {
+			LOG_INF("Initial HTTPS request delayed by %u seconds",
+				initial_delay);
+			k_sleep(K_SECONDS(initial_delay));
+		}
+
+		if (!network_ready) {
+			LOG_WRN("Network disconnected during initial HTTPS delay");
+			continue;
+		}
+
 		while (https_client_running && network_ready) {
 			send_http_request();
 			LOG_INF("HTTP request count: %d", http_request_count++);

@@ -11,6 +11,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/init.h>
+#include <zephyr/random/random.h>
 #include <net/mqtt_helper.h>
 #include <hw_id.h>
 #ifdef CONFIG_MEMFAULT
@@ -47,6 +48,15 @@ static K_SEM_DEFINE(mqtt_thread_sem, 0, 1);
 static char client_id[CONFIG_APP_MQTT_CLIENT_ID_BUFFER_SIZE];
 static char pub_topic[CONFIG_APP_MQTT_CLIENT_ID_BUFFER_SIZE +
 		      sizeof(CONFIG_APP_MQTT_CLIENT_PUBLISH_TOPIC)];
+
+static uint32_t random_initial_delay_sec(uint32_t interval_sec)
+{
+	if (interval_sec == 0U) {
+		return 0U;
+	}
+
+	return sys_rand32_get() % (interval_sec + 1U);
+}
 
 /* MQTT helper callbacks */
 static void on_mqtt_connack(enum mqtt_conn_return_code return_code, bool session_present)
@@ -328,6 +338,19 @@ static void app_mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 		} else {
 			LOG_WRN("Starting MQTT operations without DNS "
 				"confirmation");
+		}
+
+		uint32_t initial_delay = random_initial_delay_sec(
+			CONFIG_APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC);
+		if (initial_delay > 0U) {
+			LOG_INF("Initial MQTT activity delayed by %u seconds",
+				initial_delay);
+			k_sleep(K_SECONDS(initial_delay));
+		}
+
+		if (!network_ready) {
+			LOG_WRN("Network disconnected during initial MQTT delay");
+			continue;
 		}
 
 		/* Main MQTT operation loop - handles connect, publish, and
