@@ -12,7 +12,7 @@ config APP_MQTT_CLIENT_MODULE
 	default n
 
 config APP_MQTT_CLIENT_BROKER_HOSTNAME
-	default "test.mosquitto.org"
+	default "broker.emqx.io"
 
 config APP_MQTT_CLIENT_PUBLISH_TOPIC
 	default "count"
