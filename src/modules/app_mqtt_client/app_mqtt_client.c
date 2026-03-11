@@ -69,11 +69,8 @@ static void on_mqtt_connack(enum mqtt_conn_return_code return_code, bool session
 		return;
 	}
 
-	LOG_INF("Connected to MQTT broker");
-	LOG_INF("Hostname: %s", CONFIG_APP_MQTT_CLIENT_BROKER_HOSTNAME);
-	LOG_INF("Client ID: %s", client_id);
-	LOG_INF("Port: %d", CONFIG_MQTT_HELPER_PORT);
-	LOG_INF("TLS: Yes");
+	LOG_INF("Connected to %s (id=%s, port=%d, TLS=yes)",
+		CONFIG_APP_MQTT_CLIENT_BROKER_HOSTNAME, client_id, CONFIG_MQTT_HELPER_PORT);
 
 	current_state = APP_MQTT_STATE_CONNECTED;
 
@@ -121,14 +118,11 @@ static void on_mqtt_disconnect(int result)
 
 static void on_mqtt_publish(struct mqtt_helper_buf topic, struct mqtt_helper_buf payload)
 {
-	LOG_INF("Received payload: %.*s on topic: %.*s", payload.size, payload.ptr, topic.size,
-		topic.ptr);
-
-	/* Update MQTT echo metrics - message received back successfully */
 	mqtt_echo_total++;
 	MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_total_count, mqtt_echo_total);
-	LOG_INF("App MQTT Echo Metrics - Total: %u, Failures: %u", mqtt_echo_total,
-		mqtt_echo_failures);
+	LOG_INF("ECHO #%u <- \"%.*s\"  (total=%u, fail=%u)",
+		mqtt_echo_total, payload.size, payload.ptr,
+		mqtt_echo_total, mqtt_echo_failures);
 }
 
 static void on_mqtt_suback(uint16_t message_id, int result)
@@ -252,14 +246,14 @@ static int mqtt_publish_message(void)
 
 	err = mqtt_helper_publish(&param);
 	if (err) {
-		LOG_WRN("Failed to publish message: %d", err);
-		/* Update failure metric */
 		mqtt_echo_failures++;
 		MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_fail_count, mqtt_echo_failures);
+		LOG_WRN("PUB #%u -> FAILED: %d  (total=%u, fail=%u)",
+			message_count, err, message_count, mqtt_echo_failures);
 		return err;
 	}
 
-	LOG_INF("Published message: \"%s\" on topic: \"%s\"", payload, pub_topic);
+	LOG_INF("PUB #%u -> %s: \"%s\"", message_count, pub_topic, payload);
 	return 0;
 }
 

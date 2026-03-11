@@ -222,6 +222,7 @@ static void send_http_request(void)
 	};
 	char peer_addr[INET6_ADDRSTRLEN];
 	bool request_failed = false;
+	char status_line[64] = "";
 
 	if (!network_ready) {
 		LOG_WRN("Network not ready, skipping HTTPS request");
@@ -245,7 +246,7 @@ static void send_http_request(void)
 	inet_ntop(res->ai_family,
 		  &((struct sockaddr_in *)(res->ai_addr))->sin_addr, peer_addr,
 		  INET6_ADDRSTRLEN);
-	LOG_INF("Resolved %s (%s)", peer_addr, net_family2str(res->ai_family));
+	LOG_DBG("Resolved %s (%s)", peer_addr, net_family2str(res->ai_family));
 
 	if (IS_ENABLED(CONFIG_SAMPLE_TFM_MBEDTLS)) {
 		fd = socket(res->ai_family, SOCK_STREAM | SOCK_NATIVE_TLS,
@@ -277,7 +278,7 @@ static void send_http_request(void)
 		goto clean_up;
 	}
 
-	LOG_INF("Connecting to %s:%d", CONFIG_APP_HTTPS_HOSTNAME,
+	LOG_DBG("Connecting to %s:%d", CONFIG_APP_HTTPS_HOSTNAME,
 		ntohs(((struct sockaddr_in *)(res->ai_addr))->sin_port));
 	err = connect(fd, res->ai_addr, res->ai_addrlen);
 	if (err) {
@@ -297,7 +298,7 @@ static void send_http_request(void)
 		off += bytes;
 	} while (off < HTTP_HEAD_LEN);
 
-	LOG_INF("Sent %d bytes", off);
+	LOG_DBG("Sent %d bytes", off);
 
 	off = 0;
 	do {
@@ -310,7 +311,7 @@ static void send_http_request(void)
 		off += bytes;
 	} while (bytes != 0 /* peer closed connection */);
 
-	LOG_INF("Received %d bytes", off);
+	LOG_DBG("Received %d bytes", off);
 
 	/* Make sure recv_buf is NULL terminated (for safe use with strstr) */
 	if (off < sizeof(recv_buf)) {
@@ -319,12 +320,16 @@ static void send_http_request(void)
 		recv_buf[sizeof(recv_buf) - 1] = '\0';
 	}
 
-	/* Print HTTP response */
+	/* Extract HTTP status line for result logging */
 	p = strstr(recv_buf, "\r\n");
 	if (p) {
-		off = p - recv_buf;
-		recv_buf[off + 1] = '\0';
-		LOG_INF("Response: %s", recv_buf);
+		size_t slen = (size_t)(p - recv_buf);
+
+		if (slen >= sizeof(status_line)) {
+			slen = sizeof(status_line) - 1;
+		}
+		memcpy(status_line, recv_buf, slen);
+		status_line[slen] = '\0';
 	}
 
 	LOG_DBG("Finished, closing socket");
@@ -335,8 +340,9 @@ clean_up:
 		MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_fail_count,
 					     https_req_failures);
 	}
-	/* Log local metrics after each request */
-	LOG_INF("App HTTPS Request Metrics - Total: %u, Failures: %u",
+	LOG_INF("GET %s -> %s  (total=%u, fail=%u)",
+		CONFIG_APP_HTTPS_HOSTNAME,
+		request_failed ? "FAILED" : (status_line[0] ? status_line : "OK"),
 		https_req_total, https_req_failures);
 
 	if (fd >= 0) {
@@ -357,7 +363,6 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 	ARG_UNUSED(arg2);
 	ARG_UNUSED(arg3);
 
-	uint32_t http_request_count = 1;
 	int cert_provisioned = 0;
 
 	LOG_INF("App HTTPS client thread started");
@@ -444,7 +449,6 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 
 		while (https_client_running && network_ready) {
 			send_http_request();
-			LOG_INF("HTTP request count: %d", http_request_count++);
 
 			/* Sleep for the configured interval */
 			k_sleep(K_SECONDS(HTTPS_REQUEST_INTERVAL_SEC));
