@@ -134,12 +134,7 @@ jobs:
              release/nord_project_${VER}_merged_CPUAPP.hex
           cp build_nrf7002dk/merged_CPUNET.hex \
              release/nord_project_${VER}_merged_CPUNET.hex
-          python3 -c "
-app = open('build_nrf7002dk/merged.hex').readlines()
-net = open('build_nrf7002dk/merged_CPUNET.hex').readlines()
-merged = [l for l in app if l.strip() != ':00000001FF'] + net
-open('release/nord_project_${VER}_combined.hex', 'w').writelines(merged)
-"
+          python3 -c "app=open('build_nrf7002dk/merged.hex').readlines();net=open('build_nrf7002dk/merged_CPUNET.hex').readlines();merged=[l for l in app if l.strip()!=':00000001FF']+net;open('release/nord_project_${VER}_combined.hex','w').writelines(merged)"
 
       # ── terr_project build ──────────────────────────────────
       - name: Create overlay — terr_project
@@ -169,12 +164,7 @@ open('release/nord_project_${VER}_combined.hex', 'w').writelines(merged)
              release/terr_project_${VER}_merged_CPUAPP.hex
           cp build_nrf7002dk/merged_CPUNET.hex \
              release/terr_project_${VER}_merged_CPUNET.hex
-          python3 -c "
-app = open('build_nrf7002dk/merged.hex').readlines()
-net = open('build_nrf7002dk/merged_CPUNET.hex').readlines()
-merged = [l for l in app if l.strip() != ':00000001FF'] + net
-open('release/terr_project_${VER}_combined.hex', 'w').writelines(merged)
-"
+          python3 -c "app=open('build_nrf7002dk/merged.hex').readlines();net=open('build_nrf7002dk/merged_CPUNET.hex').readlines();merged=[l for l in app if l.strip()!=':00000001FF']+net;open('release/terr_project_${VER}_combined.hex','w').writelines(merged)"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
