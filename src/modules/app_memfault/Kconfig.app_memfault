@@ -42,6 +42,15 @@ config MEMFAULT_OTA_CHECK_INTERVAL_MIN
 	  firmware release when no manual trigger (button or connect event)
 	  has fired.  Default is 60 minutes.
 
+config MEMFAULT_OTA_CONNECT_DELAY_SEC
+	int "Delay before OTA check after network connect or button press (seconds)"
+	range 0 300
+	help
+	  After a network-connect or button-press event signals the OTA thread,
+	  the thread sleeps this many seconds before calling memfault_fota_start().
+	  This gives the DNS resolver time to settle after a fresh connection.
+	  Default is 60 seconds.
+
 config MEMFAULT_OTA_THREAD_STACK_SIZE
 	int "Stack size for the Memfault OTA trigger thread (bytes)"
 	help

@@ -83,7 +83,7 @@ static void mflt_ota_triggers_thread(void *p1, void *p2, void *p3)
 	while (true) {
 		int ret =
 			k_sem_take(&mflt_ota_triggers_sem, OTA_CHECK_INTERVAL);
-		k_sleep(K_SECONDS(10));
+		k_sleep(K_SECONDS(CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC));
 
 		if (ret == 0) {
 			const char *context = consume_trigger_context();

@@ -7,7 +7,7 @@ A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demon
 | Board | Host MCU | Wi-Fi Chip | Status |
 |-------|----------|------------|--------|
 | [nRF7002DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7002-DK) | nRF5340 | nRF7002 (nRF70 series) | ✅ Supported |
-| [nRF54LM20DK](https://www.nordicsemi.com/Products/Development-hardware/nRF54L20-DK) + nRF7002EB II | nRF54L20 | nRF7002 (nRF70 series) | 🔜 Planned |
+| [nRF54LM20DK](https://www.nordicsemi.com/Products/Development-hardware/nRF54LM20-DK) + nRF7002EB II | nRF54LM20 | nRF7002 (nRF70 series) | 🔜 Planned |
 | [nRF7120DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7120-DK) | nRF7120 (integrated) | nRF7120 | 🔜 Planned |
 
 > All platform-specific build targets, overlays, and partition maps live under board-named subdirectories. The application core (modules, Memfault integration) is shared across all boards.
@@ -493,7 +493,7 @@ Based on Nordic Semiconductor's Memfault sample (LicenseRef-Nordic-5-Clause).
 
 ### Planned Platform Support
 
-- **nRF54LM20DK + nRF7002EB II** — nRF54L20 host MCU paired with the nRF7002EB II expansion board (nRF70 series Wi-Fi)
+- **nRF54LM20DK + nRF7002EB II** — nRF54LM20 host MCU paired with the nRF7002EB II expansion board (nRF70 series Wi-Fi)
 - **nRF7120DK** — single-chip solution with integrated Wi-Fi and Bluetooth 
 
 Each new platform will add a board-specific build target, `pm_static_<board>.yml` partition map, and any required overlays. Shared application modules (Memfault core, heap monitor, OTA, CDR) require no changes.
