@@ -1,11 +1,21 @@
-# Memfault nRF7002DK Sample
+# nrf-wifi-memfault sample
 
-A comprehensive Memfault integration sample for Nordic nRF7002DK, demonstrating IoT device management with Wi-Fi connectivity, WiFi provisioning over BLE, HTTPS communication, and cloud-based monitoring.
+A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demonstrating IoT device management with Wi-Fi connectivity, WiFi provisioning over BLE, HTTPS communication, and cloud-based monitoring.
+
+## Platform Support
+
+| Board | Host MCU | Wi-Fi Chip | Status |
+|-------|----------|------------|--------|
+| [nRF7002DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7002-DK) | nRF5340 | nRF7002 (nRF70 series) | ✅ Supported |
+| [nRF54LM20DK](https://www.nordicsemi.com/Products/Development-hardware/nRF54L20-DK) + nRF7002EB II | nRF54L20 | nRF7002 (nRF70 series) | 🔜 Planned |
+| [nRF7120DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7120-DK) | nRF7120 (integrated) | nRF7120 | 🔜 Planned |
+
+> All platform-specific build targets, overlays, and partition maps live under board-named subdirectories. The application core (modules, Memfault integration) is shared across all boards.
 
 ## Overview
 
 This sample application showcases:
-- **Platform**: nRF7002DK (nRF5340 + nRF7002 WiFi companion chip)
+- **Current platform**: nRF7002DK (nRF5340 + nRF7002 Wi-Fi companion chip)
 - **SDK**: nRF Connect SDK v3.2.1 (workspace application)
 - **Memfault SDK**: default in NCS v3.2.1
 
@@ -26,6 +36,8 @@ This sample application showcases:
 - 📨 **App MQTT Echo Test** - TLS-secured MQTT broker connectivity testing to `test.mosquitto.org`
 
 ## Hardware Requirements
+
+> The instructions below are for the **nRF7002DK**. Other boards will be documented when support is added.
 
 - nRF7002DK development kit
 - USB cable for power and debugging
@@ -477,9 +489,17 @@ MCUboot will automatically roll back to the previous image if the new firmware d
 
 Based on Nordic Semiconductor's Memfault sample (LicenseRef-Nordic-5-Clause).
 
-## TODO
+## Roadmap
 
-- Improve app_https_client and app_mqtt_client listener for network instead of wifi
-- Memory optimization
-- Add support for nRF54LM20DK+nRF7002EBII
-- Solve firmware stuck issue
+### Planned Platform Support
+
+- **nRF54LM20DK + nRF7002EB II** — nRF54L20 host MCU paired with the nRF7002EB II expansion board (nRF70 series Wi-Fi)
+- **nRF7120DK** — single-chip solution with integrated Wi-Fi and Bluetooth 
+
+Each new platform will add a board-specific build target, `pm_static_<board>.yml` partition map, and any required overlays. Shared application modules (Memfault core, heap monitor, OTA, CDR) require no changes.
+
+### Application Improvements
+
+- Improve `app_https_client` and `app_mqtt_client` to listen on network events instead of Wi-Fi events directly
+- Memory optimization (currently at ~94% flash on nRF7002DK)
+- Investigate and resolve the firmware stuck issue
