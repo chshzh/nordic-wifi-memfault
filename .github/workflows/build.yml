@@ -108,8 +108,11 @@ jobs:
       # ── nord_project build ──────────────────────────────────
       - name: Create overlay — nord_project
         working-directory: app-workspace/memfault-nrf7002dk
+        env:
+          VER: ${{ steps.ver.outputs.VERSION }}
         run: |
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${NORD_KEY}\"" > overlay-release-key.conf
+          echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
 
       - name: Build — nord_project
         working-directory: app-workspace/memfault-nrf7002dk
@@ -131,16 +134,21 @@ jobs:
              release/nord_project_${VER}_merged_CPUAPP.hex
           cp build_nrf7002dk/merged_CPUNET.hex \
              release/nord_project_${VER}_merged_CPUNET.hex
-          mergehex --merge \
-            build_nrf7002dk/merged.hex \
-            build_nrf7002dk/merged_CPUNET.hex \
-            --output release/nord_project_${VER}_combined.hex
+          python3 -c "
+app = open('build_nrf7002dk/merged.hex').readlines()
+net = open('build_nrf7002dk/merged_CPUNET.hex').readlines()
+merged = [l for l in app if l.strip() != ':00000001FF'] + net
+open('release/nord_project_${VER}_combined.hex', 'w').writelines(merged)
+"
 
       # ── terr_project build ──────────────────────────────────
       - name: Create overlay — terr_project
         working-directory: app-workspace/memfault-nrf7002dk
+        env:
+          VER: ${{ steps.ver.outputs.VERSION }}
         run: |
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${TERR_KEY}\"" > overlay-release-key.conf
+          echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
 
       - name: Build — terr_project
         working-directory: app-workspace/memfault-nrf7002dk
@@ -161,10 +169,12 @@ jobs:
              release/terr_project_${VER}_merged_CPUAPP.hex
           cp build_nrf7002dk/merged_CPUNET.hex \
              release/terr_project_${VER}_merged_CPUNET.hex
-          mergehex --merge \
-            build_nrf7002dk/merged.hex \
-            build_nrf7002dk/merged_CPUNET.hex \
-            --output release/terr_project_${VER}_combined.hex
+          python3 -c "
+app = open('build_nrf7002dk/merged.hex').readlines()
+net = open('build_nrf7002dk/merged_CPUNET.hex').readlines()
+merged = [l for l in app if l.strip() != ':00000001FF'] + net
+open('release/terr_project_${VER}_combined.hex', 'w').writelines(merged)
+"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
