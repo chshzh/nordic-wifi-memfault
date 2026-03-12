@@ -197,6 +197,23 @@ jobs:
           name: Release ${{ steps.ver.outputs.VERSION }}
           tag_name: ${{ steps.ver.outputs.VERSION }}
           generate_release_notes: true
+          body: |
+            ## Firmware Files
+
+            Each Memfault project (`nord_project`, `terr_project`) ships **5 files** built for the `nrf7002dk/nrf5340/cpuapp` target.
+
+            | File suffix | Purpose | How to use |
+            |---|---|---|
+            | `*_nrf7002dk_zephyr.elf` | Debug symbol file | Upload to **Memfault → Software → Symbol Files** to decode stack traces and coredumps |
+            | `*_nrf7002dk_zephyr.signed.bin` | OTA update image | Upload to **Memfault → Software → OTA Releases** to deploy over-the-air via MCUboot |
+            | `*_merged_CPUAPP.hex` | Application core flash image | Flash the nRF5340 CPUAPP core only: `nrfjprog --program *_merged_CPUAPP.hex --verify --reset` |
+            | `*_merged_CPUNET.hex` | Network core flash image | Flash the nRF5340 CPUNET core only: `nrfjprog --coprocessor CP_NETWORK --program *_merged_CPUNET.hex --verify --reset` |
+            | `*_combined.hex` | Full board image (CPUAPP + CPUNET) | One-shot initial provisioning: `nrfjprog --program *_combined.hex --chiperase --verify --reset` |
+
+            > **`nord_project`** artifacts are built with the Memfault project key for the Nord project.
+            > **`terr_project`** artifacts are built with the Memfault project key for the Terr project.
+            > The CPUNET image (nRF70 Wi-Fi / network core firmware) is identical between the two projects.
+
           files: |
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
