@@ -253,21 +253,21 @@ CONFIG_MEMFAULT_NCS_PROJECT_KEY="<your_key>"
 
 ### Project Key Setup
 
-**Template**: `overlay-app-memfault-project-key.conf.template`
+**Template**: `overlay-app-memfault-project-info.conf.template`
 ```properties
 CONFIG_MEMFAULT_NCS_PROJECT_KEY="YOUR_PROJECT_KEY_HERE"
 ```
 
-**Create**: `overlay-app-memfault-project-key.conf` (git-ignored)
+**Create**: `overlay-app-memfault-project-info.conf` (git-ignored)
 ```bash
-cp overlay-app-memfault-project-key.conf.template overlay-app-memfault-project-key.conf
+cp overlay-app-memfault-project-info.conf.template overlay-app-memfault-project-info.conf
 # Edit with your key from Memfault dashboard
 ```
 
 **Build**:
 ```bash
 west build -p -b nrf7002dk/nrf5340/cpuapp -- \
-  -DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"
+  -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
 ```
 
 ## Memory Footprint
@@ -287,7 +287,7 @@ west build -p -b nrf7002dk/nrf5340/cpuapp -- \
 ### Build Test
 ```bash
 west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-  -DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"
+  -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
 west flash --erase
 ```
 

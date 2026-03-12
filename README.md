@@ -56,17 +56,17 @@ west build -p -b nrf7002dk/nrf5340/cpuapp /path/to/memfault-nrf7002dk
 
 ## Quick Start
 
-1. **Memfault project key**: `prj.conf` uses a placeholder so the project builds without an overlay. For production, create `overlay-app-memfault-project-key.conf` from the template:
+1. **Memfault project key**: `prj.conf` uses a placeholder so the project builds without an overlay. For production, create `overlay-app-memfault-project-info.conf` from the template:
    ```bash
-   cp overlay-app-memfault-project-key.conf.template overlay-app-memfault-project-key.conf
+   cp overlay-app-memfault-project-info.conf.template overlay-app-memfault-project-info.conf
    # Edit the file and set your project key
    ```
-   Add `overlay-app-memfault-project-key.conf` to `.git/info/exclude` to keep your key out of version control.
+   Add `overlay-app-memfault-project-info.conf` to `.git/info/exclude` to keep your key out of version control.
 
 2. **Build and flash** (from NCS workspace root, or from app dir if you used `west init -l`):
    ```bash
    west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-     -DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"
+     -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
    west flash --erase
    ```
 
@@ -114,7 +114,7 @@ memfault-nrf7002dk/
 │       └── app_mqtt_client/          # App MQTT echo test (WIFI_CHAN)
 │           └── cert/                 # MQTT broker CA certificate
 ├── sysbuild/                         # Multi-image (MCUboot, hci_ipc, app)
-├── overlay-app-memfault-project-key.conf  # Memfault key (create from template, git-ignored)
+├── overlay-app-memfault-project-info.conf  # Memfault key (create from template, git-ignored)
 ├── pm_static_*.yml                   # Flash partition layout
 ├── PRD.md                            # Product requirements
 ├── LICENSE                           # Nordic 5-Clause
@@ -125,7 +125,7 @@ memfault-nrf7002dk/
 
 ## Building Firmware
 
-> **Note**: `prj.conf` uses a placeholder project key. For production, supply your real key via `-DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"`.
+> **Note**: `prj.conf` uses a placeholder project key. For production, supply your real key via `-DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"`.
 
 ### Standard Build
 
@@ -133,7 +133,7 @@ memfault-nrf7002dk/
 
 ```bash
 west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-  -DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"
+  -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
 west flash --erase
 ```
 
@@ -431,7 +431,7 @@ uart:~$ kernel reboot cold
 ### Memfault upload fails / no data in dashboard
 
 **Check**:
-1. Verify the project key: `overlay-app-memfault-project-key.conf` must contain your real key from the Memfault dashboard.
+1. Verify the project key: `overlay-app-memfault-project-info.conf` must contain your real key from the Memfault dashboard.
 2. Verify DNS: the device must reach `chunks-nrf.memfault.com:443`. Check firewall/router rules.
 3. Check logs for `[memfault_core] DNS check: chunks-nrf.memfault.com resolved` — if missing, DNS is blocked.
 4. Ensure the symbol file (`zephyr.elf`) has been uploaded for the current firmware version.

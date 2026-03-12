@@ -8,5 +8,6 @@
 # (highest)                                                              (lowest)
 
 # build with this overlay file to set your Memfault project key
-# Remember to add overlay-app-memfault-project-key.conf to .git/info/exclude to avoid committing sensitive data
+# Remember to add overlay-app-memfault-project-info.conf to .git/info/exclude to avoid committing sensitive data
 CONFIG_MEMFAULT_NCS_PROJECT_KEY="your project key here"
+CONFIG_MEMFAULT_NCS_FW_VERSION="0.0.0"

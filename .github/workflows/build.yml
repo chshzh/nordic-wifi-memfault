@@ -70,6 +70,123 @@ jobs:
           name: build-nrf7002dk
           path: app-workspace/memfault-nrf7002dk/build_nrf7002dk/zephyr/merged.hex
 
+  # ─────────────────────────────────────────────────────────────
+  # Release jobs: only on version tags (e.g. v3.0.0)
+  # Builds firmware twice — once per Memfault project — with each
+  # project's key baked in, then publishes a GitHub Release.
+  # ─────────────────────────────────────────────────────────────
+  build-release:
+    needs: set-version
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.set-version.outputs.NCS_VERSION }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      NORD_KEY: ${{ secrets.NORD_PROJECT_KEY }}
+      TERR_KEY: ${{ secrets.TERR_PROJECT_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: app-workspace/memfault-nrf7002dk
+
+      - name: Prepare west workspace
+        working-directory: app-workspace
+        run: |
+          west init -l memfault-nrf7002dk
+          west update -o=--depth=1 -n
+
+      - name: Extract version from tag
+        id: ver
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building release ${VERSION}"
+
+      # ── nord_project build ──────────────────────────────────
+      - name: Create overlay — nord_project
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${NORD_KEY}\"" > overlay-release-key.conf
+
+      - name: Build — nord_project
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
+            -DEXTRA_CONF_FILE="overlay-release-key.conf"
+
+      - name: Stage nord_project artifacts
+        working-directory: app-workspace/memfault-nrf7002dk
+        env:
+          VER: ${{ steps.ver.outputs.VERSION }}
+        run: |
+          mkdir -p release
+          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
+             release/nord_project_${VER}_nrf7002dk_zephyr.elf
+          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
+             release/nord_project_${VER}_nrf7002dk_zephyr.signed.bin
+
+      # ── terr_project build ──────────────────────────────────
+      - name: Create overlay — terr_project
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${TERR_KEY}\"" > overlay-release-key.conf
+
+      - name: Build — terr_project
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
+            -DEXTRA_CONF_FILE="overlay-release-key.conf"
+
+      - name: Stage terr_project artifacts
+        working-directory: app-workspace/memfault-nrf7002dk
+        env:
+          VER: ${{ steps.ver.outputs.VERSION }}
+        run: |
+          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
+             release/terr_project_${VER}_nrf7002dk_zephyr.elf
+          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
+             release/terr_project_${VER}_nrf7002dk_zephyr.signed.bin
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ steps.ver.outputs.VERSION }}
+          path: app-workspace/memfault-nrf7002dk/release/
+
+  create-release:
+    needs: build-release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Extract version from tag
+        id: ver
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-${{ steps.ver.outputs.VERSION }}
+          path: release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ steps.ver.outputs.VERSION }}
+          tag_name: ${{ steps.ver.outputs.VERSION }}
+          generate_release_notes: true
+          files: |
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
+
   validate-documentation:
     runs-on: ubuntu-24.04
     steps:

@@ -323,8 +323,8 @@ The project is architecturally sound with a well-structured SMF + Zbus modular d
 ### 7.1 Credential Management (4/4 points)
 
 - [x] No hardcoded credentials anywhere in source or config [2]
-- [x] Memfault project key provided via overlay (`overlay-app-memfault-project-key.conf`, git-ignored) [1]
-- [x] Template provided (`overlay-app-memfault-project-key.conf.template`); CI uses GitHub Secret with fallback placeholder [1]
+- [x] Memfault project key provided via overlay (`overlay-app-memfault-project-info.conf`, git-ignored) [1]
+- [x] Template provided (`overlay-app-memfault-project-info.conf.template`); CI uses GitHub Secret with fallback placeholder [1]
 
 **Score**: 4/4
 
@@ -373,7 +373,7 @@ The project is architecturally sound with a well-structured SMF + Zbus modular d
 **Build Command Used**:
 ```bash
 west build -p -b nrf7002dk/nrf5340/cpuapp -- \
-  -DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"
+  -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
 ```
 
 ### Issues Found

@@ -478,8 +478,8 @@ sequenceDiagram
 ### 2.5 Build & Workspace
 
 - **Workspace**: `west.yml` pins `sdk-nrf` to v3.2.1; app path `memfault-nrf7002dk`.
-- **Build**: `west build -p -b nrf7002dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="overlay-app-memfault-project-key.conf"`. HTTPS and MQTT clients are always-on; no separate overlay needed.
-- **Project Key**: Copy `overlay-app-memfault-project-key.conf.template` → `overlay-app-memfault-project-key.conf` and set your Memfault project key.
+- **Build**: `west build -p -b nrf7002dk/nrf5340/cpuapp -- -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"`. HTTPS and MQTT clients are always-on; no separate overlay needed.
+- **Project Key**: Copy `overlay-app-memfault-project-info.conf.template` → `overlay-app-memfault-project-info.conf` and set your Memfault project key.
 
 ---
 
