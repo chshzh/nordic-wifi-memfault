@@ -127,6 +127,10 @@ jobs:
              release/nord_project_${VER}_nrf7002dk_zephyr.elf
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
              release/nord_project_${VER}_nrf7002dk_zephyr.signed.bin
+          cp build_nrf7002dk/merged.hex \
+             release/nord_project_${VER}_merged_CPUAPP.hex
+          cp build_nrf7002dk/merged_CPUNET.hex \
+             release/nord_project_${VER}_merged_CPUNET.hex
 
       # ── terr_project build ──────────────────────────────────
       - name: Create overlay — terr_project
@@ -149,6 +153,10 @@ jobs:
              release/terr_project_${VER}_nrf7002dk_zephyr.elf
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
              release/terr_project_${VER}_nrf7002dk_zephyr.signed.bin
+          cp build_nrf7002dk/merged.hex \
+             release/terr_project_${VER}_merged_CPUAPP.hex
+          cp build_nrf7002dk/merged_CPUNET.hex \
+             release/terr_project_${VER}_merged_CPUNET.hex
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
@@ -184,8 +192,12 @@ jobs:
           files: |
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_merged_CPUAPP.hex
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_merged_CPUNET.hex
             release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
             release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_merged_CPUAPP.hex
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_merged_CPUNET.hex
 
   validate-documentation:
     runs-on: ubuntu-24.04
