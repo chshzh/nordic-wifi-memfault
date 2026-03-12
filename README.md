@@ -1,4 +1,4 @@
-# nrf-wifi-memfault sample
+# nrf_wifi_memfault sample
 
 A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demonstrating IoT device management with Wi-Fi connectivity, WiFi provisioning over BLE, HTTPS communication, and cloud-based monitoring.
 
@@ -500,6 +500,6 @@ Each new platform will add a board-specific build target, `pm_static_<board>.yml
 
 ### Application Improvements
 
-- Improve `app_https_client` and `app_mqtt_client` to listen on network events instead of Wi-Fi events directly
-- Memory optimization (currently at ~94% flash on nRF7002DK)
-- Investigate and resolve the firmware stuck issue
+- **NTP time sync** — synchronize the device clock via NTP after Wi-Fi connects, so that Zephyr log timestamps and Memfault event timestamps reflect real-world UTC time rather than uptime-relative values
+- **CI: automated Memfault release uploads** — extend the GitHub Actions workflow to automatically upload the ELF symbol file and create a Memfault OTA release after a successful build, eliminating the manual upload step
+- **Wi-Fi disconnection tracking** — record the disconnect reason code and emit it as a Memfault metric and structured log entry, making it easier to diagnose intermittent connectivity issues in the field
