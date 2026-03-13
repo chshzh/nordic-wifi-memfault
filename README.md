@@ -1,6 +1,6 @@
-# nrf_wifi_memfault sample
+# nordic-wifi-memfault sample
 
-A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demonstrating IoT device management with Wi-Fi connectivity, WiFi provisioning over BLE, HTTPS communication, and cloud-based monitoring.
+A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demonstrating IoT device management with Wi-Fi connectivity, Wi-Fi provisioning over BLE, HTTPS communication, and cloud-based monitoring.
 
 ## Platform Support
 
@@ -190,7 +190,7 @@ This project uses a custom partition layout optimized for Memfault operation and
 │         │                                     │                │
 │         │                                     │                │
 │         │                                     │                │
-│         │              app                    │ 911KB          │
+│         │              app                    │ ~912KB         │
 │         │        (Main Application)           │ (0xE3E00)      │
 │         │                                     │                │
 │         │                                     │                │
@@ -218,7 +218,7 @@ This project uses a custom partition layout optimized for Memfault operation and
 │         │                                     │                │
 │         │                                     │                │
 │         │                                     │                │
-│         │        mcuboot_secondary            │ 911KB          │
+│         │        mcuboot_secondary            │ 912KB          │
 │         │      (App Update Slot)              │ (0xE4000)      │
 │         │                                     │                │
 │         │                                     │                │
@@ -257,12 +257,18 @@ The 64KB partition stores crash coredumps. **Must** be in internal flash for:
 ┌──────────────────────────────────────────────────────────────────┐
 │                    nRF5340 SRAM (512KB)                          │
 ├──────────────────────────────────────────────────────────────────┤
-│ 0x20000000 ┌───────────────────────────────────────────────-───┐ │
+│ 0x20000000 ┌───────────────────────────────────────────────────┐ │
 │            │                                                   │ │
-│            │              Application SRAM                     │ │
-│            │           (Stack, Heap, Variables)                │ │
-│            │                   512KB                           │ │
-│            │               (0x80000)                           │ │
+│            │              sram_primary                         │ │
+│            │       (Application: Stack, Heap, BSS)             │ │
+│            │                  448KB                            │ │
+│            │               (0x70000)                           │ │
+│            │                                                   │ │
+│ 0x20070000 ├───────────────────────────────────────────────────┤ │
+│            │           rpmsg_nrf53_sram                        │ │
+│            │    (IPC Shared Memory — App ↔ Network Core)       │ │
+│            │                   64KB                            │ │
+│            │               (0x10000)                           │ │
 │ 0x20080000 └───────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -273,8 +279,8 @@ The nRF5340 network core runs the BLE controller (`hci_ipc`):
 
 | Memory | Used | Total | Usage |
 |--------|------|-------|-------|
-| FLASH | 151.9 KB | 256 KB | 57.95% |
-| RAM | 38.9 KB | 64 KB | 59.35% |
+| FLASH  | 151.9 KB | 256 KB | 57.95% |
+| RAM    | 38.9 KB | 64 KB | 59.35% |
 
 > **Note:** Largest RAM consumer is BLE Controller Memory Pool (15.9 KB). Reduce via `CONFIG_BT_MAX_CONN`.
 
