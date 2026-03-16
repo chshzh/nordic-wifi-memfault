@@ -1,144 +1,30 @@
 #
-# Copyright (c) 2021 Nordic Semiconductor ASA
+# Copyright (c) 2026 Nordic Semiconductor ASA
 #
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-menu "Zephyr Kernel"
-source "Kconfig.zephyr"
+menu "Application configuration"
+
+module = APP_MAIN
+module-str = Application main
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
+rsource "src/modules/button/Kconfig.button"
+rsource "src/modules/network/Kconfig"
+rsource "src/modules/heap_monitor/Kconfig.heap_monitor"
+rsource "src/modules/wifi_prov_over_ble/Kconfig.wifi_prov_over_ble"
+rsource "src/modules/app_memfault/Kconfig.app_memfault"
+rsource "src/modules/app_https_client/Kconfig.app_https_client"
+rsource "src/modules/app_mqtt_client/Kconfig.app_mqtt_client"
+
+rsource "src/modules/network/Kconfig.defaults"
+rsource "src/modules/heap_monitor/Kconfig.defaults"
+rsource "src/modules/wifi_prov_over_ble/Kconfig.defaults"
+rsource "src/modules/app_memfault/Kconfig.defaults"
+rsource "src/modules/app_https_client/Kconfig.defaults"
+rsource "src/modules/app_mqtt_client/Kconfig.defaults"
+
 endmenu
 
-module = MEMFAULT_SAMPLE
-module-str = Memfault sample
-source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
-
-config BLE_PROV_ENABLED
-	bool "Enable BLE provisioning for WiFi credentials"
-	depends on BT_WIFI_PROV
-	default n
-	help
-	  Enable Bluetooth LE based WiFi provisioning feature.
-	  This allows WiFi credentials to be configured via BLE
-	  using the nRF Wi-Fi Provisioner mobile app.
-
-config HTTPS_CLIENT_ENABLED
-	bool "Enable periodic HTTPS client requests"
-	default n
-	help
-	  Enable HTTPS client that sends periodic HEAD requests to a
-	  configured hostname. Useful for testing network connectivity
-	  and demonstrating HTTPS functionality.
-
-if HTTPS_CLIENT_ENABLED
-
-config HTTPS_HOSTNAME
-	string "HTTPS hostname"
-	default "example.com"
-	help
-	  The hostname to send HTTPS requests to.
-
-config HTTPS_REQUEST_INTERVAL_SEC
-	int "HTTPS request interval in seconds"
-	default 10
-	help
-	  The interval between periodic HTTPS requests.
-
-config HTTPS_CLIENT_STACK_SIZE
-	int "HTTPS client thread stack size"
-	default 6144
-	help
-	  Stack size for the HTTPS client thread.
-	  Increased from 4096 to 6144 to accommodate TLS operations.
-
-config HTTPS_CLIENT_THREAD_PRIORITY
-	int "HTTPS client thread priority"
-	default 5
-	help
-	  Priority of the HTTPS client thread.
-
-module = HTTPS_CLIENT
-module-str = HTTPS Client
-source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
-
-endif # HTTPS_CLIENT_ENABLED
-
-config NRF70_FW_STATS_CDR_ENABLED
-	bool "Enable nRF70 firmware statistics CDR upload to Memfault"
-	depends on MEMFAULT_CDR_ENABLE
-	depends on WIFI_NRF70
-	default n
-	help
-	  Enable collection and upload of nRF70 WiFi firmware statistics
-	  (PHY, LMAC, UMAC) as a Custom Data Recording (CDR) to Memfault cloud.
-	  
-	  Uses direct FMAC API (nrf_wifi_sys_fmac_stats_get) for ON-DEMAND
-	  stats collection. No per-packet polling occurs.
-	  
-	  TRIGGER: Button 1 short press ONLY (no automatic/periodic collection).
-	  
-	  The statistics blob can be parsed using the nrf70_fw_stats_parser.py
-	  script located at: modules/lib/nrf_wifi/scripts/nrf70_fw_stats_parser.py
-	  
-	  WARNING: CDR uploads are limited to 1 per device per 24 hours!
-	  Enable Developer Mode in Memfault dashboard for higher limits.
-
-config MQTT_CLIENT_ENABLED
-	bool "Enable MQTT client with TLS"
-	depends on MQTT_HELPER
-	depends on HW_ID_LIBRARY
-	default n
-	help
-	  Enable MQTT client that connects to a broker using TLS and
-	  publishes periodic messages. Uses the mqtt_helper library
-	  for simplified MQTT operations.
-
-if MQTT_CLIENT_ENABLED
-
-config MQTT_CLIENT_BROKER_HOSTNAME
-	string "MQTT broker hostname"
-	default "test.mosquitto.org"
-	help
-	  The hostname of the MQTT broker to connect to.
-
-config MQTT_CLIENT_PUBLISH_TOPIC
-	string "MQTT publish topic suffix"
-	default "count"
-	help
-	  The topic suffix for publishing messages.
-	  The full topic will be: <client_id>/<topic_suffix>
-
-config MQTT_CLIENT_PUBLISH_INTERVAL_SEC
-	int "MQTT publish interval in seconds"
-	default 60
-	help
-	  The interval between periodic MQTT message publishes.
-
-config MQTT_CLIENT_RECONNECT_TIMEOUT_SEC
-	int "MQTT reconnection timeout in seconds"
-	default 60
-	help
-	  Time in between reconnection attempts to the MQTT broker.
-
-config MQTT_CLIENT_STACK_SIZE
-	int "MQTT client thread stack size"
-	default 4096
-	help
-	  Stack size for the MQTT client thread.
-
-config MQTT_CLIENT_THREAD_PRIORITY
-	int "MQTT client thread priority"
-	default 5
-	help
-	  Priority of the MQTT client thread.
-
-config MQTT_CLIENT_ID_BUFFER_SIZE
-	int "MQTT client ID buffer size"
-	default 50
-	help
-	  Size of buffer used to store the MQTT client ID.
-
-module = MQTT_CLIENT
-module-str = MQTT Client
-source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
-
-endif # MQTT_CLIENT_ENABLED
+source "Kconfig.zephyr"

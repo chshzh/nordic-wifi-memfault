@@ -1,0 +1,46 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config HEAPS_MONITOR
+	bool "Enable heap monitor module"
+	depends on (HEAP_MEM_POOL_SIZE > 0) || MBEDTLS_ENABLE_HEAP
+	select SYS_HEAP_LISTENER if HEAP_MEM_POOL_SIZE > 0
+	select SYS_HEAP_RUNTIME_STATS if HEAP_MEM_POOL_SIZE > 0
+	select MBEDTLS_MEMORY_DEBUG if MBEDTLS_ENABLE_HEAP
+	help
+	  Enable a reusable heap monitor module under src/modules/heap_monitor.
+	  The module automatically monitors the heaps available in the build:
+	  system heap when CONFIG_HEAP_MEM_POOL_SIZE > 0 and mbedTLS heap when
+	  CONFIG_MBEDTLS_ENABLE_HEAP=y. If the Memfault module is enabled, the
+	  monitor also updates heap metrics for Memfault heartbeats.
+
+if HEAPS_MONITOR
+
+module = HEAPS_MONITOR
+module-str = heaps_monitor
+source "subsys/logging/Kconfig.template.log_config"
+
+config HEAPS_MONITOR_WARN_PCT
+	int "Heap warning threshold percent"
+	range 50 100
+	help
+	  Emit warning-level logs when the used percentage of a periodic sample or
+	  peak sample reaches this threshold.
+
+config HEAPS_MONITOR_STEP_BYTES
+	int "Peak report step size in bytes"
+	range 128 8192
+	help
+	  Log a new system-heap peak when the all-time high-water mark increases by
+	  at least this amount.
+
+config HEAPS_MONITOR_PERIODIC_INTERVAL_SEC
+	int "Periodic heap snapshot interval in seconds"
+	range 1 86400
+	help
+	  Interval between standardized heap snapshot logs.
+
+endif # HEAPS_MONITOR

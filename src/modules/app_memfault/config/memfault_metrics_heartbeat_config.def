@@ -1,0 +1,62 @@
+/* Application-specific metrics can be defined here.
+ * Please refer to https://docs.memfault.com/docs/embedded/metrics-api for more details.
+ */
+
+MEMFAULT_METRICS_KEY_DEFINE(switch_1_toggle_count, kMemfaultMetricType_Unsigned)
+
+/* Heap metrics */
+#if CONFIG_HEAPS_MONITOR
+#if CONFIG_HEAP_MEM_POOL_SIZE > 0
+MEMFAULT_METRICS_KEY_DEFINE(ncs_system_heap_total, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_system_heap_used, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_system_heap_peak, kMemfaultMetricType_Unsigned)
+#endif
+#if CONFIG_MBEDTLS_ENABLE_HEAP
+MEMFAULT_METRICS_KEY_DEFINE(ncs_mbedtls_heap_total, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_mbedtls_heap_used, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_mbedtls_heap_peak, kMemfaultMetricType_Unsigned)
+#endif
+#endif
+
+/* WiFi stack thread metrics - stack usage monitoring */
+MEMFAULT_METRICS_KEY_DEFINE(ncs_wifi_hostap_iface_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_wifi_hostap_handler_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_wifi_intr_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_wifi_bh_unused_stack, kMemfaultMetricType_Unsigned)
+
+/* Network thread metrics - stack usage monitoring */
+MEMFAULT_METRICS_KEY_DEFINE(ncs_mflt_http_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_mqtt_helper_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_conn_mgr_monitor_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_net_socket_service_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_rx_q0_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_tx_q0_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_net_mgmt_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_tcp_work_unused_stack, kMemfaultMetricType_Unsigned)
+
+/* System thread metrics - stack usage monitoring */
+MEMFAULT_METRICS_KEY_DEFINE(ncs_shell_uart_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_logging_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_main_unused_stack, kMemfaultMetricType_Unsigned)
+
+/* app_memfault internal thread metrics - stack usage monitoring */
+MEMFAULT_METRICS_KEY_DEFINE(memfault_upload_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(mflt_ota_triggers_unused_stack, kMemfaultMetricType_Unsigned)
+
+/* Application thread metrics - stack usage monitoring (conditional on enabled modules) */
+#if CONFIG_APP_HTTPS_CLIENT_MODULE
+MEMFAULT_METRICS_KEY_DEFINE(app_https_client_unused_stack, kMemfaultMetricType_Unsigned)
+#endif
+#if CONFIG_APP_MQTT_CLIENT_MODULE
+MEMFAULT_METRICS_KEY_DEFINE(app_mqtt_client_unused_stack, kMemfaultMetricType_Unsigned)
+#endif
+
+/* Application protocol metrics - HTTPS and MQTT statistics (conditional on enabled modules) */
+#if CONFIG_APP_HTTPS_CLIENT_MODULE
+MEMFAULT_METRICS_KEY_DEFINE(app_https_req_total_count, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(app_https_req_fail_count, kMemfaultMetricType_Unsigned)
+#endif
+#if CONFIG_APP_MQTT_CLIENT_MODULE
+MEMFAULT_METRICS_KEY_DEFINE(app_mqtt_echo_total_count, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(app_mqtt_echo_fail_count, kMemfaultMetricType_Unsigned)
+#endif

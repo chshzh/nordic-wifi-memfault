@@ -1,0 +1,40 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config APP_HTTPS_CLIENT_MODULE
+	bool "Enable periodic HTTPS client requests"
+	help
+	  Enable application HTTPS client that sends periodic HEAD requests
+	  to a configured hostname.
+
+if APP_HTTPS_CLIENT_MODULE
+
+config APP_HTTPS_HOSTNAME
+	string "HTTPS hostname"
+	help
+	  The hostname to send HTTPS requests to.
+
+config APP_HTTPS_REQUEST_INTERVAL_SEC
+	int "HTTPS request interval in seconds"
+	range 1 86400
+	help
+	  The interval between periodic HTTPS requests.
+
+config APP_HTTPS_CLIENT_STACK_SIZE
+	int "HTTPS client thread stack size"
+	help
+	  Stack size for the HTTPS client thread.
+
+config APP_HTTPS_CLIENT_THREAD_PRIORITY
+	int "HTTPS client thread priority"
+	help
+	  Priority of the HTTPS client thread.
+
+module = APP_HTTPS_CLIENT
+module-str = app_https_client
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_HTTPS_CLIENT_MODULE

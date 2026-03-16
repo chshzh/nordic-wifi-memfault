@@ -1,0 +1,26 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config WIFI_STA_PROV_OVER_BLE_ENABLED
+	bool "Enable WiFi provisioning over BLE"
+	select BT
+	select BT_PERIPHERAL
+	select BT_SMP
+	select BT_WIFI_PROV
+	select WIFI_PROV_CORE
+	select NANOPB
+	default n
+	help
+	  Enable Bluetooth LE based WiFi provisioning.
+	  WiFi credentials can be configured via nRF Wi-Fi Provisioner app.
+
+if WIFI_STA_PROV_OVER_BLE_ENABLED
+
+module = WIFI_PROV_OVER_BLE
+module-str = wifi_prov_over_ble
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # WIFI_STA_PROV_OVER_BLE_ENABLED

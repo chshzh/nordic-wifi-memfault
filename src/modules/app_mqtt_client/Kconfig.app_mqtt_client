@@ -1,0 +1,56 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config APP_MQTT_CLIENT_MODULE
+	bool "Enable MQTT client with TLS"
+	select MQTT_HELPER
+	select HW_ID_LIBRARY
+	help
+	  Enable application MQTT client (TLS, echo test). Uses mqtt_helper library.
+
+if APP_MQTT_CLIENT_MODULE
+
+config APP_MQTT_CLIENT_BROKER_HOSTNAME
+	string "MQTT broker hostname"
+	help
+	  The hostname of the MQTT broker to connect to.
+
+config APP_MQTT_CLIENT_PUBLISH_TOPIC
+	string "MQTT publish topic suffix"
+	help
+	  The topic suffix for publishing messages.
+
+config APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC
+	int "MQTT publish interval in seconds"
+	range 1 86400
+	help
+	  The interval between periodic MQTT message publishes.
+
+config APP_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC
+	int "MQTT reconnection timeout in seconds"
+	help
+	  Time between reconnection attempts to the MQTT broker.
+
+config APP_MQTT_CLIENT_STACK_SIZE
+	int "MQTT client thread stack size"
+	help
+	  Stack size for the MQTT client thread.
+
+config APP_MQTT_CLIENT_THREAD_PRIORITY
+	int "MQTT client thread priority"
+	help
+	  Priority of the MQTT client thread.
+
+config APP_MQTT_CLIENT_ID_BUFFER_SIZE
+	int "MQTT client ID buffer size"
+	help
+	  Size of buffer used to store the MQTT client ID.
+
+module = APP_MQTT_CLIENT
+module-str = app_mqtt_client
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_MQTT_CLIENT_MODULE

@@ -1,0 +1,290 @@
+name: Build Memfault nRF7002DK
+
+on:
+  push:
+    branches: [ main, dev/refactoring ]
+    tags:
+      - '[0-9]*'
+  pull_request:
+    branches: [ main, dev/refactoring ]
+
+jobs:
+  set-version:
+    runs-on: ubuntu-24.04
+    outputs:
+      NCS_VERSION: ${{ steps.extract-version.outputs.NCS_VERSION }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: app-workspace/memfault-nrf7002dk
+
+      - name: Extract NCS version from west.yml
+        id: extract-version
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          NCS_VERSION=$(grep 'revision:' west.yml | awk '{print $2}')
+          echo "NCS_VERSION=${NCS_VERSION}" >> $GITHUB_OUTPUT
+
+  build-and-test:
+    needs: set-version
+    runs-on: ubuntu-24.04
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.set-version.outputs.NCS_VERSION }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: app-workspace/memfault-nrf7002dk
+
+      - name: Prepare west workspace
+        working-directory: app-workspace
+        run: |
+          west init -l memfault-nrf7002dk
+          west update -o=--depth=1 -n
+
+      - name: Create Memfault project key overlay
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          # Use the GitHub secret if available; fall back to the dummy key in prj.conf
+          if [ -n "${{ secrets.MEMFAULT_PROJECT_KEY }}" ]; then
+            echo 'CONFIG_MEMFAULT_NCS_PROJECT_KEY="${{ secrets.MEMFAULT_PROJECT_KEY }}"' > overlay-ci-key.conf
+            echo "Using MEMFAULT_PROJECT_KEY from GitHub secrets"
+          else
+            echo "# No secret set; build uses dummy key from prj.conf" > overlay-ci-key.conf
+            echo "No MEMFAULT_PROJECT_KEY secret configured; using dummy key"
+          fi
+
+      - name: Build nRF7002DK (nrf5340/cpuapp)
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
+            -DEXTRA_CONF_FILE="overlay-ci-key.conf"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-nrf7002dk
+          path: app-workspace/memfault-nrf7002dk/build_nrf7002dk/zephyr/merged.hex
+
+  # ─────────────────────────────────────────────────────────────
+  # Release jobs: only on version tags (e.g. v3.0.0)
+  # Builds firmware twice — once per Memfault project — with each
+  # project's key baked in, then publishes a GitHub Release.
+  # ─────────────────────────────────────────────────────────────
+  build-release:
+    needs: set-version
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.set-version.outputs.NCS_VERSION }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      NORD_KEY: ${{ secrets.NORD_PROJECT_KEY }}
+      TERR_KEY: ${{ secrets.TERR_PROJECT_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: app-workspace/memfault-nrf7002dk
+
+      - name: Prepare west workspace
+        working-directory: app-workspace
+        run: |
+          west init -l memfault-nrf7002dk
+          west update -o=--depth=1 -n
+
+      - name: Extract version from tag
+        id: ver
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Building release ${VERSION}"
+
+      # ── nord_project build ──────────────────────────────────
+      - name: Create overlay — nord_project
+        working-directory: app-workspace/memfault-nrf7002dk
+        env:
+          VER: ${{ steps.ver.outputs.VERSION }}
+        run: |
+          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${NORD_KEY}\"" > overlay-release-key.conf
+          echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
+
+      - name: Build — nord_project
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
+            -DEXTRA_CONF_FILE="overlay-release-key.conf"
+
+      - name: Stage nord_project artifacts
+        working-directory: app-workspace/memfault-nrf7002dk
+        env:
+          VER: ${{ steps.ver.outputs.VERSION }}
+        run: |
+          mkdir -p release
+          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
+             release/nord_project_${VER}_nrf7002dk_zephyr.elf
+          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
+             release/nord_project_${VER}_nrf7002dk_zephyr.signed.bin
+          cp build_nrf7002dk/merged.hex \
+             release/nord_project_${VER}_merged_CPUAPP.hex
+          cp build_nrf7002dk/merged_CPUNET.hex \
+             release/nord_project_${VER}_merged_CPUNET.hex
+          python3 -c "app=open('build_nrf7002dk/merged.hex').readlines();net=open('build_nrf7002dk/merged_CPUNET.hex').readlines();merged=[l for l in app if l.strip()!=':00000001FF']+net;open('release/nord_project_${VER}_combined.hex','w').writelines(merged)"
+
+      # ── terr_project build ──────────────────────────────────
+      - name: Create overlay — terr_project
+        working-directory: app-workspace/memfault-nrf7002dk
+        env:
+          VER: ${{ steps.ver.outputs.VERSION }}
+        run: |
+          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${TERR_KEY}\"" > overlay-release-key.conf
+          echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
+
+      - name: Build — terr_project
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
+            -DEXTRA_CONF_FILE="overlay-release-key.conf"
+
+      - name: Stage terr_project artifacts
+        working-directory: app-workspace/memfault-nrf7002dk
+        env:
+          VER: ${{ steps.ver.outputs.VERSION }}
+        run: |
+          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
+             release/terr_project_${VER}_nrf7002dk_zephyr.elf
+          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
+             release/terr_project_${VER}_nrf7002dk_zephyr.signed.bin
+          cp build_nrf7002dk/merged.hex \
+             release/terr_project_${VER}_merged_CPUAPP.hex
+          cp build_nrf7002dk/merged_CPUNET.hex \
+             release/terr_project_${VER}_merged_CPUNET.hex
+          python3 -c "app=open('build_nrf7002dk/merged.hex').readlines();net=open('build_nrf7002dk/merged_CPUNET.hex').readlines();merged=[l for l in app if l.strip()!=':00000001FF']+net;open('release/terr_project_${VER}_combined.hex','w').writelines(merged)"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ steps.ver.outputs.VERSION }}
+          path: app-workspace/memfault-nrf7002dk/release/
+
+  create-release:
+    needs: build-release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Extract version from tag
+        id: ver
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-${{ steps.ver.outputs.VERSION }}
+          path: release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ steps.ver.outputs.VERSION }}
+          tag_name: ${{ steps.ver.outputs.VERSION }}
+          generate_release_notes: true
+          body: |
+            ## Firmware Files
+
+            Each Memfault project (`nord_project`, `terr_project`) ships **5 files** built for the `nrf7002dk/nrf5340/cpuapp` target.
+
+            | File suffix | Purpose | How to use |
+            |---|---|---|
+            | `*_nrf7002dk_zephyr.elf` | Debug symbol file | Upload to **Memfault → Software → Symbol Files** to decode stack traces and coredumps |
+            | `*_nrf7002dk_zephyr.signed.bin` | OTA update image | Upload to **Memfault → Software → OTA Releases** to deploy over-the-air via MCUboot |
+            | `*_merged_CPUAPP.hex` | Application core flash image | Flash the nRF5340 CPUAPP core only: `nrfutil device program --firmware *_merged_CPUAPP.hex --core Application` |
+            | `*_merged_CPUNET.hex` | Network core flash image | Flash the nRF5340 CPUNET core only: `nrfutil device program --firmware *_merged_CPUNET.hex --core Network` |
+            | `*_combined.hex` | Full board image (CPUAPP + CPUNET) | One-shot initial provisioning: `nrfutil device program --firmware *_combined.hex --core All --erase-all` |
+
+            > **`nord_project`** artifacts are built with the Memfault project key for the Nord project.
+            > **`terr_project`** artifacts are built with the Memfault project key for the Terr project.
+            > The CPUNET image (nRF70 Wi-Fi / network core firmware) is identical between the two projects.
+
+          files: |
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_merged_CPUAPP.hex
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_merged_CPUNET.hex
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_combined.hex
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_merged_CPUAPP.hex
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_merged_CPUNET.hex
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_combined.hex
+
+  validate-documentation:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: app-workspace/memfault-nrf7002dk
+
+      - name: Validate README structure
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          echo "Validating README.md structure..."
+          grep -q "Overview" README.md || (echo "Missing Overview section" && exit 1)
+          grep -q "Hardware" README.md || (echo "Missing Hardware section" && exit 1)
+          grep -q "Quick Start" README.md || (echo "Missing Quick Start section" && exit 1)
+          grep -q "west build" README.md || (echo "Missing build commands" && exit 1)
+          grep -q "Project Structure" README.md || (echo "Missing Project Structure section" && exit 1)
+          echo "README.md validation passed"
+
+      - name: Validate configuration files
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          echo "Checking configuration files..."
+          [ -f prj.conf ] || (echo "Missing prj.conf" && exit 1)
+          [ -f west.yml ] || (echo "Missing west.yml" && exit 1)
+          [ -f CMakeLists.txt ] || (echo "Missing CMakeLists.txt" && exit 1)
+          [ -f Kconfig ] || (echo "Missing Kconfig" && exit 1)
+          [ -f LICENSE ] || (echo "Missing LICENSE" && exit 1)
+          echo "Configuration files validation passed"
+
+  static-analysis:
+    needs: set-version
+    runs-on: ubuntu-24.04
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.set-version.outputs.NCS_VERSION }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: app-workspace/memfault-nrf7002dk
+
+      - name: Prepare west project
+        working-directory: app-workspace
+        run: |
+          west init -l memfault-nrf7002dk
+          west update -o=--depth=1 -n
+
+      - name: Run Zephyr checkpatch
+        working-directory: app-workspace
+        run: |
+          echo "Running Zephyr checkpatch on source files..."
+          if [ -d memfault-nrf7002dk/src/ ]; then
+            for file in $(find memfault-nrf7002dk/src/ -name "*.c" -o -name "*.h" 2>/dev/null); do
+              if [ -f "$file" ]; then
+                echo "Checking $file..."
+                ./zephyr/scripts/checkpatch.pl --no-tree --file "$file" || true
+              fi
+            done
+          fi
+          echo "Checkpatch analysis completed"

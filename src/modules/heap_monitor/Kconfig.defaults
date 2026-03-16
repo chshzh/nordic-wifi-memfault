@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+# Default values for heap_monitor module symbols.
+# Override in prj.conf as needed.
+#
+
+config HEAPS_MONITOR
+	default n
+
+config HEAPS_MONITOR_WARN_PCT
+	default 88 if HEAPS_MONITOR
+
+config HEAPS_MONITOR_STEP_BYTES
+	default 512 if HEAPS_MONITOR
+
+config HEAPS_MONITOR_PERIODIC_INTERVAL_SEC
+	default 30 if HEAPS_MONITOR

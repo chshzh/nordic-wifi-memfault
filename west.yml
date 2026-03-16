@@ -1,0 +1,15 @@
+manifest:
+  version: 0.13
+  defaults:
+    remote: ncs
+  remotes:
+    - name: ncs
+      url-base: https://github.com/nrfconnect
+  projects:
+    - name: sdk-nrf
+      path: nrf
+      revision: v3.2.1
+      import: true
+      remote: ncs
+  self:
+    path: memfault-nrf7002dk

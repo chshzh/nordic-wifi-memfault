@@ -1,0 +1,52 @@
+schema: spec-driven
+
+# Project context
+context: |
+  Tech stack: Zephyr RTOS 3.7.0, Nordic NCS v3.2.1, nRF5340 + nRF7002 Wi-Fi
+  Architecture: SMF + Zbus modular design
+  SDK: Memfault SDK for crash reporting, metrics, OTA updates
+  Domain: IoT device management, Wi-Fi connectivity, cloud monitoring
+  
+  Conventions:
+  - Use SYS_INIT for module initialization (priority-based startup)
+  - Zbus channels for inter-module communication (BUTTON_CHAN, WIFI_CHAN)
+  - SMF (State Machine Framework) for stateful modules (button)
+  - All feature modules under src/modules/ with own Kconfig
+  - Optional features via overlay configs (overlay-app-*.conf)
+  - Memfault metrics follow naming: category_metric_name (e.g., wifi_rssi)
+  
+  Build:
+  - Target: nrf7002dk/nrf5340/cpuapp
+  - Sysbuild: MCUboot + hci_ipc (BLE controller) + app
+  - Partitions: Custom pm_static for Memfault storage
+  
+  Code style:
+  - Nordic NCS coding style (Linux kernel style)
+  - LOG_MODULE_REGISTER in each module
+  - Use CONFIG_ prefix for Kconfig symbols
+
+# Per-artifact rules
+rules:
+  proposal:
+    - Keep proposals focused on single features or small related changes
+    - Include memory/flash impact estimates (critical for embedded)
+    - Consider power consumption implications (Wi-Fi is power-hungry)
+    - Specify Kconfig options and default values
+    - Include testing steps (build, flash, observe logs/metrics)
+    - Always include "Non-goals" section to limit scope
+  
+  tasks:
+    - Break tasks into testable increments (<4 hours)
+    - Include verification steps: build test, flash, UART log check, Memfault dashboard check
+    - Tag with module name (e.g., [wifi], [memfault], [button])
+    - Specify required hardware/tools (DK, Segger, nRF Wi-Fi Provisioner app)
+  
+  spec:
+    - Use PRD.md for high-level product vision
+    - Use specs for detailed module/feature technical documentation
+    - Include state machine diagrams for SMF modules (Mermaid)
+    - Include sequence diagrams for complex interactions
+    - Document Zbus message formats (struct definitions)
+    - List dependencies (Kconfig, other modules, external services)
+    - Specify RAM/flash footprint
+    - Include Memfault metrics added by the feature

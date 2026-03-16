@@ -1,0 +1,26 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config BUTTON_MODULE
+	bool "Button Module"
+	default y
+	help
+	  Enable button module with SMF state machine (short/long press).
+	  Publishes BUTTON_CHAN for Memfault heartbeat, OTA, and demo faults.
+
+if BUTTON_MODULE
+
+module = BUTTON_MODULE
+module-str = button_module
+source "subsys/logging/Kconfig.template.log_config"
+
+config BUTTON_LONG_PRESS_MS
+	int "Long press threshold in milliseconds"
+	default 3000
+	help
+	  Button press duration (ms) to trigger long-press action (e.g. crash demo).
+
+endif # BUTTON_MODULE

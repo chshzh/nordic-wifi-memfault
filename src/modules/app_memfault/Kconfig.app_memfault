@@ -1,0 +1,61 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config APP_MEMFAULT_MODULE
+	bool "Memfault module group"
+	select MEMFAULT
+	help
+	  Memfault core, metrics, OTA triggers, and optional nRF70 CDR.
+
+if APP_MEMFAULT_MODULE
+
+module = APP_MEMFAULT_MODULE
+module-str = app_memfault_module
+source "subsys/logging/Kconfig.template.log_config"
+
+config NRF70_FW_STATS_CDR_ENABLED
+	bool "Enable nRF70 firmware statistics CDR upload to Memfault"
+	depends on MEMFAULT_CDR_ENABLE
+	depends on WIFI_NRF70
+	help
+	  Collect and upload nRF70 WiFi firmware statistics (PHY, LMAC, UMAC)
+	  as Custom Data Recording. Trigger: Button 1 short press.
+	  CDR uploads are limited to 1 per device per 24 hours.
+
+config MEMFAULT_UPLOAD_THREAD_STACK_SIZE
+	int "Stack size for the Memfault on-connect upload thread (bytes)"
+	help
+	  Stack size for the thread that performs an immediate Memfault data
+	  upload on WiFi connect.  The thread calls getaddrinfo() (DNS) and
+	  memfault_zephyr_port_post_data() (TLS + HTTPS), both of which need
+	  several kilobytes of stack.  6144 bytes is the recommended minimum
+	  for the nRF7002DK.  Override in prj.conf if needed.
+
+config MEMFAULT_OTA_CHECK_INTERVAL_MIN
+	int "Periodic OTA check interval in minutes"
+	range 1 1440
+	help
+	  How often the OTA trigger thread checks Memfault cloud for a new
+	  firmware release when no manual trigger (button or connect event)
+	  has fired.  Default is 60 minutes.
+
+config MEMFAULT_OTA_CONNECT_DELAY_SEC
+	int "Delay before OTA check after network connect or button press (seconds)"
+	range 0 300
+	help
+	  After a network-connect or button-press event signals the OTA thread,
+	  the thread sleeps this many seconds before calling memfault_fota_start().
+	  This gives the DNS resolver time to settle after a fresh connection.
+	  Default is 60 seconds.
+
+config MEMFAULT_OTA_THREAD_STACK_SIZE
+	int "Stack size for the Memfault OTA trigger thread (bytes)"
+	help
+	  Stack size for the thread that calls memfault_fota_start().
+	  4096 bytes is sufficient as the Memfault NCS port spawns its own
+	  HTTPS transfer internally.  Override in prj.conf if needed.
+
+endif # APP_MEMFAULT_MODULE

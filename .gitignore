@@ -1,13 +1,52 @@
-# editors
-*.swp
-*~
-.vscode/
-.DS_Store
+# Zephyr/Nordic Connect SDK .gitignore
 
-# build
-/build*/
+# Build directories
 build/
+build_*/
+/build*/
 **/build/
+
+# Log files
+*.log
+screenlog.*
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
+*.orig
+*.rej
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.ioc
+*.launch
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# C/C++ objects and libraries
+*.o
+*.a
+*.so
+*.dll
+*.exe
+*.d
 
 # nRF Connect SDK specific
 *.hex
@@ -15,28 +54,29 @@ build/
 *.elf
 *.map
 *.lst
-*.o
-*.d
-*.log
-*.tmp
 *_cache.txt
 
-# IDE and toolchain
-.idea/
-*.ioc
-*.launch
-*.pyc
-__pycache__/
+# Private keys and sensitive certificates (security)
+*.key
+*.p12
+certificates/
+keys/
+# Public CA certs in module cert/ directories are tracked (not gitignored)
 
-# Temporary files
-*~
-*.bak
-*.orig
-*.rej
+# Local configuration files - keep credentials out of version control
+local_config.conf
+local_overlay.conf
+overlay-app-memfault-project-info.conf
+overlay-ci-key.conf
 
-# OS generated files
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Documentation build
+docs/_build/
+doc/_build/
 
-overlay-project-key.conf
+# Test results
+test-results/
+*.xml
+coverage/
+*.gcov
+*.gcda
+*.gcno

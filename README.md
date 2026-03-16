@@ -1,30 +1,43 @@
-# Memfault nRF7002DK Sample
+# nordic-wifi-memfault sample
 
-A comprehensive Memfault integration sample for Nordic nRF7002DK, demonstrating IoT device management with Wi-Fi connectivity, BLE provisioning, HTTPS communication, and cloud-based monitoring.
+A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demonstrating IoT device management with Wi-Fi connectivity, Wi-Fi provisioning over BLE, HTTPS communication, and cloud-based monitoring.
+
+## Platform Support
+
+| Board | Host MCU | Wi-Fi Chip | Status |
+|-------|----------|------------|--------|
+| [nRF7002DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7002-DK) | nRF5340 | nRF7002 (nRF70 series) | ✅ Supported |
+| [nRF54LM20DK](https://www.nordicsemi.com/Products/Development-hardware/nRF54LM20-DK) + nRF7002EB II | nRF54LM20 | nRF7002 (nRF70 series) | 🔜 Planned |
+| [nRF7120DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7120-DK) | nRF7120 (integrated) | nRF7120 | 🔜 Planned |
+
+> All platform-specific build targets, overlays, and partition maps live under board-named subdirectories. The application core (modules, Memfault integration) is shared across all boards.
 
 ## Overview
 
 This sample application showcases:
-- **Platform**: nRF7002DK (nRF5340 + nRF7002 WiFi companion chip)
-- **SDK**: nRF Connect SDK v3.2.0
-- **Memfault SDK**: v1.32.0 (default in NCS v3.2.0)
+- **Current platform**: nRF7002DK (nRF5340 + nRF7002 Wi-Fi companion chip)
+- **SDK**: nRF Connect SDK v3.2.1 (workspace application)
+- **Memfault SDK**: default in NCS v3.2.1
 
 ### Key Features
 
 - ✅ **Wi-Fi Connectivity** - WPA2/WPA3 with automatic reconnection
-- ✅ **BLE Provisioning** - Wireless WiFi credential configuration via mobile app
+- ✅ **WiFi Provisioning over BLE** - Wireless WiFi credential configuration via mobile app
 - ✅ **Crash Reporting** - Automatic coredump collection and upload to cloud
 - ✅ **Metrics Collection** - WiFi stats, stack usage, heap, CPU temperature
+- ✅ **Reusable Heap Monitor Module** - Auto-detects system and mbedTLS heaps and logs them in a shared format
 - ✅ **nRF70 WiFi Diagnostics** - Firmware statistics (PHY/LMAC/UMAC) via CDR
 - ✅ **OTA Updates** - Secure firmware updates via Memfault cloud
 - ✅ **MCUBoot Bootloader** - Dual-bank updates with rollback protection
 
-### Optional Features (via overlays)
+### Always-Enabled Application Modules
 
-- 📡 **HTTPS Client** - Periodic connectivity testing (`overlay-https-req.conf`)
-- 📨 **MQTT Echo Test** - MQTT broker connectivity testing with TLS (`overlay-mqtt-echo.conf`)
+- 📡 **App HTTPS Request Test** - Periodic HTTPS connectivity testing to `example.com`
+- 📨 **App MQTT Echo Test** - TLS-secured MQTT broker connectivity testing to `test.mosquitto.org`
 
 ## Hardware Requirements
+
+> The instructions below are for the **nRF7002DK**. Other boards will be documented when support is added.
 
 - nRF7002DK development kit
 - USB cable for power and debugging
@@ -33,35 +46,39 @@ This sample application showcases:
 
 ## Prerequisites
 
-### 1. Memfault SDK v1.32.0
+### 1. NCS workspace (recommended)
 
-This project uses Memfault SDK v1.32.0 (default in NCS v3.2.0).
-
-> ✅ **No manual update needed** - NCS v3.2.0 includes Memfault SDK v1.32.0 by default.
-You may update it to a new version with following commands.
+This app is a **workspace application**: NCS is fetched automatically when you init the workspace.
 
 ```bash
-cd /opt/nordic/ncs/v3.2.0/modules/lib/memfault-firmware-sdk
-git pull
-git checkout 1.3x.0
+# From a directory that will become the workspace root (e.g. ncs-workspace)
+west init -l /path/to/memfault-nrf7002dk
+west update -o=--depth=1 -n
+cd memfault-nrf7002dk
+west build -p -b nrf7002dk/nrf5340/cpuapp
+```
+
+To use an existing NCS install (e.g. `/opt/nordic/ncs/v3.2.1`) instead:
+
+```bash
+cd /opt/nordic/ncs/v3.2.1
+west build -p -b nrf7002dk/nrf5340/cpuapp /path/to/memfault-nrf7002dk
 ```
 
 
 ## Quick Start
 
-1. **Set your Memfault project key** using an overlay file (recommended):
-   
-   Create `overlay-project-key.conf` with your project key:
-   ```properties
-   CONFIG_MEMFAULT_NCS_PROJECT_KEY="your_project_key_here"
+1. **Memfault project key**: `prj.conf` uses a placeholder so the project builds without an overlay. For production, create `overlay-app-memfault-project-info.conf` from the template:
+   ```bash
+   cp overlay-app-memfault-project-info.conf.template overlay-app-memfault-project-info.conf
+   # Edit the file and set your project key
    ```
-   
-   > **Tip**: Add `overlay-project-key.conf` to `.git/info/exclude` to keep your key out of version control.
+   Add `overlay-app-memfault-project-info.conf` to `.git/info/exclude` to keep your key out of version control.
 
-2. **Build and flash**:
+2. **Build and flash** (from NCS workspace root, or from app dir if you used `west init -l`):
    ```bash
    west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-     -DEXTRA_CONF_FILE="overlay-project-key.conf"
+     -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
    west flash --erase
    ```
 
@@ -83,30 +100,36 @@ git checkout 1.3x.0
 
 ## Project Structure
 
+Modular layout (SMF + zbus); all feature code lives under `src/modules/`.
+
 ```
 memfault-nrf7002dk/
+├── west.yml                          # Workspace manifest (NCS v3.2.1)
+├── CMakeLists.txt                    # Root build (add_subdirectory modules)
+├── Kconfig                           # Root Kconfig (rsource module Kconfigs)
+├── prj.conf                          # Base + Memfault config
 ├── src/
-│   ├── main.c                       # Application entry point
-│   ├── https_client.c/h             # HTTPS client (optional)
-│   ├── mqtt_client.c/h              # MQTT echo test client (optional)
-│   ├── ble_provisioning.c/h         # BLE WiFi provisioning
-│   ├── mflt_ota_triggers.c/h        # OTA automation logic
-│   ├── mflt_wifi_metrics.c/h        # WiFi metrics collection
-│   ├── mflt_stack_metrics.c/h       # Stack usage tracking
-│   └── mflt_nrf70_fw_stats_cdr.c/h  # nRF70 FW stats CDR
-├── boards/
-│   └── nrf7002dk_nrf5340_cpuapp.conf # Board-specific config
-├── cert/
-│   ├── SSLcom-TLS-Root-2022-ECC.pem # Root CA for HTTPS
-│   └── mqtt-ca.pem                  # Root CA for MQTT broker
-├── config/
-│   └── memfault_metrics_heartbeat_config.def  # Metric definitions
-├── sysbuild/                         # Multi-image build configs
-├── prj.conf                          # Main configuration
-├── overlay-project-key.conf         # Memfault project key (create this, git-ignored)
-├── overlay-https-req.conf           # HTTPS client overlay (optional)
-├── overlay-mqtt-echo.conf           # MQTT echo test overlay (optional)
-├── pm_static_*.yml                  # Flash partition layout
+│   ├── main.c                        # Entry: banner + sleep (init via SYS_INIT)
+│   └── modules/
+│       ├── messages.h                # Zbus message types (button, wifi, memfault)
+│       ├── button/                   # Button SMF, BUTTON_CHAN
+│       ├── network/                  # WiFi/network event management, WIFI_CHAN
+│       ├── heap_monitor/             # Heap monitor module (system + mbedTLS)
+│       ├── wifi_prov_over_ble/       # WiFi provisioning over BLE (subscribes WIFI_CHAN)
+│       ├── app_memfault/             # Memfault application module
+│       │   ├── core/                 # Upload, heartbeat, boot confirm, WIFI/BUTTON
+│       │   ├── metrics/              # WiFi + stack + heap metrics
+│       │   ├── ota/                  # OTA triggers (button 2, WiFi connect)
+│       │   └── cdr/                  # nRF70 FW stats CDR
+│       ├── app_https_client/         # App HTTPS request test (WIFI_CHAN)
+│       │   └── cert/                 # HTTPS root CA certificate
+│       └── app_mqtt_client/          # App MQTT echo test (WIFI_CHAN)
+│           └── cert/                 # MQTT broker CA certificate
+├── sysbuild/                         # Multi-image (MCUboot, hci_ipc, app)
+├── overlay-app-memfault-project-info.conf  # Memfault key (create from template, git-ignored)
+├── pm_static_*.yml                   # Flash partition layout
+├── PRD.md                            # Product requirements
+├── LICENSE                           # Nordic 5-Clause
 └── README.md
 ```
 
@@ -114,61 +137,29 @@ memfault-nrf7002dk/
 
 ## Building Firmware
 
-> **Note**: All build commands below assume you have created `overlay-project-key.conf` with your Memfault project key (see [Quick Start](#quick-start)). Combine overlays using semicolons.
+> **Note**: `prj.conf` uses a placeholder project key. For production, supply your real key via `-DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"`.
 
-### Default Build (Recommended)
+### Standard Build
 
-**Includes**: BLE provisioning + WiFi metrics + nRF70 diagnostics CDR
+**Includes**: WiFi provisioning over BLE + HTTPS client + MQTT client + Memfault + nRF70 CDR
 
 ```bash
 west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-  -DEXTRA_CONF_FILE="overlay-project-key.conf"
+  -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
 west flash --erase
 ```
 
 **Features enabled**:
-- ✅ BLE WiFi provisioning
+- ✅ WiFi provisioning over BLE
 - ✅ Memfault crash reporting, metrics, OTA
+- ✅ Heap monitor module via `CONFIG_HEAPS_MONITOR`
 - ✅ nRF70 firmware statistics CDR (Button 1)
 - ✅ WiFi vendor detection (AP OUI lookup)
-
-### With HTTPS Client (Optional)
-
-Adds periodic HTTPS connectivity testing:
-
-```bash
-west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-  -DEXTRA_CONF_FILE="overlay-project-key.conf;overlay-https-req.conf"
-west flash --erase
-```
-
-**Additional features**:
-- ✅ Periodic HTTPS HEAD requests to `example.com` (every 60s)
-- ✅ Network connectivity monitoring
-
-### With MQTT Echo Test (Optional)
-
-Adds MQTT broker connectivity testing with TLS:
-
-```bash
-west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-  -DEXTRA_CONF_FILE="overlay-project-key.conf;overlay-mqtt-echo.conf"
-west flash --erase
-```
-
-**Additional features**:
+- ✅ Periodic HTTPS HEAD requests to `example.com` (every 60 s, configurable via `CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC`)
+- ✅ Metrics: `app_https_req_total_count`, `app_https_req_fail_count`
 - ✅ TLS-secured MQTT connection to `test.mosquitto.org:8883`
 - ✅ Publishes messages and subscribes to same topic (echo test)
-- ✅ Automatic reconnection on broker disconnect
-- ✅ Metrics: `mqtt_echo_total_count`, `mqtt_echo_fail_count`
-
-### With Both HTTPS and MQTT (Optional)
-
-```bash
-west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-  -DEXTRA_CONF_FILE="overlay-project-key.conf;overlay-https-req.conf;overlay-mqtt-echo.conf"
-west flash --erase
-```
+- ✅ Metrics: `app_mqtt_echo_total_count`, `app_mqtt_echo_fail_count`
 
 ---
 
@@ -199,7 +190,7 @@ This project uses a custom partition layout optimized for Memfault operation and
 │         │                                     │                │
 │         │                                     │                │
 │         │                                     │                │
-│         │              app                    │ 911KB          │
+│         │              app                    │ ~912KB         │
 │         │        (Main Application)           │ (0xE3E00)      │
 │         │                                     │                │
 │         │                                     │                │
@@ -227,7 +218,7 @@ This project uses a custom partition layout optimized for Memfault operation and
 │         │                                     │                │
 │         │                                     │                │
 │         │                                     │                │
-│         │        mcuboot_secondary            │ 911KB          │
+│         │        mcuboot_secondary            │ 912KB          │
 │         │      (App Update Slot)              │ (0xE4000)      │
 │         │                                     │                │
 │         │                                     │                │
@@ -266,12 +257,18 @@ The 64KB partition stores crash coredumps. **Must** be in internal flash for:
 ┌──────────────────────────────────────────────────────────────────┐
 │                    nRF5340 SRAM (512KB)                          │
 ├──────────────────────────────────────────────────────────────────┤
-│ 0x20000000 ┌───────────────────────────────────────────────-───┐ │
+│ 0x20000000 ┌───────────────────────────────────────────────────┐ │
 │            │                                                   │ │
-│            │              Application SRAM                     │ │
-│            │           (Stack, Heap, Variables)                │ │
-│            │                   512KB                           │ │
-│            │               (0x80000)                           │ │
+│            │              sram_primary                         │ │
+│            │       (Application: Stack, Heap, BSS)             │ │
+│            │                  448KB                            │ │
+│            │               (0x70000)                           │ │
+│            │                                                   │ │
+│ 0x20070000 ├───────────────────────────────────────────────────┤ │
+│            │           rpmsg_nrf53_sram                        │ │
+│            │    (IPC Shared Memory — App ↔ Network Core)       │ │
+│            │                   64KB                            │ │
+│            │               (0x10000)                           │ │
 │ 0x20080000 └───────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -282,8 +279,8 @@ The nRF5340 network core runs the BLE controller (`hci_ipc`):
 
 | Memory | Used | Total | Usage |
 |--------|------|-------|-------|
-| FLASH | 151.9 KB | 256 KB | 57.95% |
-| RAM | 38.9 KB | 64 KB | 59.35% |
+| FLASH  | 151.9 KB | 256 KB | 57.95% |
+| RAM    | 38.9 KB | 64 KB | 59.35% |
 
 > **Note:** Largest RAM consumer is BLE Controller Memory Pool (15.9 KB). Reduce via `CONFIG_BT_MAX_CONN`.
 
@@ -313,7 +310,8 @@ The nRF5340 network core runs the BLE controller (`hci_ipc`):
 | `wifi_rssi` | Gauge | Signal strength (dBm) |
 | `wifi_sta_*` | Gauge | Channel, beacon interval, DTIM, TWT |
 | `wifi_ap_oui_vendor` | String | AP vendor (Cisco, Apple, ASUS, etc.) |
-| `heap_free` | Gauge | Free heap memory |
+| `ncs_system_heap_*` | Gauge | System heap total, current usage, and peak usage |
+| `ncs_mbedtls_heap_*` | Gauge | mbedTLS heap total, current usage, and peak usage |
 | `stack_free_*` | Gauge | Per-thread stack usage |
 
 ### OTA Updates
@@ -378,7 +376,7 @@ Download CDR blob from Memfault and parse:
 
 ```bash
 python3 script/nrf70_fw_stats_parser.py \
-  /opt/nordic/ncs/v3.2.0/modules/lib/nrf_wifi/fw_if/umac_if/inc/fw/host_rpu_sys_if.h \
+  /opt/nordic/ncs/v3.2.1/nrf/modules/lib/nrf_wifi/fw_if/umac_if/inc/fw/host_rpu_sys_if.h \
   ~/Downloads/F4CE36006EB1_nrf70-fw-stats_20251128-111955.bin
 ```
 
@@ -390,7 +388,7 @@ python3 script/nrf70_fw_stats_parser.py \
 
 ### Custom Metrics
 
-Add to `config/memfault_metrics_heartbeat_config.def`:
+Add to `src/modules/app_memfault/config/memfault_metrics_heartbeat_config.def`:
 
 ```c
 MEMFAULT_METRICS_KEY_DEFINE(custom_counter, kMemfaultMetricType_Unsigned)
@@ -401,12 +399,89 @@ Record in code:
 MEMFAULT_METRIC_SET_UNSIGNED(custom_counter, value);
 ```
 
+### Heap Monitor Module
+
+Heap monitoring is implemented as a reusable module in `src/modules/heap_monitor/`
+and is enabled with `CONFIG_HEAPS_MONITOR=y`.
+
+What it does:
+- Automatically monitors the system heap when `CONFIG_HEAP_MEM_POOL_SIZE > 0`
+- Automatically monitors the mbedTLS heap when `CONFIG_MBEDTLS_ENABLE_HEAP=y`
+- Updates Memfault heartbeat metrics automatically when `CONFIG_APP_MEMFAULT_MODULE=y`
+- Emits standardized logs for both heaps, for example:
+
+```text
+System Heap: used=51712/98304 (52%) blocks=n/a, peak=64752/98304 (65%), peak_blocks=n/a
+mbedTLS Heap: used=19136/110592 (17%) blocks=49, peak=72684/110592 (65%), peak_blocks=197
+```
+
+Useful Kconfig options:
+- `CONFIG_HEAPS_MONITOR`
+- `CONFIG_HEAPS_MONITOR_WARN_PCT`
+- `CONFIG_HEAPS_MONITOR_STEP_BYTES`
+- `CONFIG_HEAPS_MONITOR_PERIODIC_INTERVAL_SEC`
+
 ### Partition Layout Customization
 
 Edit `pm_static_nrf7002dk_nrf5340_cpuapp.yml`:
 - Ensure `app` and `mcuboot_secondary` match sizes
 - Keep `settings_storage` for WiFi credentials
 - Rebuild with `-p` flag
+
+---
+
+## Troubleshooting
+
+### No WiFi credentials after flash
+
+Device advertises as `PV<MAC>` over BLE but never connects to WiFi.
+
+**Fix**: Use the [nRF Wi-Fi Provisioner](https://www.nordicsemi.com/Products/Development-tools/nRF-Wi-Fi-Provisioner) app (Android/iOS) to provision credentials. Once provisioned, credentials are stored in the settings partition and survive reboots.
+
+Alternatively, if the shell is enabled (`CONFIG_SHELL=y`):
+```
+uart:~$ wifi_cred add "MySSID" 3 "MyPassword"
+uart:~$ kernel reboot cold
+```
+
+---
+
+### Memfault upload fails / no data in dashboard
+
+**Check**:
+1. Verify the project key: `overlay-app-memfault-project-info.conf` must contain your real key from the Memfault dashboard.
+2. Verify DNS: the device must reach `chunks-nrf.memfault.com:443`. Check firewall/router rules.
+3. Check logs for `[memfault_core] DNS check: chunks-nrf.memfault.com resolved` — if missing, DNS is blocked.
+4. Ensure the symbol file (`zephyr.elf`) has been uploaded for the current firmware version.
+
+**DNS timeout log** (expected if DNS is temporarily slow — uploads still proceed after 300 s):
+```
+[memfault_core] DNS timeout after 300 seconds, continuing anyway
+```
+
+---
+
+### OTA update not triggering
+
+**Check**:
+1. A release must be created and activated in the Memfault dashboard for your device's cohort.
+2. Verify the firmware version in `prj.conf` (`CONFIG_MEMFAULT_NCS_FW_VERSION`) is lower than the release version.
+3. Press **Button 2** (short) to force an immediate OTA check, or wait up to `CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN` minutes (default: 60).
+
+---
+
+### High flash usage warning
+
+Flash is at ~94%. If a future build fails with a linker error:
+1. Disable unused features in `prj.conf` (`CONFIG_APP_HTTPS_CLIENT_MODULE=n` or `CONFIG_APP_MQTT_CLIENT_MODULE=n`).
+2. Disable `CONFIG_SHELL=n` (already off by default).
+3. Reduce `CONFIG_LOG_BUFFER_SIZE`.
+
+---
+
+### Device crashes on boot after OTA
+
+MCUboot will automatically roll back to the previous image if the new firmware does not call `boot_write_img_confirmed()`. The Memfault core module calls this on a successful boot. If rollback occurs repeatedly, check for early-boot crashes in the Memfault **Issues** tab.
 
 ---
 
@@ -419,3 +494,18 @@ Edit `pm_static_nrf7002dk_nrf5340_cpuapp.yml`:
 ## License
 
 Based on Nordic Semiconductor's Memfault sample (LicenseRef-Nordic-5-Clause).
+
+## Roadmap
+
+### Planned Platform Support
+
+- **nRF54LM20DK + nRF7002EB II** — nRF54LM20 host MCU paired with the nRF7002EB II expansion board (nRF70 series Wi-Fi)
+- **nRF7120DK** — single-chip solution with integrated Wi-Fi and Bluetooth 
+
+Each new platform will add a board-specific build target, `pm_static_<board>.yml` partition map, and any required overlays. Shared application modules (Memfault core, heap monitor, OTA, CDR) require no changes.
+
+### Application Improvements
+
+- **NTP time sync** — synchronize the device clock via NTP after Wi-Fi connects, so that Zephyr log timestamps and Memfault event timestamps reflect real-world UTC time rather than uptime-relative values
+- **CI: automated Memfault release uploads** — extend the GitHub Actions workflow to automatically upload the ELF symbol file and create a Memfault OTA release after a successful build, eliminating the manual upload step
+- **Wi-Fi disconnection tracking** — record the disconnect reason code and emit it as a Memfault metric and structured log entry, making it easier to diagnose intermittent connectivity issues in the field
