@@ -1,377 +1,259 @@
 # nordic-wifi-memfault sample
 
-A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demonstrating IoT device management with Wi-Fi connectivity, Wi-Fi provisioning over BLE, HTTPS communication, and cloud-based monitoring.
+A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demonstrating IoT device management with Wi-Fi connectivity, Wi-Fi provisioning over BLE, HTTPS/MQTT communication, and cloud-based monitoring.
 
 ## Platform Support
 
-| Board | Host MCU | Wi-Fi Chip | Status |
-|-------|----------|------------|--------|
-| [nRF7002DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7002-DK) | nRF5340 | nRF7002 (nRF70 series) | ✅ Supported |
-| [nRF54LM20DK](https://www.nordicsemi.com/Products/Development-hardware/nRF54LM20-DK) + nRF7002EB II | nRF54LM20 | nRF7002 (nRF70 series) | � In Progress |
-| [nRF7120DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7120-DK) | nRF7120 (integrated) | nRF7120 | 🔜 Planned |
+| Board | Host MCU | Wi-Fi | BLE | Status |
+|-------|----------|-------|-----|--------|
+| [nRF7002DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7002-DK) | nRF5340 (dual-core) | nRF7002 | Network core (`hci_ipc`) | ✅ Supported |
+| [nRF54LM20DK](https://www.nordicsemi.com/Products/Development-hardware/nRF54LM20-DK) + nRF7002EB II | nRF54LM20 (single-core) | nRF7002 via EB II shield | SoftDevice Controller (same core) | ✅ Supported |
+| [nRF7120DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7120-DK) | nRF7120 (integrated) | nRF7120 | — | 🔜 Planned |
 
-> All platform-specific build targets, overlays, and partition maps live under board-named subdirectories. The application core (modules, Memfault integration) is shared across all boards.
+> All platform-specific build targets, overlays, and partition maps live under board-named files. The application core (modules, Memfault integration) is shared across all boards.
 
 ## Overview
 
-This sample application showcases:
-- **Current platform**: nRF7002DK (nRF5340 + nRF7002 Wi-Fi companion chip)
 - **SDK**: nRF Connect SDK v3.2.1 (workspace application)
-- **Memfault SDK**: default in NCS v3.2.1
+- **Memfault SDK**: bundled with NCS v3.2.1
 
 ### Key Features
 
-- ✅ **Wi-Fi Connectivity** - WPA2/WPA3 with automatic reconnection
-- ✅ **WiFi Provisioning over BLE** - Wireless WiFi credential configuration via mobile app
-- ✅ **Crash Reporting** - Automatic coredump collection and upload to cloud
-- ✅ **Metrics Collection** - WiFi stats, stack usage, heap, CPU temperature
-- ✅ **Reusable Heap Monitor Module** - Auto-detects system and mbedTLS heaps and logs them in a shared format
-- ✅ **nRF70 WiFi Diagnostics** - Firmware statistics (PHY/LMAC/UMAC) via CDR
-- ✅ **OTA Updates** - Secure firmware updates via Memfault cloud
-- ✅ **MCUBoot Bootloader** - Dual-bank updates with rollback protection
-
-### Always-Enabled Application Modules
-
-- 📡 **App HTTPS Request Test** - Periodic HTTPS connectivity testing to `example.com`
-- 📨 **App MQTT Echo Test** - TLS-secured MQTT broker connectivity testing to `test.mosquitto.org`
-
-## Hardware Requirements
-
-> The instructions below are for the **nRF7002DK**. Other boards will be documented when support is added.
-
-- nRF7002DK development kit
-- USB cable for power and debugging
-- WiFi Access Point (2.4 GHz, WPA2/WPA3)
-- Memfault Account ([sign up free](https://memfault.com))
-
-## Prerequisites
-
-### 1. NCS workspace (recommended)
-
-This app is a **workspace application**: NCS is fetched automatically when you init the workspace.
-
-```bash
-# From a directory that will become the workspace root (e.g. ncs-workspace)
-west init -l /path/to/memfault-nrf7002dk
-west update -o=--depth=1 -n
-cd memfault-nrf7002dk
-west build -p -b nrf7002dk/nrf5340/cpuapp
-```
-
-To use an existing NCS install (e.g. `/opt/nordic/ncs/v3.2.1`) instead:
-
-```bash
-cd /opt/nordic/ncs/v3.2.1
-west build -p -b nrf7002dk/nrf5340/cpuapp /path/to/memfault-nrf7002dk
-```
-
-
-## Quick Start
-
-1. **Memfault project key**: `prj.conf` uses a placeholder so the project builds without an overlay. For production, create `overlay-app-memfault-project-info.conf` from the template:
-   ```bash
-   cp overlay-app-memfault-project-info.conf.template overlay-app-memfault-project-info.conf
-   # Edit the file and set your project key
-   ```
-   Add `overlay-app-memfault-project-info.conf` to `.git/info/exclude` to keep your key out of version control.
-
-2. **Build and flash** (from NCS workspace root, or from app dir if you used `west init -l`):
-   ```bash
-   west build -b nrf7002dk/nrf5340/cpuapp -p -- \
-     -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
-   west flash --erase
-   ```
-
-3. **Provision WiFi** using the nRF Wi-Fi Provisioner mobile app:
-   - Download: [Android](https://play.google.com/store/apps/details?id=no.nordicsemi.android.wifi.provisioning) | [iOS](https://apps.apple.com/app/nrf-wi-fi-provisioner/id1638948698)
-   - Connect to device `PV<MAC>` (e.g., `PV006EB1`)
-   - Select your WiFi network and enter password
-
-4. **Monitor device** on Memfault dashboard
-
-## Button Controls
-
-| Button | Press | Action |
-|--------|-------|--------|
-| **Button 1** | Short (< 3s) | Trigger Memfault heartbeat + nRF70 stats CDR upload |
-| **Button 1** | Long (≥ 3s) | Stack overflow crash (test crash reporting) |
-| **Button 2** | Short (< 3s) | Check for OTA update |
-| **Button 2** | Long (≥ 3s) | Division by zero crash (test fault handler) |
-
-## Project Structure
-
-Modular layout (SMF + zbus); all feature code lives under `src/modules/`.
-
-```
-memfault-nrf7002dk/
-├── west.yml                          # Workspace manifest (NCS v3.2.1)
-├── CMakeLists.txt                    # Root build (add_subdirectory modules)
-├── Kconfig                           # Root Kconfig (rsource module Kconfigs)
-├── prj.conf                          # Base + Memfault config
-├── src/
-│   ├── main.c                        # Entry: banner + sleep (init via SYS_INIT)
-│   └── modules/
-│       ├── messages.h                # Zbus message types (button, wifi, memfault)
-│       ├── button/                   # Button SMF, BUTTON_CHAN
-│       ├── network/                  # WiFi/network event management, WIFI_CHAN
-│       ├── heap_monitor/             # Heap monitor module (system + mbedTLS)
-│       ├── wifi_prov_over_ble/       # WiFi provisioning over BLE (subscribes WIFI_CHAN)
-│       ├── app_memfault/             # Memfault application module
-│       │   ├── core/                 # Upload, heartbeat, boot confirm, WIFI/BUTTON
-│       │   ├── metrics/              # WiFi + stack + heap metrics
-│       │   ├── ota/                  # OTA triggers (button 2, WiFi connect)
-│       │   └── cdr/                  # nRF70 FW stats CDR
-│       ├── app_https_client/         # App HTTPS request test (WIFI_CHAN)
-│       │   └── cert/                 # HTTPS root CA certificate
-│       └── app_mqtt_client/          # App MQTT echo test (WIFI_CHAN)
-│           └── cert/                 # MQTT broker CA certificate
-├── sysbuild/                         # Multi-image (MCUboot, hci_ipc, app)
-├── overlay-app-memfault-project-info.conf  # Memfault key (create from template, git-ignored)
-├── pm_static_*.yml                   # Flash partition layout
-├── PRD.md                            # Product requirements
-├── LICENSE                           # Nordic 5-Clause
-└── README.md
-```
+- ✅ **Wi-Fi Connectivity** — WPA2/WPA3 with automatic reconnection
+- ✅ **WiFi Provisioning over BLE** — Credential configuration via nRF Wi-Fi Provisioner app
+- ✅ **Crash Reporting** — Automatic coredump collection and upload
+- ✅ **Metrics Collection** — WiFi stats, stack usage, heap, CPU temperature
+- ✅ **Heap Monitor** — Auto-detects system and mbedTLS heaps, logs in a shared format
+- ✅ **nRF70 WiFi Diagnostics** — Firmware statistics (PHY/LMAC/UMAC) via CDR
+- ✅ **OTA Updates** — Secure firmware updates via Memfault cloud
+- ✅ **MCUboot Bootloader** — Dual-bank updates with rollback protection
+- ✅ **HTTPS Test** — Periodic `HEAD` requests to `example.com`
+- ✅ **MQTT Test** — TLS-secured echo test to `broker.emqx.io`
 
 ---
 
-## Building Firmware
+## Quick Start
 
-> **Note**: `prj.conf` uses a placeholder project key. For production, supply your real key via `-DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"`.
+### 1. Set Memfault project key
 
-### Standard Build
+```bash
+cp overlay-app-memfault-project-info.conf.template overlay-app-memfault-project-info.conf
+# Edit the file and set CONFIG_MEMFAULT_NCS_PROJECT_KEY
+echo "overlay-app-memfault-project-info.conf" >> .git/info/exclude
+```
 
-**Includes**: WiFi provisioning over BLE + HTTPS client + MQTT client + Memfault + nRF70 CDR
+### 2. Build and flash
 
+**nRF7002DK:**
 ```bash
 west build -b nrf7002dk/nrf5340/cpuapp -p -- \
   -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
 west flash --erase
 ```
 
-**Features enabled**:
-- ✅ WiFi provisioning over BLE
-- ✅ Memfault crash reporting, metrics, OTA
-- ✅ Heap monitor module via `CONFIG_HEAPS_MONITOR`
-- ✅ nRF70 firmware statistics CDR (Button 1)
-- ✅ WiFi vendor detection (AP OUI lookup)
-- ✅ Periodic HTTPS HEAD requests to `example.com` (every 60 s, configurable via `CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC`)
-- ✅ Metrics: `app_https_req_total_count`, `app_https_req_fail_count`
-- ✅ TLS-secured MQTT connection to `test.mosquitto.org:8883`
-- ✅ Publishes messages and subscribes to same topic (echo test)
-- ✅ Metrics: `app_mqtt_echo_total_count`, `app_mqtt_echo_fail_count`
+**nRF54LM20DK + nRF7002EB II:**
+```bash
+west build -b nrf54lm20dk/nrf54lm20a/cpuapp -p -- \
+  -DSHIELD=nrf7002eb2 \
+  -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
+# Flash merged.hex (MCUboot + app together)
+nrfutil device program --firmware build/merged.hex \
+  --options chip_erase_mode=ERASE_ALL
+nrfutil device reset
+```
+
+> **nRF54LM20DK note**: Always flash `merged.hex` (not just `zephyr.hex`) so MCUboot is included. The nRF Connect extension "Flash" button targets only the app sub-image — use the terminal command above.
+
+### 3. Provision WiFi
+
+Use the **nRF Wi-Fi Provisioner** app: [Android](https://play.google.com/store/apps/details?id=no.nordicsemi.android.wifi.provisioning) | [iOS](https://apps.apple.com/app/nrf-wi-fi-provisioner/id1638948698)
+
+- Connect to device named `PV<MAC>` (e.g., `PV00D318`)
+- Select your network and enter the password
+- The device connects and saves credentials to NVS — they persist across reboots
+
+### 4. Monitor via UART
+
+| Board | Port | Baud |
+|-------|------|------|
+| nRF7002DK | VCOM0 (`/dev/tty.usbmodem*1`) | 115200 |
+| nRF54LM20DK | VCOM0 (`/dev/tty.usbmodem*1`) | 115200 |
+
+---
+
+## Button Controls
+
+| Button | Press | Action |
+|--------|-------|--------|
+| **Button 1** | Short (< 3 s) | Trigger Memfault heartbeat + nRF70 stats CDR upload |
+| **Button 1** | Long (≥ 3 s) | Stack overflow crash (test crash reporting) |
+| **Button 2** | Short (< 3 s) | Check for OTA update |
+| **Button 2** | Long (≥ 3 s) | Division by zero crash (test fault handler) |
+
+---
+
+## Project Structure
+
+```
+nordic-wifi-memfault/
+├── west.yml                                    # Workspace manifest (NCS v3.2.1)
+├── CMakeLists.txt
+├── Kconfig
+├── prj.conf                                    # Shared config for all boards
+├── boards/
+│   ├── nrf7002dk_nrf5340_cpuapp.overlay        # nRF7002DK DTS overlay
+│   ├── nrf54lm20dk_nrf54lm20a_cpuapp.conf      # nRF54LM20DK Kconfig overrides
+│   └── nrf54lm20dk_nrf54lm20a_cpuapp.overlay   # nRF54LM20DK DTS overlay
+├── pm_static_nrf7002dk_nrf5340_cpuapp.yml      # nRF7002DK partition map
+├── pm_static_nrf54lm20dk_nrf54lm20a_cpuapp.yml # nRF54LM20DK partition map
+├── sysbuild/                                   # MCUboot, hci_ipc per-board config
+├── src/
+│   ├── main.c                                  # Banner + sleep (modules init via SYS_INIT)
+│   └── modules/
+│       ├── messages.h                          # Zbus channel message types
+│       ├── button/                             # Button SMF, BUTTON_CHAN
+│       ├── network/                            # WiFi/network events, WIFI_CHAN
+│       ├── heap_monitor/                       # System + mbedTLS heap monitor
+│       ├── wifi_prov_over_ble/                 # BLE WiFi provisioning
+│       ├── app_memfault/                       # Memfault: upload, metrics, OTA, CDR
+│       ├── app_https_client/                   # Periodic HTTPS HEAD to example.com
+│       └── app_mqtt_client/                    # TLS MQTT echo test
+├── overlay-app-memfault-project-info.conf      # Memfault key (git-ignored, from template)
+└── overlay-app-memfault-project-info.conf.template
+```
 
 ---
 
 ## Flash Memory Layout
 
-This project uses a custom partition layout optimized for Memfault operation and Wi-Fi connectivity.
-
-## App Core Memory
-
-### nRF7002DK (nRF5340)
-
-| Memory Region | Used Size | Region Size | Usage |
-|---------------|-----------|-------------|-------|
-| FLASH | 889460 B | 941568 B | 94.47% |
-| RAM | 421912 B | 512 KB | 80.47% |
-
-### Internal Flash (1MB)
+### nRF7002DK (nRF5340 — 1 MB internal flash)
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│                    nRF5340 Internal Flash (1MB)                │
-├────────────────────────────────────────────────────────────────┤
-│ 0x00000 ┌─────────────────────────────────────┐                │
-│         │            mcuboot                  │ 40KB           │
-│         │          (Bootloader)               │ (0xA000)       │
-│ 0x0A000 ├─────────────────────────────────────┤                │
-│         │        mcuboot_pad                  │ 512B           │
-│ 0x0A200 ├─────────────────────────────────────┤ (0x200)        │
-│         │                                     │                │
-│         │                                     │                │
-│         │                                     │                │
-│         │                                     │                │
-│         │              app                    │ ~912KB         │
-│         │        (Main Application)           │ (0xE3E00)      │
-│         │                                     │                │
-│         │                                     │                │
-│         │                                     │                │
-│         │                                     │                │
-│ 0xEE000 ├─────────────────────────────────────┤                │
-│         │       settings_storage              │ 8KB            │
-│         │    (Wi-Fi Credentials & Settings)   │ (0x2000)       │
-│ 0xF0000 ├─────────────────────────────────────┤                │
-│         │                                     │                │
-│         │       memfault_storage              │ 64KB           │
-│         │     (Crash Dumps — coredumps)       │ (0x10000)      │
-│         │                                     │                │
-│ 0x100000└─────────────────────────────────────┘                │
-└────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  0x00000  mcuboot          40 KB  (0x0A000) │ Bootloader
+│  0x0A000  mcuboot_pad     512 B   (0x00200) │ Image header
+│  0x0A200  app             ~912 KB (0xE3E00) │ Main application
+│  0xEE000  settings_storage  8 KB  (0x02000) │ WiFi credentials / NVS
+│  0xF0000  memfault_storage 64 KB  (0x10000) │ Crash coredumps
+│  0x100000 ── end of internal flash ─────────│
+└─────────────────────────────────────────────┘
+
+External flash — MX25R64 (8 MB):
+┌─────────────────────────────────────────────┐
+│  0x000000  mcuboot_secondary  912 KB        │ OTA update slot
+│  0x0E4000  external_flash    ~7.1 MB        │ Reserved
+└─────────────────────────────────────────────┘
 ```
 
-### External Flash (8MB - MX25R64)
+### nRF54LM20DK (nRF54LM20A — 1984 KB RRAM, `flash_primary=0x1FD000`)
 
 ```
-┌────────────────────────────────────────────────────────────────┐
-│                  MX25R64 External Flash (8MB)                  │
-├────────────────────────────────────────────────────────────────┤
-│ 0x00000 ┌─────────────────────────────────────┐                │
-│         │                                     │                │
-│         │                                     │                │
-│         │                                     │                │
-│         │        mcuboot_secondary            │ 912KB          │
-│         │      (App Update Slot)              │ (0xE4000)      │
-│         │                                     │                │
-│         │                                     │                │
-│ 0xE4000 ├─────────────────────────────────────┤                │
-│         │                                     │                │
-│         │                                     │                │
-│         │                                     │                │
-│         │                                     │                │
-│         │         external_flash              │ 7.1MB+         │
-│         │         (Reserved, Unused)          │ (0x71C000)     │
-│         │                                     │                │
-│         │    ⚠️  Currently not used by the    │                │
-│         │       sample application.           │                │
-│         │                                     │                │
-│         │    See "External Flash Usage" note  │                │
-│         │    below for implementation guide.  │                │
-│         │                                     │                │
-│ 0x800000└─────────────────────────────────────┘                │
-└────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  0x000000  mcuboot            56 KB (0x0E000)   │ Bootloader
+│  0x00E000  mcuboot_pad         2 KB (0x00800)   │ Image header
+│  0x00E800  app              1906 KB (0x1DC800)  │ Main application
+│  0x1EB000  settings_storage    8 KB (0x02000)   │ WiFi credentials / NVS
+│  0x1ED000  memfault_storage   64 KB (0x10000)   │ Crash coredumps
+│  0x1FD000 ── end of flash_primary ──────────────│
+└─────────────────────────────────────────────────┘
+  mcuboot_primary = mcuboot_pad + app = 1908 KB (0x1DD000), starts at 0xE000
+
+External flash — MX25R6435F (8 MB via spi00):
+┌─────────────────────────────────────────────────┐
+│  0x000000  mcuboot_secondary 1908 KB (0x1DD000) │ OTA slot (= primary size)
+│  0x1DD000  external_flash   ~6.1 MB (0x623000)  │ Reserved
+└─────────────────────────────────────────────────┘
 ```
 
-### Flash Partition Usage
-
-#### `memfault_storage` (Internal Flash)
-The 64KB partition stores crash coredumps. **Must** be in internal flash for:
-- Power-fail safety (survives brownouts)
-- Boot-time access (before external flash init)
+> `memfault_storage` must be in internal flash (RRAM/NOR) for power-fail safety and boot-time access before the external flash driver initialises.
 
 ---
 
-### nRF54LM20DK (nRF54LM20) + nRF7002EB II
+## Architecture Notes
 
-App core, bring-up build (Wi-Fi shell + SPI NOR + FLASH_SHELL, BLE/Memfault/HTTPS/MQTT disabled):
+### nRF7002DK vs nRF54LM20DK
 
-| Memory Region | Used Size | Region Size | Usage |
-|---------------|-----------|-------------|-------|
-| FLASH (app slot) | ~846 KB | 1022 KB (0xFF800) | ~83% |
-| RAM | ~344 KB | 511 KB | ~67% |
+| Aspect | nRF7002DK | nRF54LM20DK + nRF7002EB II |
+|--------|-----------|---------------------------|
+| Host SoC | nRF5340 (dual-core) | nRF54LM20A (single-core) |
+| BLE host | Network core (`hci_ipc` image) | SoftDevice Controller on App core |
+| WiFi chip | nRF7002 (on-board) | nRF7002 via nRF7002EB II shield (SPI spi22) |
+| SR Coex RF switch | ✅ Yes | ❌ Not wired on EB II |
+| Internal flash | 1 MB NOR | 2 MB RRAM |
+| External flash | MX25R64 (SPI) | MX25R6435F (spi00) |
+| App slot | ~912 KB | 1906 KB |
+| SRAM | 448 KB app + 64 KB IPC | 511 KB (full) |
+| UART console | VCOM0 (uart0) | VCOM0 (uart30, routed via EB II) |
+| Shell | Disabled (flash budget) | Enabled (extra flash headroom) |
 
-MCUboot image: ~32 KB / 56 KB (73%).
+### Single-core BLE + WiFi (nRF54LM20DK)
 
-#### RRAM (~2 MB, `flash_primary`)
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│                  nRF54LM20A RRAM (~2 MB)                       │
-├────────────────────────────────────────────────────────────────┤
-│ 0x000000 ┌─────────────────────────────────────┐               │
-│          │            mcuboot                  │ 56KB           │
-│          │          (Bootloader)               │ (0xE000)       │
-│ 0x00E000 ├─────────────────────────────────────┤               │
-│          │         mcuboot_pad                 │ 2KB            │
-│ 0x00E800 ├─────────────────────────────────────┤ (0x800)        │
-│          │                                     │               │
-│          │                                     │               │
-│          │             app                     │ 1022KB         │
-│          │       (Main Application)            │ (0xFF800)      │
-│          │                                     │               │
-│          │                                     │               │
-│ 0x10E000 ├─────────────────────────────────────┤               │
-│          │   (free — future Memfault storage,  │ ~948KB         │
-│          │    NVS, or other partitions)        │               │
-│ 0x1FB000 ├─────────────────────────────────────┤               │
-│          │       settings_storage              │ 8KB            │
-│          │   (Wi-Fi Credentials / NVS)         │ (0x2000)       │
-│ 0x1FD000 └─────────────────────────────────────┘               │
-└────────────────────────────────────────────────────────────────┘
-```
-
-> `mcuboot_primary` = `mcuboot_pad` + `app` = 1 MB (0x100000), starting at 0xE000.
-
-#### External Flash (8 MB — MX25R6435F via spi00)
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│              MX25R6435F External Flash (8MB)                   │
-│              Connected via SPI (spi00, P2.1/P2.2/P2.4/P2.5)   │
-├────────────────────────────────────────────────────────────────┤
-│ 0x000000 ┌─────────────────────────────────────┐               │
-│          │       mcuboot_secondary             │ 1MB            │
-│          │     (OTA Update Slot)               │ (0x100000)     │
-│ 0x100000 ├─────────────────────────────────────┤               │
-│          │         external_flash              │ 7MB            │
-│          │         (Reserved, Unused)          │ (0x700000)     │
-│ 0x800000 └─────────────────────────────────────┘               │
-└────────────────────────────────────────────────────────────────┘
-```
-
-> Secondary slot size matches primary (1 MB) for MCUboot swap-based OTA.
-
-#### SRAM (511 KB)
-
-| Region | Size | Notes |
-|--------|------|-------|
-| app RAM | 511 KB | No network core; nRF54LM20 has single-core architecture |
-- Minimal dependencies (no SPI/QSPI driver needed)
-
-#### `external_flash` (External Flash - Unused)
-> ⚠️ The 7.1MB partition is **reserved but currently unused**.
-
-### SRAM (512KB)
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                    nRF5340 SRAM (512KB)                          │
-├──────────────────────────────────────────────────────────────────┤
-│ 0x20000000 ┌───────────────────────────────────────────────────┐ │
-│            │                                                   │ │
-│            │              sram_primary                         │ │
-│            │       (Application: Stack, Heap, BSS)             │ │
-│            │                  448KB                            │ │
-│            │               (0x70000)                           │ │
-│            │                                                   │ │
-│ 0x20070000 ├───────────────────────────────────────────────────┤ │
-│            │           rpmsg_nrf53_sram                        │ │
-│            │    (IPC Shared Memory — App ↔ Network Core)       │ │
-│            │                   64KB                            │ │
-│            │               (0x10000)                           │ │
-│ 0x20080000 └───────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-### Network Core Memory
-
-The nRF5340 network core runs the BLE controller (`hci_ipc`):
-
-| Memory | Used | Total | Usage |
-|--------|------|-------|-------|
-| FLASH  | 151.9 KB | 256 KB | 57.95% |
-| RAM    | 38.9 KB | 64 KB | 59.35% |
-
-> **Note:** Largest RAM consumer is BLE Controller Memory Pool (15.9 KB). Reduce via `CONFIG_BT_MAX_CONN`.
+The nRF54LM20A has no network core. Both the BLE SoftDevice Controller and the nRF70 WiFi driver run on the Application core. During WiFi provisioning over BLE, both stacks share the BT RX workqueue thread — hence `CONFIG_BT_RX_STACK_SIZE=22000` (set by the `wifi_prov_over_ble` module defaults).
 
 ---
 
-## Basic Memfault Cloud Usage
+## Board-Specific Configuration
+
+### nRF54LM20DK — `boards/nrf54lm20dk_nrf54lm20a_cpuapp.conf`
+
+Overrides from `prj.conf` that are specific to this hardware:
+
+| Setting | Value | Reason |
+|---------|-------|--------|
+| `NRF70_SR_COEX` | `n` | RF switch not wired on nRF7002EB II |
+| `NRF70_SR_COEX_RF_SWITCH` | `n` | Same |
+| `SPI_NOR` | `y` | External flash driver for MX25R6435F |
+| `PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY` | `y` | Use ext flash for MCUboot secondary slot |
+| `FLASH_SHELL` | `y` | Debug external flash via shell |
+| `SHELL` | `y` | Debug/dev override (off in prj.conf for nRF5340 flash budget) |
+| `MAIN_STACK_SIZE` | `5200` | Larger: single-core BLE + WiFi |
+| `NET_RX/TX_STACK_SIZE` | `4096` | Larger: same reason |
+
+### nRF54LM20DK — `sysbuild/mcuboot/boards/nrf54lm20dk_nrf54lm20a_cpuapp.conf`
+
+| Setting | Value | Reason |
+|---------|-------|--------|
+| `SPI_NOR_SFDP_DEVICETREE` | `y` | MX25R64 uses 4 KB erase sectors (not 64 KB) |
+| `SPI_NOR_FLASH_LAYOUT_PAGE_SIZE` | `4096` | Must match physical sector size |
+| `BOOT_MAX_IMG_SECTORS` | `512` | Covers 1908 KB / 4 KB = 477 sectors |
+
+---
+
+## Memory Usage
+
+### nRF7002DK
+
+| Region | Used | Size | % |
+|--------|------|------|---|
+| App FLASH | ~890 KB | 941 KB | ~94% |
+| App SRAM | ~422 KB | 448 KB | ~94% |
+| Net FLASH (`hci_ipc`) | ~152 KB | 256 KB | ~59% |
+| Net SRAM | ~39 KB | 64 KB | ~61% |
+
+### nRF54LM20DK (all modules enabled)
+
+| Region | Used | Size | % |
+|--------|------|------|---|
+| App FLASH | ~1020–1100 KB | 1918 KB | ~53–57% |
+| App SRAM | ~390–410 KB | 511 KB | ~76–80% |
+
+> nRF54LM20DK has ample headroom in both flash (1918 KB slot vs ~1100 KB used) and SRAM (511 KB vs ~400 KB used).
+
+---
+
+## Memfault Integration
 
 ### Device Onboarding
 
-1. **Upload symbol file** after building:
-   - File: `build/memfault-nrf7002dk/zephyr/zephyr.elf`
-   - Dashboard: **Fleet** → **Symbol Files** → Upload
+1. Upload symbol file after building:
+   - **nRF7002DK**: `build/memfault-nrf7002dk/zephyr/zephyr.elf`
+   - **nRF54LM20DK**: `build_nrf54lm20dk_wifi/nordic-wifi-memfault/zephyr/zephyr.elf`
+   - Dashboard → **Fleet** → **Symbol Files** → Upload
 
-2. **Monitor device**:
-   - **Timeline**: Real-time event stream
-   - **Metrics**: Heartbeat data (every 15 min)
-   - **Issues**: Crashes and errors
-
-3. **Enable Developer Mode** for faster uploads:
-   - Default: 900s (15 min)
-   - Dev Mode: ~60s
+2. Set firmware version in `prj.conf`:
+   ```properties
+   CONFIG_MEMFAULT_NCS_FW_VERSION="1.0.0"
+   ```
 
 ### Collected Metrics
 
@@ -380,202 +262,31 @@ The nRF5340 network core runs the BLE controller (`hci_ipc`):
 | `wifi_rssi` | Gauge | Signal strength (dBm) |
 | `wifi_sta_*` | Gauge | Channel, beacon interval, DTIM, TWT |
 | `wifi_ap_oui_vendor` | String | AP vendor (Cisco, Apple, ASUS, etc.) |
-| `ncs_system_heap_*` | Gauge | System heap total, current usage, and peak usage |
-| `ncs_mbedtls_heap_*` | Gauge | mbedTLS heap total, current usage, and peak usage |
-| `stack_free_*` | Gauge | Per-thread stack usage |
+| `ncs_system_heap_*` | Gauge | System heap total, current, peak |
+| `ncs_mbedtls_heap_*` | Gauge | mbedTLS heap total, current, peak |
+| `stack_free_*` | Gauge | Per-thread stack headroom |
+| `app_https_req_total_count` | Counter | Total HTTPS requests |
+| `app_https_req_fail_count` | Counter | Failed HTTPS requests |
+| `app_mqtt_echo_total_count` | Counter | Total MQTT echo attempts |
+| `app_mqtt_echo_fail_count` | Counter | Failed MQTT echoes |
 
 ### OTA Updates
 
-1. **Update version** in `prj.conf`:
+1. Update version in `prj.conf`:
    ```properties
-   CONFIG_MEMFAULT_NCS_FW_VERSION="4.1.0"
+   CONFIG_MEMFAULT_NCS_FW_VERSION="2.0.0"
    ```
-
-2. **Build and upload**:
-   ```bash
-   west build -b nrf7002dk/nrf5340/cpuapp -p
-   ```
-   - Upload `zephyr.elf` (symbols)
-   - Upload `zephyr.signed.bin` (OTA payload)
-
-3. **Create release**:
-   - Dashboard: **Fleet** → **OTA Releases**
-   - Activate for device cohort
-
-4. **Trigger update**:
-   - **Auto**: On WiFi connect + every 60 min
-   - **Manual**: Button 2 short press
+2. Build and upload `zephyr.elf` (symbols) + `dfu_application.zip` (OTA payload) to Memfault dashboard.
+3. The device checks for updates on WiFi connect and on Button 2 short-press.
 
 ---
 
-## Advanced Topics
+## SRAM Layout — nRF5340 (nRF7002DK)
 
-### nRF70 WiFi Firmware Statistics (CDR)
-
-The nRF70 firmware statistics feature is **enabled by default** and collects WiFi diagnostics via Memfault's Custom Data Recording.
-
-#### Usage
-
-**Manual Collection**:
-- Press **Button 1** (short press) to collect and upload nRF70 stats
-
-**Programmatic Collection**:
-```c
-#include "mflt_nrf70_fw_stats_cdr.h"
-
-void on_wifi_failure(void) {
-    int err = mflt_nrf70_fw_stats_cdr_collect();
-    if (err == 0) {
-        memfault_zephyr_port_post_data();
-    }
-}
 ```
-
-#### Recommended Collection Events
-
-| Event | When to Collect |
-|-------|------------------|
-| WiFi Connection Lost | Before reconnection attempt |
-| DHCP/DNS Failure | After timeout |
-| Low RSSI | When < -80 dBm |
-| Cloud Unreachable | After connection timeout |
-
-#### Parsing Statistics
-
-Download CDR blob from Memfault and parse:
-
-```bash
-python3 script/nrf70_fw_stats_parser.py \
-  /opt/nordic/ncs/v3.2.1/nrf/modules/lib/nrf_wifi/fw_if/umac_if/inc/fw/host_rpu_sys_if.h \
-  ~/Downloads/F4CE36006EB1_nrf70-fw-stats_20251128-111955.bin
+┌─────────────────────────────────────────────┐
+│  0x20000000  sram_primary   448 KB          │ App: stack, heap, BSS
+│  0x20070000  rpmsg_nrf53     64 KB          │ IPC shared memory (App ↔ Net core)
+│  0x20080000 ── end ─────────────────────────│
+└─────────────────────────────────────────────┘
 ```
-
-**Output includes**: PHY stats (RSSI, CRC), LMAC stats (TX/RX counters), UMAC stats (events, packets)
-
-#### CDR Limitations
-
-> ⚠️ **1 upload per device per 24 hours** by default. Contact Memfault support to increase limits for debugging.
-
-### Custom Metrics
-
-Add to `src/modules/app_memfault/config/memfault_metrics_heartbeat_config.def`:
-
-```c
-MEMFAULT_METRICS_KEY_DEFINE(custom_counter, kMemfaultMetricType_Unsigned)
-```
-
-Record in code:
-```c
-MEMFAULT_METRIC_SET_UNSIGNED(custom_counter, value);
-```
-
-### Heap Monitor Module
-
-Heap monitoring is implemented as a reusable module in `src/modules/heap_monitor/`
-and is enabled with `CONFIG_HEAPS_MONITOR=y`.
-
-What it does:
-- Automatically monitors the system heap when `CONFIG_HEAP_MEM_POOL_SIZE > 0`
-- Automatically monitors the mbedTLS heap when `CONFIG_MBEDTLS_ENABLE_HEAP=y`
-- Updates Memfault heartbeat metrics automatically when `CONFIG_APP_MEMFAULT_MODULE=y`
-- Emits standardized logs for both heaps, for example:
-
-```text
-System Heap: used=51712/98304 (52%) blocks=n/a, peak=64752/98304 (65%), peak_blocks=n/a
-mbedTLS Heap: used=19136/110592 (17%) blocks=49, peak=72684/110592 (65%), peak_blocks=197
-```
-
-Useful Kconfig options:
-- `CONFIG_HEAPS_MONITOR`
-- `CONFIG_HEAPS_MONITOR_WARN_PCT`
-- `CONFIG_HEAPS_MONITOR_STEP_BYTES`
-- `CONFIG_HEAPS_MONITOR_PERIODIC_INTERVAL_SEC`
-
-### Partition Layout Customization
-
-Edit `pm_static_nrf7002dk_nrf5340_cpuapp.yml`:
-- Ensure `app` and `mcuboot_secondary` match sizes
-- Keep `settings_storage` for WiFi credentials
-- Rebuild with `-p` flag
-
----
-
-## Troubleshooting
-
-### No WiFi credentials after flash
-
-Device advertises as `PV<MAC>` over BLE but never connects to WiFi.
-
-**Fix**: Use the [nRF Wi-Fi Provisioner](https://www.nordicsemi.com/Products/Development-tools/nRF-Wi-Fi-Provisioner) app (Android/iOS) to provision credentials. Once provisioned, credentials are stored in the settings partition and survive reboots.
-
-Alternatively, if the shell is enabled (`CONFIG_SHELL=y`):
-```
-uart:~$ wifi_cred add "MySSID" 3 "MyPassword"
-uart:~$ kernel reboot cold
-```
-
----
-
-### Memfault upload fails / no data in dashboard
-
-**Check**:
-1. Verify the project key: `overlay-app-memfault-project-info.conf` must contain your real key from the Memfault dashboard.
-2. Verify DNS: the device must reach `chunks-nrf.memfault.com:443`. Check firewall/router rules.
-3. Check logs for `[memfault_core] DNS check: chunks-nrf.memfault.com resolved` — if missing, DNS is blocked.
-4. Ensure the symbol file (`zephyr.elf`) has been uploaded for the current firmware version.
-
-**DNS timeout log** (expected if DNS is temporarily slow — uploads still proceed after 300 s):
-```
-[memfault_core] DNS timeout after 300 seconds, continuing anyway
-```
-
----
-
-### OTA update not triggering
-
-**Check**:
-1. A release must be created and activated in the Memfault dashboard for your device's cohort.
-2. Verify the firmware version in `prj.conf` (`CONFIG_MEMFAULT_NCS_FW_VERSION`) is lower than the release version.
-3. Press **Button 2** (short) to force an immediate OTA check, or wait up to `CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN` minutes (default: 60).
-
----
-
-### High flash usage warning
-
-Flash is at ~94%. If a future build fails with a linker error:
-1. Disable unused features in `prj.conf` (`CONFIG_APP_HTTPS_CLIENT_MODULE=n` or `CONFIG_APP_MQTT_CLIENT_MODULE=n`).
-2. Disable `CONFIG_SHELL=n` (already off by default).
-3. Reduce `CONFIG_LOG_BUFFER_SIZE`.
-
----
-
-### Device crashes on boot after OTA
-
-MCUboot will automatically roll back to the previous image if the new firmware does not call `boot_write_img_confirmed()`. The Memfault core module calls this on a successful boot. If rollback occurs repeatedly, check for early-boot crashes in the Memfault **Issues** tab.
-
----
-
-## Resources
-
-- **Memfault**: [Documentation](https://docs.memfault.com) | [Metrics API](https://docs.memfault.com/docs/mcu/metrics-api) | [OTA Guide](https://docs.memfault.com/docs/mcu/releases-integration-guide)
-- **Nordic**: [NCS Docs](https://docs.nordicsemi.com) | [nRF7002DK Guide](https://docs.nordicsemi.com/category/hardware-development-kits) | [DevZone](https://devzone.nordicsemi.com)
-- **Tools**: [nRF Wi-Fi Provisioner](https://www.nordicsemi.com/Products/Development-tools/nRF-Wi-Fi-Provisioner) | [nRF Connect Desktop](https://www.nordicsemi.com/Products/Development-tools/nrf-connect-for-desktop)
-
-## License
-
-Based on Nordic Semiconductor's Memfault sample (LicenseRef-Nordic-5-Clause).
-
-## Roadmap
-
-### Planned Platform Support
-
-- **nRF54LM20DK + nRF7002EB II** — nRF54LM20 host MCU paired with the nRF7002EB II expansion board (nRF70 series Wi-Fi)
-- **nRF7120DK** — single-chip solution with integrated Wi-Fi and Bluetooth 
-
-Each new platform will add a board-specific build target, `pm_static_<board>.yml` partition map, and any required overlays. Shared application modules (Memfault core, heap monitor, OTA, CDR) require no changes.
-
-### Application Improvements
-
-- **NTP time sync** — synchronize the device clock via NTP after Wi-Fi connects, so that Zephyr log timestamps and Memfault event timestamps reflect real-world UTC time rather than uptime-relative values
-- **CI: automated Memfault release uploads** — extend the GitHub Actions workflow to automatically upload the ELF symbol file and create a Memfault OTA release after a successful build, eliminating the manual upload step
-- **Wi-Fi disconnection tracking** — record the disconnect reason code and emit it as a Memfault metric and structured log entry, making it easier to diagnose intermittent connectivity issues in the field
