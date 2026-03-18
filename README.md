@@ -7,7 +7,7 @@ A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demon
 | Board | Host MCU | Wi-Fi Chip | Status |
 |-------|----------|------------|--------|
 | [nRF7002DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7002-DK) | nRF5340 | nRF7002 (nRF70 series) | ✅ Supported |
-| [nRF54LM20DK](https://www.nordicsemi.com/Products/Development-hardware/nRF54LM20-DK) + nRF7002EB II | nRF54LM20 | nRF7002 (nRF70 series) | 🔜 Planned |
+| [nRF54LM20DK](https://www.nordicsemi.com/Products/Development-hardware/nRF54LM20-DK) + nRF7002EB II | nRF54LM20 | nRF7002 (nRF70 series) | � In Progress |
 | [nRF7120DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7120-DK) | nRF7120 (integrated) | nRF7120 | 🔜 Planned |
 
 > All platform-specific build targets, overlays, and partition maps live under board-named subdirectories. The application core (modules, Memfault integration) is shared across all boards.
@@ -169,6 +169,8 @@ This project uses a custom partition layout optimized for Memfault operation and
 
 ## App Core Memory
 
+### nRF7002DK (nRF5340)
+
 | Memory Region | Used Size | Region Size | Usage |
 |---------------|-----------|-------------|-------|
 | FLASH | 889460 B | 941568 B | 94.47% |
@@ -246,6 +248,74 @@ This project uses a custom partition layout optimized for Memfault operation and
 The 64KB partition stores crash coredumps. **Must** be in internal flash for:
 - Power-fail safety (survives brownouts)
 - Boot-time access (before external flash init)
+
+---
+
+### nRF54LM20DK (nRF54LM20) + nRF7002EB II
+
+App core, bring-up build (Wi-Fi shell + SPI NOR + FLASH_SHELL, BLE/Memfault/HTTPS/MQTT disabled):
+
+| Memory Region | Used Size | Region Size | Usage |
+|---------------|-----------|-------------|-------|
+| FLASH (app slot) | ~846 KB | 1022 KB (0xFF800) | ~83% |
+| RAM | ~344 KB | 511 KB | ~67% |
+
+MCUboot image: ~32 KB / 56 KB (73%).
+
+#### RRAM (~2 MB, `flash_primary`)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                  nRF54LM20A RRAM (~2 MB)                       │
+├────────────────────────────────────────────────────────────────┤
+│ 0x000000 ┌─────────────────────────────────────┐               │
+│          │            mcuboot                  │ 56KB           │
+│          │          (Bootloader)               │ (0xE000)       │
+│ 0x00E000 ├─────────────────────────────────────┤               │
+│          │         mcuboot_pad                 │ 2KB            │
+│ 0x00E800 ├─────────────────────────────────────┤ (0x800)        │
+│          │                                     │               │
+│          │                                     │               │
+│          │             app                     │ 1022KB         │
+│          │       (Main Application)            │ (0xFF800)      │
+│          │                                     │               │
+│          │                                     │               │
+│ 0x10E000 ├─────────────────────────────────────┤               │
+│          │   (free — future Memfault storage,  │ ~948KB         │
+│          │    NVS, or other partitions)        │               │
+│ 0x1FB000 ├─────────────────────────────────────┤               │
+│          │       settings_storage              │ 8KB            │
+│          │   (Wi-Fi Credentials / NVS)         │ (0x2000)       │
+│ 0x1FD000 └─────────────────────────────────────┘               │
+└────────────────────────────────────────────────────────────────┘
+```
+
+> `mcuboot_primary` = `mcuboot_pad` + `app` = 1 MB (0x100000), starting at 0xE000.
+
+#### External Flash (8 MB — MX25R6435F via spi00)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│              MX25R6435F External Flash (8MB)                   │
+│              Connected via SPI (spi00, P2.1/P2.2/P2.4/P2.5)   │
+├────────────────────────────────────────────────────────────────┤
+│ 0x000000 ┌─────────────────────────────────────┐               │
+│          │       mcuboot_secondary             │ 1MB            │
+│          │     (OTA Update Slot)               │ (0x100000)     │
+│ 0x100000 ├─────────────────────────────────────┤               │
+│          │         external_flash              │ 7MB            │
+│          │         (Reserved, Unused)          │ (0x700000)     │
+│ 0x800000 └─────────────────────────────────────┘               │
+└────────────────────────────────────────────────────────────────┘
+```
+
+> Secondary slot size matches primary (1 MB) for MCUboot swap-based OTA.
+
+#### SRAM (511 KB)
+
+| Region | Size | Notes |
+|--------|------|-------|
+| app RAM | 511 KB | No network core; nRF54LM20 has single-core architecture |
 - Minimal dependencies (no SPI/QSPI driver needed)
 
 #### `external_flash` (External Flash - Unused)

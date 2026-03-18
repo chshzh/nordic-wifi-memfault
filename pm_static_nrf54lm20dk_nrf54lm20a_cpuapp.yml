@@ -1,0 +1,61 @@
+# Static partition map for nRF54LM20DK + nRF7002EB II
+#
+# RRAM layout (~2 MB, starting at 0x0):
+#
+#   Region           Address     Size        Notes
+#   ─────────────────────────────────────────────────────────────────────
+#   mcuboot          0x0000_0000   56 KB (0x0E000)  Bootloader; binary ~32 KB
+#   mcuboot_pad      0x0000_E000    2 KB (0x00800)  MCUboot image trailer
+#   app              0x0000_E800 1022 KB (0xFF800)  Main app; binary ~846 KB
+#   [mcuboot_primary = mcuboot_pad + app = 1 MB]
+#   settings_storage 0x001F_B000    8 KB (0x02000)  Wi-Fi credentials / NVS
+#
+# External flash (MX25R6435F, 8 MB via spi00):
+#   mcuboot_secondary 0x000_0000    1 MB (0x100000) OTA update slot (= primary size)
+#   external_flash    0x010_0000    7 MB (0x700000) Reserved for app use
+
+mcuboot:
+  address: 0x0
+  size: 0xE000
+  region: flash_primary
+
+mcuboot_pad:
+  address: 0xE000
+  size: 0x800
+
+app:
+  address: 0xE800
+  size: 0xFF800
+
+mcuboot_primary:
+  orig_span: &id001
+  - mcuboot_pad
+  - app
+  span: *id001
+  address: 0xE000
+  size: 0x100000
+  region: flash_primary
+
+mcuboot_primary_app:
+  orig_span: &id002
+  - app
+  span: *id002
+  address: 0xE800
+  size: 0xFF800
+
+settings_storage:
+  address: 0x1FB000
+  size: 0x2000
+  region: flash_primary
+
+mcuboot_secondary:
+  address: 0x0
+  size: 0x100000
+  device: MX25R64
+  region: external_flash
+
+external_flash:
+  address: 0x100000
+  size: 0x700000
+  device: MX25R64
+  region: external_flash
