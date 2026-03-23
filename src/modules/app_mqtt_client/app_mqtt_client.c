@@ -13,6 +13,7 @@
 #include <zephyr/init.h>
 #include <zephyr/random/random.h>
 #include <net/mqtt_helper.h>
+#include <stdlib.h>
 #include <hw_id.h>
 #ifdef CONFIG_MEMFAULT
 #include <memfault/metrics/metrics.h>
@@ -35,6 +36,12 @@ enum app_mqtt_client_state {
 	APP_MQTT_STATE_CONNECTED,
 };
 
+/* If this many consecutive publishes go out without any echo coming back,
+ * the echo timeout failure counter is incremented once. Fires exactly once
+ * at the threshold crossing, not on every subsequent silent publish.
+ */
+#define APP_MQTT_ECHO_TIMEOUT_THRESHOLD 3
+
 /* State variables */
 static enum app_mqtt_client_state current_state = APP_MQTT_STATE_DISCONNECTED;
 static bool mqtt_client_running;
@@ -42,6 +49,10 @@ static bool network_ready;
 static uint32_t message_count;
 static uint32_t mqtt_echo_total;
 static uint32_t mqtt_echo_failures;
+/* message_count at the time of the most recent successful publish */
+static uint32_t last_published_count;
+/* message_count at the time the most recent echo was received */
+static uint32_t last_echo_at_msg;
 static K_SEM_DEFINE(mqtt_thread_sem, 0, 1);
 
 /* Client ID and topic buffers */
@@ -79,7 +90,14 @@ static void on_mqtt_connack(enum mqtt_conn_return_code return_code, bool session
 		struct mqtt_topic sub_topic = {
 			.topic.utf8 = pub_topic,
 			.topic.size = strlen(pub_topic),
-			.qos = MQTT_QOS_1_AT_LEAST_ONCE,
+			/* QoS 0: broker delivers echo at-most-once, no PUBACK
+			 * required. This avoids filling the broker's per-session
+			 * QoS-1 inflight window which silently stops delivery
+			 * once exhausted (observed after ~1000 messages on
+			 * broker.emqx.io). The echo test does not require
+			 * delivery guarantees on the receive side.
+			 */
+			.qos = MQTT_QOS_0_AT_MOST_ONCE,
 		};
 		struct mqtt_subscription_list sub_list = {
 			.list = &sub_topic,
@@ -118,11 +136,35 @@ static void on_mqtt_disconnect(int result)
 
 static void on_mqtt_publish(struct mqtt_helper_buf topic, struct mqtt_helper_buf payload)
 {
+	/* Parse the echo payload as an unsigned integer. payload.ptr is not
+	 * null-terminated, so copy to a local buffer first.
+	 */
+	char num_buf[16];
+	size_t copy_len = MIN(payload.size, sizeof(num_buf) - 1U);
+
+	memcpy(num_buf, payload.ptr, copy_len);
+	num_buf[copy_len] = '\0';
+
+	uint32_t received_count = (uint32_t)strtoul(num_buf, NULL, 10);
+
 	mqtt_echo_total++;
+	last_echo_at_msg = message_count;
 	MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_total_count, mqtt_echo_total);
-	LOG_INF("ECHO #%u <- \"%.*s\"  (total=%u, fail=%u)",
-		mqtt_echo_total, payload.size, payload.ptr,
-		mqtt_echo_total, mqtt_echo_failures);
+
+	/* Validate the echo value: it must match the last published counter.
+	 * A mismatch means the broker returned a corrupted or stale payload.
+	 */
+	if (last_published_count != 0 && received_count != last_published_count) {
+		mqtt_echo_failures++;
+		MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_fail_count, mqtt_echo_failures);
+		LOG_WRN("ECHO #%u <- \"%.*s\" VALUE MISMATCH (expected %u, got %u, fail=%u)",
+			mqtt_echo_total, payload.size, payload.ptr,
+			last_published_count, received_count, mqtt_echo_failures);
+	} else {
+		LOG_INF("ECHO #%u <- \"%.*s\"  (total=%u, fail=%u)",
+			mqtt_echo_total, payload.size, payload.ptr,
+			mqtt_echo_total, mqtt_echo_failures);
+	}
 }
 
 static void on_mqtt_suback(uint16_t message_id, int result)
@@ -130,7 +172,9 @@ static void on_mqtt_suback(uint16_t message_id, int result)
 	if (result == 0) {
 		LOG_INF("Subscription successful, message_id: %d", message_id);
 	} else {
-		LOG_ERR("Subscription failed, error: %d", result);
+		mqtt_echo_failures++;
+		MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_fail_count, mqtt_echo_failures);
+		LOG_ERR("Subscription failed, error: %d (fail=%u)", result, mqtt_echo_failures);
 	}
 }
 
@@ -248,12 +292,26 @@ static int mqtt_publish_message(void)
 	if (err) {
 		mqtt_echo_failures++;
 		MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_fail_count, mqtt_echo_failures);
-		LOG_WRN("PUB #%u -> FAILED: %d  (total=%u, fail=%u)",
-			message_count, err, message_count, mqtt_echo_failures);
+		LOG_WRN("PUB #%u -> FAILED: %d  (fail=%u)",
+			message_count, err, mqtt_echo_failures);
 		return err;
 	}
 
+	last_published_count = message_count;
 	LOG_INF("PUB #%u -> %s: \"%s\"", message_count, pub_topic, payload);
+
+	/* Echo timeout: fires once at the threshold crossing (== not >=) so it
+	 * increments exactly once per silence episode rather than on every
+	 * subsequent publish while the subscription remains stalled.
+	 */
+	if (message_count > APP_MQTT_ECHO_TIMEOUT_THRESHOLD &&
+	    (message_count - last_echo_at_msg) == APP_MQTT_ECHO_TIMEOUT_THRESHOLD) {
+		mqtt_echo_failures++;
+		MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_fail_count, mqtt_echo_failures);
+		LOG_WRN("ECHO timeout: no echo since PUB #%u (now PUB #%u, fail=%u)",
+			last_echo_at_msg, message_count, mqtt_echo_failures);
+	}
+
 	return 0;
 }
 
