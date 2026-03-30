@@ -1,4 +1,4 @@
-name: Build Memfault nRF7002DK
+name: Build Memfault Firmware For Nordic WiFi
 
 on:
   push:
@@ -63,17 +63,31 @@ jobs:
           west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
             -DEXTRA_CONF_FILE="overlay-ci-key.conf"
 
-      - name: Upload artifacts
+      - name: Build nRF54LM20DK + nRF7002EB2 (nrf54lm20a/cpuapp)
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi \
+            --shield nrf7002eb2 \
+            -- -DEXTRA_CONF_FILE="overlay-ci-key.conf"
+
+      - name: Upload nRF7002DK artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-nrf7002dk
-          path: app-workspace/memfault-nrf7002dk/build_nrf7002dk/zephyr/merged.hex
+          path: app-workspace/memfault-nrf7002dk/build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf
+
+      - name: Upload nRF54LM20DK artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-nrf54lm20dk
+          path: app-workspace/memfault-nrf7002dk/build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf
 
   # ─────────────────────────────────────────────────────────────
   # Release jobs: only on version tags (e.g. v3.0.0)
-  # Builds firmware twice — once per Memfault project — with each
-  # project's key baked in, then publishes a GitHub Release.
+  # Builds firmware twice — once per Memfault project — for both
+  # hardware targets, then publishes a GitHub Release.
   # ─────────────────────────────────────────────────────────────
   build-release:
     needs: set-version
@@ -114,11 +128,18 @@ jobs:
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${NORD_KEY}\"" > overlay-release-key.conf
           echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
 
-      - name: Build — nord_project
+      - name: Build nRF7002DK — nord_project
         working-directory: app-workspace/memfault-nrf7002dk
         run: |
           west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
             -DEXTRA_CONF_FILE="overlay-release-key.conf"
+
+      - name: Build nRF54LM20DK — nord_project
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi \
+            --shield nrf7002eb2 \
+            -- -DEXTRA_CONF_FILE="overlay-release-key.conf"
 
       - name: Stage nord_project artifacts
         working-directory: app-workspace/memfault-nrf7002dk
@@ -126,15 +147,24 @@ jobs:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
           mkdir -p release
+          # nRF7002DK (nRF5340 dual-core): elf, OTA bin, full flash image (CPUAPP + CPUNET merged)
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
              release/nord_project_${VER}_nrf7002dk_zephyr.elf
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
              release/nord_project_${VER}_nrf7002dk_zephyr.signed.bin
-          cp build_nrf7002dk/merged.hex \
-             release/nord_project_${VER}_merged_CPUAPP.hex
-          cp build_nrf7002dk/merged_CPUNET.hex \
-             release/nord_project_${VER}_merged_CPUNET.hex
-          python3 -c "app=open('build_nrf7002dk/merged.hex').readlines();net=open('build_nrf7002dk/merged_CPUNET.hex').readlines();merged=[l for l in app if l.strip()!=':00000001FF']+net;open('release/nord_project_${VER}_combined.hex','w').writelines(merged)"
+          python3 -c "
+          app = open('build_nrf7002dk/merged.hex').readlines()
+          net = open('build_nrf7002dk/merged_CPUNET.hex').readlines()
+          merged = [l for l in app if l.strip() != ':00000001FF'] + net
+          open('release/nord_project_${VER}_nrf7002dk_full.hex', 'w').writelines(merged)
+          "
+          # nRF54LM20DK (single-core): elf, OTA bin, full flash image
+          cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf \
+             release/nord_project_${VER}_nrf54lm20dk_zephyr.elf
+          cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
+             release/nord_project_${VER}_nrf54lm20dk_zephyr.signed.bin
+          cp build_nrf54lm20dk_wifi/merged.hex \
+             release/nord_project_${VER}_nrf54lm20dk_full.hex
 
       # ── terr_project build ──────────────────────────────────
       - name: Create overlay — terr_project
@@ -145,26 +175,42 @@ jobs:
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${TERR_KEY}\"" > overlay-release-key.conf
           echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
 
-      - name: Build — terr_project
+      - name: Build nRF7002DK — terr_project
         working-directory: app-workspace/memfault-nrf7002dk
         run: |
           west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
             -DEXTRA_CONF_FILE="overlay-release-key.conf"
+
+      - name: Build nRF54LM20DK — terr_project
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi \
+            --shield nrf7002eb2 \
+            -- -DEXTRA_CONF_FILE="overlay-release-key.conf"
 
       - name: Stage terr_project artifacts
         working-directory: app-workspace/memfault-nrf7002dk
         env:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
+          # nRF7002DK
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
              release/terr_project_${VER}_nrf7002dk_zephyr.elf
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
              release/terr_project_${VER}_nrf7002dk_zephyr.signed.bin
-          cp build_nrf7002dk/merged.hex \
-             release/terr_project_${VER}_merged_CPUAPP.hex
-          cp build_nrf7002dk/merged_CPUNET.hex \
-             release/terr_project_${VER}_merged_CPUNET.hex
-          python3 -c "app=open('build_nrf7002dk/merged.hex').readlines();net=open('build_nrf7002dk/merged_CPUNET.hex').readlines();merged=[l for l in app if l.strip()!=':00000001FF']+net;open('release/terr_project_${VER}_combined.hex','w').writelines(merged)"
+          python3 -c "
+          app = open('build_nrf7002dk/merged.hex').readlines()
+          net = open('build_nrf7002dk/merged_CPUNET.hex').readlines()
+          merged = [l for l in app if l.strip() != ':00000001FF'] + net
+          open('release/terr_project_${VER}_nrf7002dk_full.hex', 'w').writelines(merged)
+          "
+          # nRF54LM20DK
+          cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf \
+             release/terr_project_${VER}_nrf54lm20dk_zephyr.elf
+          cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
+             release/terr_project_${VER}_nrf54lm20dk_zephyr.signed.bin
+          cp build_nrf54lm20dk_wifi/merged.hex \
+             release/terr_project_${VER}_nrf54lm20dk_full.hex
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
@@ -200,31 +246,40 @@ jobs:
           body: |
             ## Firmware Files
 
-            Each Memfault project (`nord_project`, `terr_project`) ships **5 files** built for the `nrf7002dk/nrf5340/cpuapp` target.
+            Each Memfault project (`nord_project`, `terr_project`) ships **6 files** across two hardware targets.
+
+            ### nRF7002DK (`nrf7002dk/nrf5340/cpuapp`)
 
             | File suffix | Purpose | How to use |
             |---|---|---|
             | `*_nrf7002dk_zephyr.elf` | Debug symbol file | Upload to **Memfault → Software → Symbol Files** to decode stack traces and coredumps |
             | `*_nrf7002dk_zephyr.signed.bin` | OTA update image | Upload to **Memfault → Software → OTA Releases** to deploy over-the-air via MCUboot |
-            | `*_merged_CPUAPP.hex` | Application core flash image | Flash the nRF5340 CPUAPP core only: `nrfutil device program --firmware *_merged_CPUAPP.hex --core Application` |
-            | `*_merged_CPUNET.hex` | Network core flash image | Flash the nRF5340 CPUNET core only: `nrfutil device program --firmware *_merged_CPUNET.hex --core Network` |
-            | `*_combined.hex` | Full board image (CPUAPP + CPUNET) | One-shot initial provisioning: `nrfutil device program --firmware *_combined.hex --core All --erase-all` |
+            | `*_nrf7002dk_full.hex` | Full board image (CPUAPP + CPUNET) | One-shot initial provisioning: `nrfutil device program --firmware *_nrf7002dk_full.hex --core All --erase-all` |
+
+            ### nRF54LM20DK + nRF7002EB2 (`nrf54lm20dk/nrf54lm20a/cpuapp`)
+
+            | File suffix | Purpose | How to use |
+            |---|---|---|
+            | `*_nrf54lm20dk_zephyr.elf` | Debug symbol file | Upload to **Memfault → Software → Symbol Files** to decode stack traces and coredumps |
+            | `*_nrf54lm20dk_zephyr.signed.bin` | OTA update image | Upload to **Memfault → Software → OTA Releases** to deploy over-the-air via MCUboot |
+            | `*_nrf54lm20dk_full.hex` | Full board image (MCUboot + app) | One-shot initial provisioning: `nrfutil device program --firmware *_nrf54lm20dk_full.hex --recover` |
 
             > **`nord_project`** artifacts are built with the Memfault project key for the Nord project.
             > **`terr_project`** artifacts are built with the Memfault project key for the Terr project.
-            > The CPUNET image (nRF70 Wi-Fi / network core firmware) is identical between the two projects.
 
           files: |
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_merged_CPUAPP.hex
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_merged_CPUNET.hex
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_combined.hex
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_full.hex
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.elf
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.signed.bin
+            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_full.hex
             release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
             release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_merged_CPUAPP.hex
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_merged_CPUNET.hex
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_combined.hex
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_full.hex
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.elf
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.signed.bin
+            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_full.hex
 
   validate-documentation:
     runs-on: ubuntu-24.04

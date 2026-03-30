@@ -14,8 +14,8 @@ A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demon
 
 ## Overview
 
-- **SDK**: nRF Connect SDK v3.2.1 (workspace application)
-- **Memfault SDK**: bundled with NCS v3.2.1
+- **SDK**: nRF Connect SDK v3.2.4 (workspace application)
+- **Memfault SDK**: bundled with NCS v3.2.4
 
 ### Key Features
 
@@ -39,7 +39,6 @@ A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demon
 ```bash
 cp overlay-app-memfault-project-info.conf.template overlay-app-memfault-project-info.conf
 # Edit the file and set CONFIG_MEMFAULT_NCS_PROJECT_KEY
-echo "overlay-app-memfault-project-info.conf" >> .git/info/exclude
 ```
 
 ### 2. Build and flash
@@ -56,13 +55,8 @@ west flash --erase
 west build -b nrf54lm20dk/nrf54lm20a/cpuapp -p -- \
   -DSHIELD=nrf7002eb2 \
   -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
-# Flash merged.hex (MCUboot + app together)
-nrfutil device program --firmware build/merged.hex \
-  --options chip_erase_mode=ERASE_ALL
-nrfutil device reset
+west flash --erase
 ```
-
-> **nRF54LM20DK note**: Always flash `merged.hex` (not just `zephyr.hex`) so MCUboot is included. The nRF Connect extension "Flash" button targets only the app sub-image — use the terminal command above.
 
 ### 3. Provision WiFi
 
@@ -76,7 +70,7 @@ Use the **nRF Wi-Fi Provisioner** app: [Android](https://play.google.com/store/a
 
 | Board | Port | Baud |
 |-------|------|------|
-| nRF7002DK | VCOM0 (`/dev/tty.usbmodem*1`) | 115200 |
+| nRF7002DK | VCOM1 (`/dev/tty.usbmodem*3`) | 115200 |
 | nRF54LM20DK | VCOM0 (`/dev/tty.usbmodem*1`) | 115200 |
 
 ---
@@ -96,7 +90,7 @@ Use the **nRF Wi-Fi Provisioner** app: [Android](https://play.google.com/store/a
 
 ```
 nordic-wifi-memfault/
-├── west.yml                                    # Workspace manifest (NCS v3.2.1)
+├── west.yml                                    # Workspace manifest (NCS v3.2.4)
 ├── CMakeLists.txt
 ├── Kconfig
 ├── prj.conf                                    # Shared config for all boards
@@ -145,7 +139,7 @@ External flash — MX25R64 (8 MB):
 └─────────────────────────────────────────────┘
 ```
 
-### nRF54LM20DK (nRF54LM20A — 1984 KB RRAM, `flash_primary=0x1FD000`)
+### nRF54LM20DK (nRF54LM20A — 1984 KB RRAM)
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -156,7 +150,6 @@ External flash — MX25R64 (8 MB):
 │  0x1ED000  memfault_storage   64 KB (0x10000)   │ Crash coredumps
 │  0x1FD000 ── end of flash_primary ──────────────│
 └─────────────────────────────────────────────────┘
-  mcuboot_primary = mcuboot_pad + app = 1908 KB (0x1DD000), starts at 0xE000
 
 External flash — MX25R6435F (8 MB via spi00):
 ┌─────────────────────────────────────────────────┐
@@ -183,8 +176,7 @@ External flash — MX25R6435F (8 MB via spi00):
 | External flash | MX25R64 (SPI) | MX25R6435F (spi00) |
 | App slot | ~912 KB | 1906 KB |
 | SRAM | 448 KB app + 64 KB IPC | 511 KB (full) |
-| UART console | VCOM0 (uart0) | VCOM0 (uart30, routed via EB II) |
-| Shell | Disabled (flash budget) | Enabled (extra flash headroom) |
+| UART console | VCOM1 (uart0) | VCOM0 (uart30, routed via EB II) |
 
 ### Single-core BLE + WiFi (nRF54LM20DK)
 

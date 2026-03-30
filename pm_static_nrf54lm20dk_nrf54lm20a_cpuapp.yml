@@ -9,7 +9,7 @@
 #   app               0x0000_E800 1906 KB        Main app  (0x1DC800)
 #   [mcuboot_primary = mcuboot_pad + app = 1908 KB = 0x1DD000]
 #   settings_storage  0x001E_B000    8 KB        Wi-Fi credentials / NVS
-#   memfault_storage  0x001E_D000   64 KB        Crash coredumps / metrics
+#   memfault_coredump_partition  0x001E_D000   64 KB   Crash coredumps (RRAM backend)
 #   [total = 0x1FD000 — exact fit]
 #
 # External flash (MX25R6435F, 8 MB via spi00):
@@ -50,7 +50,7 @@ settings_storage:
   size: 0x2000
   region: flash_primary
 
-memfault_storage:
+memfault_coredump_partition:
   address: 0x1ED000
   size: 0x10000
   region: flash_primary
