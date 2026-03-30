@@ -28,6 +28,7 @@ jobs:
 
   build-and-test:
     needs: set-version
+    if: "!startsWith(github.ref, 'refs/tags/')"
     runs-on: ubuntu-24.04
     container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.set-version.outputs.NCS_VERSION }}
     defaults:
@@ -147,18 +148,14 @@ jobs:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
           mkdir -p release
-          # nRF7002DK (nRF5340 dual-core): elf, OTA bin, full flash image (CPUAPP + CPUNET merged)
+          # nRF7002DK: sysbuild merged.hex already contains MCUboot + CPUAPP + CPUNET
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
              release/nord_project_${VER}_nrf7002dk_zephyr.elf
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
              release/nord_project_${VER}_nrf7002dk_zephyr.signed.bin
-          python3 -c "
-          app = open('build_nrf7002dk/merged.hex').readlines()
-          net = open('build_nrf7002dk/merged_CPUNET.hex').readlines()
-          merged = [l for l in app if l.strip() != ':00000001FF'] + net
-          open('release/nord_project_${VER}_nrf7002dk_full.hex', 'w').writelines(merged)
-          "
-          # nRF54LM20DK (single-core): elf, OTA bin, full flash image
+          cp build_nrf7002dk/merged.hex \
+             release/nord_project_${VER}_nrf7002dk_full.hex
+          # nRF54LM20DK: sysbuild merged.hex contains MCUboot + app
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf \
              release/nord_project_${VER}_nrf54lm20dk_zephyr.elf
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
@@ -193,18 +190,14 @@ jobs:
         env:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
-          # nRF7002DK
+          # nRF7002DK: sysbuild merged.hex already contains MCUboot + CPUAPP + CPUNET
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
              release/terr_project_${VER}_nrf7002dk_zephyr.elf
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
              release/terr_project_${VER}_nrf7002dk_zephyr.signed.bin
-          python3 -c "
-          app = open('build_nrf7002dk/merged.hex').readlines()
-          net = open('build_nrf7002dk/merged_CPUNET.hex').readlines()
-          merged = [l for l in app if l.strip() != ':00000001FF'] + net
-          open('release/terr_project_${VER}_nrf7002dk_full.hex', 'w').writelines(merged)
-          "
-          # nRF54LM20DK
+          cp build_nrf7002dk/merged.hex \
+             release/terr_project_${VER}_nrf7002dk_full.hex
+          # nRF54LM20DK: sysbuild merged.hex contains MCUboot + app
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf \
              release/terr_project_${VER}_nrf54lm20dk_zephyr.elf
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
