@@ -70,6 +70,15 @@ config MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP
 	default y if APP_MEMFAULT_MODULE
 
 # ---------------------------------------------------------------------------
+# Firmware type (Memfault Software Type) — set per board target
+# ---------------------------------------------------------------------------
+# NCS default is "app". Override here so the Memfault fleet can distinguish
+# devices by hardware without requiring board conf files.
+config MEMFAULT_NCS_FW_TYPE
+	default "nrf7002dk-fw"   if BOARD_NRF7002DK_NRF5340_CPUAPP
+	default "nrf54lm20dk-fw" if BOARD_NRF54LM20DK_NRF54LM20A_CPUAPP
+
+# ---------------------------------------------------------------------------
 # Firmware version
 # ---------------------------------------------------------------------------
 # MEMFAULT_NCS_FW_VERSION_STATIC is a choice symbol - set in prj.conf.
