@@ -2,7 +2,7 @@ schema: spec-driven
 
 # Project context
 context: |
-  Tech stack: Zephyr RTOS 3.7.0, Nordic NCS v3.2.1, nRF5340 + nRF7002 Wi-Fi
+  Tech stack: Zephyr RTOS 3.7.0, Nordic NCS v3.2.4, nRF5340 + nRF7002 Wi-Fi
   Architecture: SMF + Zbus modular design
   SDK: Memfault SDK for crash reporting, metrics, OTA updates
   Domain: IoT device management, Wi-Fi connectivity, cloud monitoring

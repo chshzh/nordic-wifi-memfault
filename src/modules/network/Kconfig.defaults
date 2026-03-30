@@ -54,7 +54,7 @@ config NRF70_SR_COEX
 	default y if WIFI_MODULE
 
 config NRF70_SR_COEX_RF_SWITCH
-	default y if WIFI_MODULE
+	default y if WIFI_MODULE && NRF70_SR_COEX
 
 # ---------------------------------------------------------------------------
 # L2 WiFi connectivity (connection manager)

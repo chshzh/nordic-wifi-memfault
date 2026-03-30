@@ -4,7 +4,7 @@
 **Project Repository**: `memfault-nrf7002dk` (branch: `dev/refactoring`)  
 **Review Date**: 2026-03-03  
 **Reviewer(s)**: ProductManager AI  
-**NCS Version**: v3.2.1  
+**NCS Version**: v3.2.4  
 **Project Version**: 2.4.1  
 **Board/Platform**: nRF7002DK (nRF5340 + nRF7002)
 
@@ -61,7 +61,7 @@ The project is architecturally sound with a well-structured SMF + Zbus modular d
 
 | File | Present | Appropriate | Notes |
 |------|---------|-------------|-------|
-| west.yml | ✅ | ✅ | Pins sdk-nrf to v3.2.1 |
+| west.yml | ✅ | ✅ | Pins sdk-nrf to v3.2.4 |
 | sysbuild/ | ✅ | ✅ | MCUboot + hci_ipc configuration |
 | overlay-*.conf | ✅ | ✅ | Template + git-ignored credential file |
 | boards/ (top-level) | ❌ | ⚠️ | README shows `boards/nrf7002dk_nrf5340_cpuapp.conf` but file not present; board config inlined into `prj.conf` |
@@ -542,7 +542,7 @@ config APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC
 
 ## Conclusion
 
-**Overall Assessment**: The project is a high-quality, well-architected Memfault + NCS v3.2.1 reference application. The SMF + Zbus modular pattern is correctly applied, Kconfig hygiene is exemplary (per-module `Kconfig.defaults`), CI/CD is functional, and security practices are solid. The one critical issue (C-01: dead `CONFIG_BUTTON_LONG_PRESS_MS`) is a behavioral bug that should be fixed before the next tagged release. The remaining findings are warnings and improvements that do not affect current functionality.
+**Overall Assessment**: The project is a high-quality, well-architected Memfault + NCS v3.2.4 reference application. The SMF + Zbus modular pattern is correctly applied, Kconfig hygiene is exemplary (per-module `Kconfig.defaults`), CI/CD is functional, and security practices are solid. The one critical issue (C-01: dead `CONFIG_BUTTON_LONG_PRESS_MS`) is a behavioral bug that should be fixed before the next tagged release. The remaining findings are warnings and improvements that do not affect current functionality.
 
 **Risk Level**:
 - [x] 🟡 Medium — one critical code correctness issue (C-01) to fix, plus copyright year and documentation gaps
@@ -568,7 +568,7 @@ config APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC
 
 ## Appendix B: Tool Versions
 
-- NCS Version: v3.2.1
+- NCS Version: v3.2.4
 - Board: nRF7002DK (nRF5340 Application Core + nRF7002 Wi-Fi)
 - Firmware Version: 2.4.1
 - Architecture: SMF + Zbus Modular

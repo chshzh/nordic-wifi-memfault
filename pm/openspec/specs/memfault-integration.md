@@ -175,7 +175,7 @@ MEMFAULT_METRIC_ADD(my_counter, 1);  // Increment
 **Parsing**:
 ```bash
 python3 script/nrf70_fw_stats_parser.py \
-  /opt/nordic/ncs/v3.2.1/nrf/modules/lib/nrf_wifi/fw_if/umac_if/inc/fw/host_rpu_sys_if.h \
+  /opt/nordic/ncs/v3.2.4/nrf/modules/lib/nrf_wifi/fw_if/umac_if/inc/fw/host_rpu_sys_if.h \
   ~/Downloads/F4CE36006EB1_nrf70-fw-stats_20251128-111955.bin
 ```
 
