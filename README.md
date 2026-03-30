@@ -1,13 +1,20 @@
 # nordic-wifi-memfault sample
 
-A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demonstrating IoT device management with Wi-Fi connectivity, Wi-Fi provisioning over BLE, HTTPS/MQTT communication, and cloud-based monitoring.
+[![Build and Test](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml/badge.svg)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml)
+[![Latest Release](https://img.shields.io/github/v/release/chshzh/nordic-wifi-memfault?label=Release&color=brightgreen)](https://github.com/chshzh/nordic-wifi-memfault/releases/latest)
+[![License](https://img.shields.io/badge/License-LicenseRef--Nordic--5--Clause-blue.svg)](LICENSE)
+[![NCS Version](https://img.shields.io/badge/NCS-v3.2.4-green.svg)](https://www.nordicsemi.com/Products/Development-software/nRF-Connect-SDK)
+![Nordic Semiconductor](https://img.shields.io/badge/Nordic%20Semiconductor-nRF7002DK-blue)
+![Nordic Semiconductor](https://img.shields.io/badge/Nordic%20Semiconductor-nRF54LM20DK-red)
+
+A comprehensive **Memfault** integration reference for Nordic Wi-Fi platforms, demonstrating IoT device observability with Wi-Fi connectivity, Wi-Fi provisioning over BLE, HTTPS/MQTT communication, and Memfault cloud-based crash reporting, metrics, and OTA updates.
 
 ## Platform Support
 
 | Board | Host MCU | Wi-Fi | BLE | Status |
 |-------|----------|-------|-----|--------|
 | [nRF7002DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7002-DK) | nRF5340 (dual-core) | nRF7002 | Network core (`hci_ipc`) | ✅ Supported |
-| [nRF54LM20DK](https://www.nordicsemi.com/Products/Development-hardware/nRF54LM20-DK) + nRF7002EB II | nRF54LM20 (single-core) | nRF7002 via EB II shield | SoftDevice Controller (same core) | ✅ Supported |
+| [nRF54LM20DK](https://www.nordicsemi.com/Products/Development-hardware/nRF54LM20-DK) + [nRF7002 EBII](https://www.nordicsemi.com/Products/Development-hardware/nRF7002-EBII) | nRF54LM20 (single-core) | nRF7002 via EB II shield | SoftDevice Controller (same core) | ✅ Supported |
 | [nRF7120DK](https://www.nordicsemi.com/Products/Development-hardware/nRF7120-DK) | nRF7120 (integrated) | nRF7120 | — | 🔜 Planned |
 
 > All platform-specific build targets, overlays, and partition maps live under board-named files. The application core (modules, Memfault integration) is shared across all boards.
@@ -19,16 +26,22 @@ A comprehensive Memfault integration reference for Nordic Wi-Fi platforms, demon
 
 ### Key Features
 
-- ✅ **Wi-Fi Connectivity** — WPA2/WPA3 with automatic reconnection
-- ✅ **WiFi Provisioning over BLE** — Credential configuration via nRF Wi-Fi Provisioner app
-- ✅ **Crash Reporting** — Automatic coredump collection and upload
-- ✅ **Metrics Collection** — WiFi stats, stack usage, heap, CPU temperature
-- ✅ **Heap Monitor** — Auto-detects system and mbedTLS heaps, logs in a shared format
-- ✅ **nRF70 WiFi Diagnostics** — Firmware statistics (PHY/LMAC/UMAC) via CDR
-- ✅ **OTA Updates** — Secure firmware updates via Memfault cloud
-- ✅ **MCUboot Bootloader** — Dual-bank updates with rollback protection
-- ✅ **HTTPS Test** — Periodic `HEAD` requests to `example.com`
-- ✅ **MQTT Test** — TLS-secured echo test to `broker.emqx.io`
+#### Memfault Device Observability
+- ✅ **Crash Reporting** — Automatic coredump capture (internal flash / RRAM) and upload to Memfault dashboard
+- ✅ **OTA Updates** — Secure MCUboot-based firmware updates deployed via Memfault cloud
+- ✅ **Metrics & Heartbeats** — WiFi signal, channel, AP vendor, stack headroom, heap usage, HTTP/MQTT counters
+- ✅ **Heap Monitor** — Auto-tracks system heap and dedicated mbedTLS heap; feeds live values into Memfault metrics
+- ✅ **nRF70 Diagnostics CDR** — PHY/LMAC/UMAC firmware statistics uploaded as Custom Data Recordings
+
+#### Connectivity & Provisioning
+- ✅ **Wi-Fi Connectivity** — WPA2/WPA3 with automatic reconnection and NVS credential persistence
+- ✅ **WiFi Provisioning over BLE** — Credential configuration via the nRF Wi-Fi Provisioner mobile app
+- ✅ **HTTPS Client** — Periodic TLS `HEAD` requests to `example.com` with success/failure metrics
+- ✅ **MQTT Client** — TLS-secured echo test to `broker.emqx.io` with success/failure metrics
+
+#### Platform
+- ✅ **Dual Hardware** — nRF7002DK (nRF5340 dual-core) and nRF54LM20DK + nRF7002EB II (nRF54LM20A single-core)
+- ✅ **MCUboot Bootloader** — Dual-bank updates with rollback protection, external-flash OTA slot
 
 ---
 
@@ -55,7 +68,7 @@ west flash --erase
 west build -b nrf54lm20dk/nrf54lm20a/cpuapp -p -- \
   -DSHIELD=nrf7002eb2 \
   -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
-west flash --erase
+west flash --recover
 ```
 
 ### 3. Provision WiFi
@@ -77,12 +90,19 @@ Use the **nRF Wi-Fi Provisioner** app: [Android](https://play.google.com/store/a
 
 ## Button Controls
 
-| Button | Press | Action |
-|--------|-------|--------|
-| **Button 1** | Short (< 3 s) | Trigger Memfault heartbeat + nRF70 stats CDR upload |
-| **Button 1** | Long (≥ 3 s) | Stack overflow crash (test crash reporting) |
-| **Button 2** | Short (< 3 s) | Check for OTA update |
-| **Button 2** | Long (≥ 3 s) | Division by zero crash (test fault handler) |
+The application uses the first two logical buttons (`DK_BTN1` / `DK_BTN2`).  
+Their physical labels differ by board:
+
+| nRF7002DK label | nRF54LM20DK label | Press | Action |
+|-----------------|-------------------|-------|--------|
+| **Button 1** | **BUTTON 0** | Short (< 3 s) | Trigger Memfault heartbeat + nRF70 stats CDR upload |
+| **Button 1** | **BUTTON 0** | Long (≥ 3 s) | Stack overflow crash (test crash reporting) |
+| **Button 2** | **BUTTON 1** | Short (< 3 s) | Check for OTA update |
+| **Button 2** | **BUTTON 1** | Long (≥ 3 s) | Division by zero crash (test fault handler) |
+
+> On the nRF54LM20DK PCB the buttons are silk-printed **BUTTON 0 – BUTTON 3**.  
+> `DK_BTN1` maps to **BUTTON 0** and `DK_BTN2` maps to **BUTTON 1** (both are `sw0`/`sw1` in the board DTS).  
+> BUTTON 2 and BUTTON 3 are not used by this application.
 
 ---
 
@@ -184,55 +204,6 @@ The nRF54LM20A has no network core. Both the BLE SoftDevice Controller and the n
 
 ---
 
-## Board-Specific Configuration
-
-### nRF54LM20DK — `boards/nrf54lm20dk_nrf54lm20a_cpuapp.conf`
-
-Overrides from `prj.conf` that are specific to this hardware:
-
-| Setting | Value | Reason |
-|---------|-------|--------|
-| `NRF70_SR_COEX` | `n` | RF switch not wired on nRF7002EB II |
-| `NRF70_SR_COEX_RF_SWITCH` | `n` | Same |
-| `SPI_NOR` | `y` | External flash driver for MX25R6435F |
-| `PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY` | `y` | Use ext flash for MCUboot secondary slot |
-| `FLASH_SHELL` | `y` | Debug external flash via shell |
-| `SHELL` | `y` | Debug/dev override (off in prj.conf for nRF5340 flash budget) |
-| `MAIN_STACK_SIZE` | `5200` | Larger: single-core BLE + WiFi |
-| `NET_RX/TX_STACK_SIZE` | `4096` | Larger: same reason |
-
-### nRF54LM20DK — `sysbuild/mcuboot/boards/nrf54lm20dk_nrf54lm20a_cpuapp.conf`
-
-| Setting | Value | Reason |
-|---------|-------|--------|
-| `SPI_NOR_SFDP_DEVICETREE` | `y` | MX25R64 uses 4 KB erase sectors (not 64 KB) |
-| `SPI_NOR_FLASH_LAYOUT_PAGE_SIZE` | `4096` | Must match physical sector size |
-| `BOOT_MAX_IMG_SECTORS` | `512` | Covers 1908 KB / 4 KB = 477 sectors |
-
----
-
-## Memory Usage
-
-### nRF7002DK
-
-| Region | Used | Size | % |
-|--------|------|------|---|
-| App FLASH | ~890 KB | 941 KB | ~94% |
-| App SRAM | ~422 KB | 448 KB | ~94% |
-| Net FLASH (`hci_ipc`) | ~152 KB | 256 KB | ~59% |
-| Net SRAM | ~39 KB | 64 KB | ~61% |
-
-### nRF54LM20DK (all modules enabled)
-
-| Region | Used | Size | % |
-|--------|------|------|---|
-| App FLASH | ~1020–1100 KB | 1918 KB | ~53–57% |
-| App SRAM | ~390–410 KB | 511 KB | ~76–80% |
-
-> nRF54LM20DK has ample headroom in both flash (1918 KB slot vs ~1100 KB used) and SRAM (511 KB vs ~400 KB used).
-
----
-
 ## Memfault Integration
 
 ### Device Onboarding
@@ -273,12 +244,64 @@ Overrides from `prj.conf` that are specific to this hardware:
 
 ---
 
-## SRAM Layout — nRF5340 (nRF7002DK)
+## Using Pre-built Release Firmware
+
+Download the latest firmware from the [Releases page](https://github.com/chshzh/nordic-wifi-memfault/releases/latest).  
+Each release publishes **6 files per Memfault project** (`nord_project` / `terr_project`) — 3 per hardware target:
+
+### File naming
 
 ```
-┌─────────────────────────────────────────────┐
-│  0x20000000  sram_primary   448 KB          │ App: stack, heap, BSS
-│  0x20070000  rpmsg_nrf53     64 KB          │ IPC shared memory (App ↔ Net core)
-│  0x20080000 ── end ─────────────────────────│
-└─────────────────────────────────────────────┘
+<project>_<version>_<board>_<type>
 ```
+
+| Suffix | Description |
+|--------|-------------|
+| `*_nrf7002dk_zephyr.elf` | Debug symbol file for nRF7002DK |
+| `*_nrf7002dk_zephyr.signed.bin` | OTA image for nRF7002DK |
+| `*_nrf7002dk_full.hex` | Full flash image for nRF7002DK (CPUAPP + CPUNET merged) |
+| `*_nrf54lm20dk_zephyr.elf` | Debug symbol file for nRF54LM20DK |
+| `*_nrf54lm20dk_zephyr.signed.bin` | OTA image for nRF54LM20DK |
+| `*_nrf54lm20dk_full.hex` | Full flash image for nRF54LM20DK (MCUboot + app merged) |
+
+### Initial programming (first time)
+
+**nRF7002DK** — erase and program all cores in one step:
+```bash
+nrfutil device program --firmware <project>_<ver>_nrf7002dk_full.hex --core All --erase-all
+```
+Or using nRF Programmer: select the `_nrf7002dk_full.hex` file, enable **Erase all**, click **Program**.
+
+**nRF54LM20DK + nRF7002EB II** — RRAMC requires recovery to unlock protected MCUboot regions:
+```bash
+nrfutil device program --firmware <project>_<ver>_nrf54lm20dk_full.hex --recover
+```
+
+### OTA updates (subsequent updates via Memfault)
+
+1. Upload `*_zephyr.elf` to **Memfault → Software → Symbol Files** so the dashboard can decode stack traces and coredumps.
+2. Upload `*_zephyr.signed.bin` to **Memfault → Software → OTA Releases** and activate the release.
+3. The device polls for and downloads the update automatically on Wi-Fi connect or when **Button 2** / **BUTTON 1** is short-pressed.
+
+### Choosing a project file
+
+| File prefix | Memfault project | Use for |
+|-------------|-----------------|---------|
+| `nord_project_*` | Nord project | Nord devices |
+| `terr_project_*` | Terr project | Terr devices |
+
+---
+
+##  License
+
+This project is licensed under the LicenseRef-Nordic-5-Clause license. See the `LICENSE` file for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please ensure all code follows the Zephyr coding style and includes appropriate license headers.
+
+## 📞 Support
+
+For questions and support:
+- [Nordic DevZone](https://devzone.nordicsemi.com/)
+- [GitHub Issues](https://github.com/your-repo/nordic_wifi_opus_audio_demo/issues)
