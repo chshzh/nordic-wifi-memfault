@@ -294,7 +294,7 @@ jobs:
         run: |
           echo "Validating README.md structure..."
           grep -q "Overview" README.md || (echo "Missing Overview section" && exit 1)
-          grep -q "Hardware" README.md || (echo "Missing Hardware section" && exit 1)
+          grep -q "Platform Support" README.md || (echo "Missing Platform Support section" && exit 1)
           grep -q "Quick Start" README.md || (echo "Missing Quick Start section" && exit 1)
           grep -q "west build" README.md || (echo "Missing build commands" && exit 1)
           grep -q "Project Structure" README.md || (echo "Missing Project Structure section" && exit 1)
