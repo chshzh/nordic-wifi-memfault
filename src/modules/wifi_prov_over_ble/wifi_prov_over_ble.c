@@ -384,7 +384,8 @@ int wifi_prov_over_ble_init(void)
 	k_work_queue_init(&adv_daemon_work_q);
 	k_work_queue_start(&adv_daemon_work_q, adv_daemon_stack_area,
 			   K_THREAD_STACK_SIZEOF(adv_daemon_stack_area),
-			   ADV_DAEMON_PRIORITY, NULL);
+			   ADV_DAEMON_PRIORITY,
+			   &(const struct k_work_queue_config){.name = "ble_adv_daemon_wq"});
 	k_work_init_delayable(&wifi_connect_work, wifi_connect_work_handler);
 	k_work_init_delayable(&update_adv_param_work, update_adv_param_task);
 	k_work_init_delayable(&update_adv_data_work, update_adv_data_task);
