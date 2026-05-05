@@ -81,3 +81,6 @@ coverage/
 *.gcda
 *.gcno
 .gitnexus
+.claude
+AGENTS.md
+CLAUDE.md
