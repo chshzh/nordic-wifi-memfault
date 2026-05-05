@@ -1,15 +1,39 @@
 manifest:
-  version: 0.13
+  version: "0.13"
+
   defaults:
     remote: ncs
+
   remotes:
     - name: ncs
       url-base: https://github.com/nrfconnect
+    - name: chshzh
+      url-base: https://github.com/chshzh
+
   projects:
+    # NCS v3.3.0 — imports zephyr, bootloader, modules, nrfxlib, tools, etc.
     - name: sdk-nrf
       path: nrf
-      revision: v3.2.4
+      revision: v3.3.0
       import: true
       remote: ncs
+
+    # Common app modules and libraries
+    - name: zego
+      path: zego
+      revision: main
+      remote: chshzh
+
+    # Add more sibling projects as needed:
+    - name: nordic-wifi-webdash
+      path: nordic-wifi-webdash
+      revision: main
+      remote: chshzh
+
+    - name: nordic-wifi-audio
+      path: nordic-wifi-audio
+      revision: main
+      remote: chshzh
+
   self:
-    path: memfault-nrf7002dk
+    path: nordic-wifi-memfault

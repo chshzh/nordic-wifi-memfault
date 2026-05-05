@@ -88,6 +88,44 @@ Use the **nRF Wi-Fi Provisioner** app: [Android](https://play.google.com/store/a
 
 ---
 
+## Workspace Setup
+
+### Method 1 (Preferred) — Add to an existing NCS installation
+
+If you already have a matching NCS version installed, reuse it directly — no re-downloading required.
+
+Under a terminal with the toolchain:
+
+```sh
+cd /opt/nordic/ncs/<ncs-version>   # your existing NCS workspace root
+
+git clone https://github.com/chshzh/nordic-wifi-memfault.git
+
+# Switch the workspace manifest to nordic-wifi-memfault (one-time change)
+west config manifest.path nordic-wifi-memfault
+
+# Sync — NCS repos already present, only new project repos are cloned
+west update
+```
+
+### Method 2 — Fresh installation as a Workspace Application
+
+#### Option A: nRF Connect for VS Code
+
+Follow the [custom repository guide](https://docs.nordicsemi.com/bundle/nrf-connect-vscode/page/guides/extension_custom_repo.html).
+
+#### Option B: CLI
+
+See the Nordic guide on [Workspace Application Setup](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/dev_model_and_contributions/adding_code.html#workflow_4_workspace_application_repository_recommended).
+
+```sh
+west init -m https://github.com/chshzh/nordic-wifi-memfault --mr main <workspace-dir>
+cd <workspace-dir>
+west update
+```
+
+---
+
 ## Button Controls
 
 The application uses the first two logical buttons (`DK_BTN1` / `DK_BTN2`).  
