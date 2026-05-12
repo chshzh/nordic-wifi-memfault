@@ -11,3 +11,10 @@
 # Remember to add overlay-app-memfault-project-info.conf to .git/info/exclude to avoid committing sensitive data
 CONFIG_MEMFAULT_NCS_PROJECT_KEY="your project key here"
 CONFIG_MEMFAULT_NCS_FW_VERSION="0.0.0"
+
+# --- Memfault CLI credentials ---
+# CLI: MEMFAULT_ORG_TOKEN=
+# CLI: MEMFAULT_ORG=
+# CLI: MEMFAULT_PROJECT=
+# CLI: MEMFAULT_EMAIL=
+# CLI: MEMFAULT_USER_API_KEY=
