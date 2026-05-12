@@ -58,17 +58,17 @@ cp overlay-app-memfault-project-info.conf.template overlay-app-memfault-project-
 
 **nRF7002DK:**
 ```bash
-west build -b nrf7002dk/nrf5340/cpuapp -p -- \
+west build -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -p -- \
   -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
-west flash --erase
+west flash -d build_nrf7002dk --erase
 ```
 
 **nRF54LM20DK + nRF7002EB II:**
 ```bash
-west build -b nrf54lm20dk/nrf54lm20a/cpuapp -p -- \
+west build -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk -p -- \
   -DSHIELD=nrf7002eb2 \
   -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
-west flash --recover
+west flash -d build_nrf54lm20dk --recover
 ```
 
 ### 3. Provision WiFi
@@ -247,11 +247,11 @@ The nRF54LM20A has no network core. Both the BLE SoftDevice Controller and the n
 ### Device Onboarding
 
 1. Upload symbol file after building:
-   - **nRF7002DK**: `build/memfault-nrf7002dk/zephyr/zephyr.elf`
-   - **nRF54LM20DK**: `build_nrf54lm20dk_wifi/nordic-wifi-memfault/zephyr/zephyr.elf`
+   - **nRF7002DK**: `build_nrf7002dk/nordic-wifi-memfault/zephyr/zephyr.elf`
+   - **nRF54LM20DK**: `build_nrf54lm20dk/nordic-wifi-memfault/zephyr/zephyr.elf`
    - Dashboard → **Fleet** → **Symbol Files** → Upload
 
-2. Set firmware version in `prj.conf`:
+2. Set firmware version in `overlay-app-memfault-project-info.conf`:
    ```properties
    CONFIG_MEMFAULT_NCS_FW_VERSION="1.0.0"
    ```
@@ -273,11 +273,11 @@ The nRF54LM20A has no network core. Both the BLE SoftDevice Controller and the n
 
 ### OTA Updates
 
-1. Update version in `prj.conf`:
+1. Update version in `overlay-app-memfault-project-info.conf`:
    ```properties
    CONFIG_MEMFAULT_NCS_FW_VERSION="2.0.0"
    ```
-2. Build and upload `zephyr.elf` (symbols) + `dfu_application.zip` (OTA payload) to Memfault dashboard.
+2. Build and upload `zephyr.elf` (symbols) + `zephyr.signed.bin` (OTA payload) to Memfault dashboard.
 3. The device checks for updates on WiFi connect and on Button 2 short-press.
 
 ---
