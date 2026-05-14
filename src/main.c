@@ -66,6 +66,9 @@ int main(void)
 		CONFIG_APP_MQTT_CLIENT_BROKER_HOSTNAME,
 		CONFIG_APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC);
 #endif
+#if CONFIG_NTP_MODULE
+	LOG_INF("  [app]    ntp_sync          (server: %s)", CONFIG_NTP_SERVER);
+#endif
 	LOG_INF("==============================================");
 
 	for (;;) {

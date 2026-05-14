@@ -19,6 +19,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-05-14-14-13 | Reverse update: migrated canonical PRD to docs/pm-prd and reconciled requirements to currently implemented behavior |
+| 2026-05-14-15-00 | Added FR-006: NTP time synchronization for real-world timestamps in debug log |
 
 ---
 
@@ -116,6 +117,7 @@ bring-up time.
 | ID | As a... | I want to... | So that... | Acceptance Criteria | Engineering Spec |
 |---|---|---|---|---|---|
 | FR-005 | developer | enable optional BLE/HTTPS/MQTT support paths | I can validate broader connectivity behavior | Optional modules start and react to WIFI_CHAN connectivity state | [app-wifi-prov-ble-module.md](../dev-specs/app-wifi-prov-ble-module.md), [app-https-client-module.md](../dev-specs/app-https-client-module.md), [app-mqtt-client-module.md](../dev-specs/app-mqtt-client-module.md) |
+| FR-006 | developer | have the device synchronize its clock from an NTP server after connecting to the network | debug log lines show real-world wall-clock timestamps instead of uptime-relative milliseconds | After network ready event, device queries pool.ntp.org; subsequent log lines display ISO date/time; feature is Kconfig-gated and off by default | [ntp-module.md](../dev-specs/ntp-module.md) |
 
 ---
 

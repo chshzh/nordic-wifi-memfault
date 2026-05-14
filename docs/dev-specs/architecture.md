@@ -53,7 +53,8 @@ src/
     │   ├── cdr/
     │   └── config/
     ├── app_https_client/
-    └── app_mqtt_client/
+    ├── app_mqtt_client/
+    └── ntp/
 ```
 
 ---
@@ -64,7 +65,7 @@ src/
 |---------|-------------|-----------|-------------|-----------|
 | BUTTON_CHAN | struct button_msg | button module | app_memfault core, app_memfault ota, app_memfault cdr | runtime |
 | WIFI_CHAN | struct wifi_msg | network module | app_memfault core, app_memfault ota, wifi_prov_over_ble, app_https_client, app_mqtt_client | runtime |
-| NETWORK_CHAN | struct network_msg | network module | none (currently) | runtime |
+| NETWORK_CHAN | struct network_msg | network module | ntp (optional) | runtime |
 
 ### Message Definitions
 

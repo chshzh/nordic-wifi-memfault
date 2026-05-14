@@ -48,6 +48,9 @@ endif()
 if(CONFIG_APP_MQTT_CLIENT_MODULE)
     add_subdirectory(src/modules/app_mqtt_client)
 endif()
+if(CONFIG_NTP_MODULE)
+    add_subdirectory(src/modules/ntp)
+endif()
 
 # Add BLE provisioning library when enabled
 if(CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED)

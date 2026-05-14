@@ -17,6 +17,7 @@ rsource "src/modules/wifi_prov_over_ble/Kconfig.wifi_prov_over_ble"
 rsource "src/modules/app_memfault/Kconfig.app_memfault"
 rsource "src/modules/app_https_client/Kconfig.app_https_client"
 rsource "src/modules/app_mqtt_client/Kconfig.app_mqtt_client"
+rsource "src/modules/ntp/Kconfig.ntp"
 
 rsource "src/modules/network/Kconfig.defaults"
 rsource "src/modules/heap_monitor/Kconfig.defaults"
@@ -24,6 +25,7 @@ rsource "src/modules/wifi_prov_over_ble/Kconfig.defaults"
 rsource "src/modules/app_memfault/Kconfig.defaults"
 rsource "src/modules/app_https_client/Kconfig.defaults"
 rsource "src/modules/app_mqtt_client/Kconfig.defaults"
+rsource "src/modules/ntp/Kconfig.defaults"
 
 # Silence the v3.3.0 "Deprecated symbol MBEDTLS_LEGACY_CRYPTO_C" Kconfig
 # warning. The application enables MBEDTLS_LEGACY_CRYPTO_C in prj.conf to

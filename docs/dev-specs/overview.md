@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-05-14-14-13 |
-| PRD Version | 2026-05-14-14-13 |
+| Version | 2026-05-14-15-00 |
+| PRD Version | 2026-05-14-15-00 |
 | Author | GitHub Copilot |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
@@ -19,6 +19,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-05-14-14-13 | Reverse-design baseline generated from current implementation in src/modules and migrated to docs/dev-specs |
+| 2026-05-14-15-00 | Added ntp-module.md for FR-006: NTP time synchronization |
 
 ---
 
@@ -45,6 +46,7 @@ For product requirements driving this design, see [../pm-prd/PRD.md](../pm-prd/P
 | [app-https-client-module.md](app-https-client-module.md) | HTTPS periodic health requests and metrics | FR-005 |
 | [app-mqtt-client-module.md](app-mqtt-client-module.md) | MQTT echo client and connectivity metrics | FR-005 |
 | [flash-memory-layout.md](flash-memory-layout.md) | Detailed PM-to-DTS partition migration, board layouts, OTA compatibility constraints | NFR-001 |
+| [ntp-module.md](ntp-module.md) | NTP time synchronization — SNTP client, system clock set, log real-time timestamps | FR-006 |
 
 ---
 
@@ -74,6 +76,7 @@ Key design decisions:
 | FR-003 Button 1 behavior (heartbeat/CDR/stack-overflow demo) | button-module.md, app-memfault-module.md | Specified |
 | FR-004 Button 2 behavior (OTA check/div-by-zero demo) | button-module.md, app-memfault-module.md | Specified |
 | FR-005 BLE provisioning and optional HTTPS/MQTT clients | app-wifi-prov-ble-module.md, app-https-client-module.md, app-mqtt-client-module.md | Specified |
+| FR-006 NTP time sync for real-world log timestamps | ntp-module.md | Specified |
 | NFR-001 Resource and stability constraints | architecture.md, heap-monitor-module.md | Specified |
 
 ---

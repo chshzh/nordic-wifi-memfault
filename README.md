@@ -31,6 +31,7 @@ or subscribe through zbus channels.
 - Button-driven validation paths (heartbeat/CDR, OTA check, crash demos)
 - Optional HTTPS periodic check module
 - Optional MQTT periodic publish/echo module
+- Optional NTP time synchronization — syncs system clock from `pool.ntp.org` after network ready; log timestamps show real-world UTC time (e.g. `[2026-05-14 19:34:52.299,000]`)
 - Heap monitoring for system and mbedTLS heaps
 - Modular architecture based on SYS_INIT + zbus
 
@@ -131,6 +132,7 @@ nordic-wifi-memfault/
 │       ├── app_memfault/
 │       ├── app_https_client/
 │       ├── app_mqtt_client/
+│       ├── ntp/│       
 │       └── messages.h
 ├── overlay-app-memfault-project-info.conf.template
 └── .github/workflows/build.yml
@@ -197,12 +199,24 @@ west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk -- \
 
 ### Flash
 
+**First-time flash** (erases all flash including NVS — Wi-Fi credentials will need to be re-provisioned):
+
 ```bash
 # nRF7002DK
 west flash -d build_nrf7002dk --erase
 
 # nRF54LM20DK
 west flash -d build_nrf54lm20dk --recover
+```
+
+**Subsequent updates** (preserves NVS — Wi-Fi credentials are retained, no re-provisioning needed):
+
+```bash
+# nRF7002DK
+west flash -d build_nrf7002dk
+
+# nRF54LM20DK
+west flash -d build_nrf54lm20dk
 ```
 
 ### Serial Monitor
@@ -232,6 +246,7 @@ Start with [docs/dev-specs/overview.md](docs/dev-specs/overview.md).
 | [docs/dev-specs/app-memfault-module.md](docs/dev-specs/app-memfault-module.md) | Memfault integration wrapper |
 | [docs/dev-specs/app-https-client-module.md](docs/dev-specs/app-https-client-module.md) | HTTPS module behavior |
 | [docs/dev-specs/app-mqtt-client-module.md](docs/dev-specs/app-mqtt-client-module.md) | MQTT module behavior |
+| [docs/dev-specs/ntp-module.md](docs/dev-specs/ntp-module.md) | NTP time synchronization — SNTP client, system clock set, UTC log timestamps |
 | [docs/qa-test/README.md](docs/qa-test/README.md) | QA snapshot folder conventions |
 
 ## Methodology

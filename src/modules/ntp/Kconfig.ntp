@@ -1,0 +1,43 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config NTP_MODULE
+	bool "Enable NTP time synchronization"
+	select SNTP
+	depends on NETWORKING
+	help
+	  Enable the NTP sync module. After network connectivity is established,
+	  the module queries an SNTP server and sets CLOCK_REALTIME. When
+	  CONFIG_LOG_TIMESTAMP_USE_REALTIME=y is also set, Zephyr log output
+	  shows real-world wall-clock timestamps.
+
+if NTP_MODULE
+
+config NTP_SERVER
+	string "SNTP server hostname"
+	default "pool.ntp.org"
+	help
+	  Hostname of the SNTP server used for time synchronization.
+
+config NTP_TIMEOUT_MS
+	int "SNTP query timeout (ms)"
+	default 5000
+	range 1000 30000
+	help
+	  Maximum time to wait for an SNTP response, in milliseconds.
+
+config NTP_RETRY_INTERVAL_SEC
+	int "Retry interval on failure (s)"
+	default 30
+	range 5 3600
+	help
+	  How long to wait before retrying a failed SNTP query.
+
+module = NTP_MODULE
+module-str = NTP time sync
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # NTP_MODULE
