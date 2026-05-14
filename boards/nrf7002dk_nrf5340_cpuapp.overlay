@@ -5,13 +5,53 @@
  */
 
 / {
-	/* Configure the partition manager to use the mx25r64 external flash memory. */
 	chosen {
 		/delete-property/ zephyr,ipc_shm;
-		nordic,pm-ext-flash = &mx25r64;
+	};
+};
+
+&flash0 {
+	/delete-node/ partitions;
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x0 0xa000>;
+		};
+
+		slot0_partition: partition@a000 {
+			label = "image-0";
+			reg = <0xa000 0xe4000>;
+		};
+
+		storage_partition: partition@ee000 {
+			label = "storage";
+			reg = <0xee000 0x2000>;
+		};
+
+		memfault_storage: partition@f0000 {
+			label = "memfault-storage";
+			reg = <0xf0000 0x10000>;
+		};
 	};
 };
 
 &mx25r64 {
 	status = "okay";
+	/delete-node/ partitions;
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		slot1_partition: partition@0 {
+			label = "image-1";
+			reg = <0x0 0xe4000>;
+		};
+	};
 };

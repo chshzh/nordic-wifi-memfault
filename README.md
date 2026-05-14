@@ -178,45 +178,146 @@ nordic-wifi-memfault/
 
 ## Flash Memory Layout
 
+**NCS v3.3+ Migration Note:** As of NCS v3.3.0, this project has migrated from the legacy **Partition Manager** (PM) build-time system to **DeviceTree fixed-partitions** (DTS-driven). This aligns with NCS 3.3's deprecation of PM. The layouts below reflect the **new DTS-based configuration** deployed via overlay files.
+
 ### nRF7002DK (nRF5340 — 1 MB internal flash)
 
-```
-┌─────────────────────────────────────────────┐
-│  0x00000  mcuboot          40 KB  (0x0A000) │ Bootloader
-│  0x0A000  mcuboot_pad     512 B   (0x00200) │ Image header
-│  0x0A200  app             ~912 KB (0xE3E00) │ Main application
-│  0xEE000  settings_storage  8 KB  (0x02000) │ WiFi credentials / NVS
-│  0xF0000  memfault_storage 64 KB  (0x10000) │ Crash coredumps
-│  0x100000 ── end of internal flash ─────────│
-└─────────────────────────────────────────────┘
+#### New Layout (DTS-based, NCS 3.3+)
 
-External flash — MX25R64 (8 MB):
-┌─────────────────────────────────────────────┐
-│  0x000000  mcuboot_secondary  912 KB        │ OTA update slot
-│  0x0E4000  external_flash    ~7.1 MB        │ Reserved
-└─────────────────────────────────────────────┘
-```
+| Address | Partition | Size | Purpose |
+|---------|-----------|------|---------|
+| `0x00000` | `boot_partition` | 40 KB | Bootloader (MCUboot) |
+| `0x0A000` | `slot0_partition` | 920 KB | Primary app image |
+| `0xEE000` | `storage_partition` | 8 KB | WiFi credentials / NVS |
+| `0xF0000` | `memfault_storage` | 64 KB | Crash coredumps |
 
-### nRF54LM20DK (nRF54LM20A — 1984 KB RRAM)
+**External flash** — MX25R64 (8 MB):
 
-```
-┌─────────────────────────────────────────────────┐
-│  0x000000  mcuboot            56 KB (0x0E000)   │ Bootloader
-│  0x00E000  mcuboot_pad         2 KB (0x00800)   │ Image header
-│  0x00E800  app              1906 KB (0x1DC800)  │ Main application
-│  0x1EB000  settings_storage    8 KB (0x02000)   │ WiFi credentials / NVS
-│  0x1ED000  memfault_storage   64 KB (0x10000)   │ Crash coredumps
-│  0x1FD000 ── end of flash_primary ──────────────│
-└─────────────────────────────────────────────────┘
+| Address | Partition | Size | Purpose |
+|---------|-----------|------|---------|
+| `0x000000` | `slot1_partition` | 920 KB | Secondary OTA slot |
 
-External flash — MX25R6435F (8 MB via spi00):
-┌─────────────────────────────────────────────────┐
-│  0x000000  mcuboot_secondary 1908 KB (0x1DD000) │ OTA slot (= primary size)
-│  0x1DD000  external_flash   ~6.1 MB (0x623000)  │ Reserved
-└─────────────────────────────────────────────────┘
-```
+#### Legacy Layout (Partition Manager, NCS 3.2 and earlier)
 
-> `memfault_storage` must be in internal flash (RRAM/NOR) for power-fail safety and boot-time access before the external flash driver initialises.
+| Address | Partition | Size | Purpose | Notes |
+|---------|-----------|------|---------|-------|
+| `0x00000` | `mcuboot` | 40 KB | Bootloader | — |
+| `0x0A000` | `mcuboot_pad` | 512 B | Image header padding | **Removed in DTS** |
+| `0x0A200` | `app` | 912 KB | Main application | Now starts @ `0x0A000` |
+| `0xEE000` | `settings_storage` | 8 KB | WiFi credentials / NVS | — |
+| `0xF0000` | `memfault_storage` | 64 KB | Crash coredumps | — |
+
+**Key difference:** The 512-byte `mcuboot_pad` is eliminated, shifting the app start address earlier by 0x200 bytes.
+
+---
+
+### nRF54LM20DK + nRF7002EB II (nRF54LM20A — 1984 KB RRAM)
+
+#### New Layout (DTS-based, NCS 3.3+)
+
+**Internal flash** — RRAM (cpuapp_rram):
+
+| Address | Partition | Size | Purpose |
+|---------|-----------|------|---------|
+| `0x000000` | `boot_partition` | 56 KB | Bootloader (MCUboot) |
+| `0x0E000` | `slot0_partition` | 1844 KB | Primary app image |
+| `0x1D3000` | `storage_partition` | 8 KB | WiFi credentials / NVS |
+| `0x1D5000` | `memfault_coredump_partition` | 64 KB | Crash coredumps |
+
+**External flash** — MX25R6435F (8 MB via spi00):
+
+| Address | Partition | Size | Purpose |
+|---------|-----------|------|---------|
+| `0x000000` | `slot1_partition` | 1844 KB | Secondary OTA slot |
+
+#### Legacy Layout (Partition Manager, NCS 3.2 and earlier)
+
+**Internal flash** — RRAM (flash_primary):
+
+| Address | Partition | Size | Purpose | Notes |
+|---------|-----------|------|---------|-------|
+| `0x000000` | `mcuboot` | 56 KB | Bootloader | — |
+| `0x0E000` | `mcuboot_pad` | 2 KB | Image header padding | **Removed in DTS** |
+| `0x0E800` | `app` | 1810 KB | Main application | Now starts @ `0x0E000` |
+| `0x1D3000` | `settings_storage` | 8 KB | WiFi credentials / NVS | — |
+| `0x1D5000` | `memfault_coredump_partition` | 64 KB | Crash coredumps | — |
+
+**External flash** — MX25R6435F (8 MB via spi00):
+
+| Address | Partition | Size | Purpose | Notes |
+|---------|-----------|------|---------|-------|
+| `0x000000` | `mcuboot_secondary` | 1812 KB | OTA slot | Now 1844 KB in DTS |
+
+---
+
+### Migration Rationale
+
+| Aspect | Partition Manager (v3.2−) | DeviceTree (v3.3+) | Reason |
+|--------|--------------------------|-------------------|--------|
+| **Configuration** | YAML (`pm_static_*.yml`) | DTS overlays (`.overlay` files) | DTS is Zephyr standard; PM is deprecated |
+| **Build system** | Sysbuild (legacy PM subsystem) | Standard MCUboot DTS parsing | Simplifies toolchain; DTS-driven boot is universal |
+| **Pad bytes** | Explicit `mcuboot_pad` node (512 B or 2 KB) | Eliminated; slot addresses aligned directly | Reduces complexity; recovers bytes for app |
+| **Coexistence** | PM-based and DTS partitions mutual exclusive | DTS only | Cleaner migration path; single authoritative source |
+| **Firmware compatibility** | Different builds use same address layout | Different address alignment per layout | **OTA across PM↔DTS boundary is not supported** |
+
+**Why the pad was removed:**
+- MCUboot's image header is now handled purely by the bootloader—no need for explicit padding in the partition map.
+- DTS fixed-partitions are simpler and more flexible than PM's derivation rules.
+
+> **Important:** Firmware compiled under PM (v3.2) cannot be OTA-updated to DTS (v3.3) and vice versa due to the 512-byte / 2 KB address shift. Devices must be reflashed via hardware or a custom dual-partition transition scheme.
+
+---
+
+### OTA Compatibility Matrix
+
+**⚠️ Critical:** Firmware compiled for **PM (v3.2)** cannot be OTA-updated to **DTS (v3.3+)**, and vice versa. The address shifts break image validation in MCUboot.
+
+#### nRF7002DK — Address Alignment Impact
+
+| Aspect | Old (PM, v3.2−) | New (DTS, v3.3+) | Impact |
+|--------|-----------------|------------------|--------|
+| Boot partition | 0x0 – 0xa000 | 0x0 – 0xa000 | ✓ Same |
+| **App slot start** | **0xa200** | **0xa000** | ⚠️ **512-byte shift** |
+| App slot size | 0xe3e00 (912 KB) | 0xe4000 (920 KB) | Size increased |
+| Settings storage | 0xee000 – 0xf0000 | 0xee000 – 0xf0000 | ✓ Same |
+| Memfault storage | 0xf0000 – 0x100000 | 0xf0000 – 0x100000 | ✓ Same |
+| External slot1 | 0x0 – 0xe4000 | 0x0 – 0xe4000 | ✓ Same |
+
+**Consequence:** MCUboot validates firmware at its configured address. If a PM-built binary (@ 0xa200) is placed in a DTS-configured partition (@ 0xa000), CRC validation fails → boot loop.
+
+#### nRF54LM20DK + nRF7002EB II — Address Alignment Impact
+
+| Aspect | Old (PM, v3.2−) | New (DTS, v3.3+) | Impact |
+|--------|-----------------|------------------|--------|
+| Boot partition | 0x0 – 0xe000 | 0x0 – 0xe000 | ✓ Same |
+| **App slot start** | **0xe800** | **0xe000** | ⚠️ **2 KB shift** |
+| App slot size | 0x1c4800 (1810 KB) | 0x1c5000 (1844 KB) | Size increased |
+| Settings storage | 0x1d3000 – 0x1d5000 | 0x1d3000 – 0x1d5000 | ✓ Same |
+| Memfault coredump | 0x1d5000 – 0x1e5000 | 0x1d5000 – 0x1e5000 | ✓ Same |
+| External slot1 | 0x0 – 0x1c5000 | 0x0 – 0x1c5000 | ✓ Same |
+
+**Consequence:** Same as nRF7002DK—firmware misalignment → CRC mismatch → boot failure.
+
+#### Migration Strategy
+
+| Scenario | Feasible? | Method |
+|----------|-----------|--------|
+| **OTA from PM to DTS** | ❌ **No** | MCUboot reconfiguration breaks binary placement |
+| **OTA from DTS to PM** | ❌ **No** | Binary at 0xa000/0xe000 won't validate @ 0xa200/0xe800 |
+| **Hardware reflash (JLink)** | ✅ **Yes** | Full-image erase + reflash bypasses bootloader |
+| **Custom dual-partition firmware** | ✅ **Yes** (complex) | Intermediate firmware relocates binaries (not recommended) |
+
+**Recommended approach:** Use **hardware reflash via JLink** for any device migration from PM to DTS.
+
+---
+
+### Memfault Coredump Storage
+
+Both layouts keep `memfault_storage` / `memfault_coredump_partition` in **internal flash** for:
+- **Power-fail safety**: Coredump writes can survive power loss when backed by NOR or RRAM.
+- **Boot-time access**: Memfault uploads coredumps before external flash drivers initialize.
+
+On nRF54LM20DK, the coredump partition is backed by RRAM with an ECC controller; writes are atomic and protected.
 
 ---
 

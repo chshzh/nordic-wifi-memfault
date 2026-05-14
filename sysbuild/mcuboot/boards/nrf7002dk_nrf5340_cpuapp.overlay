@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#include "../../../boards/nrf7002dk_nrf5340_cpuapp.overlay"
+
 / {
 	chosen {
 		/delete-property/ zephyr,ipc_shm;
-		nordic,pm-ext-flash = &mx25r64;
+		zephyr,code-partition = &boot_partition;
 	};
 };

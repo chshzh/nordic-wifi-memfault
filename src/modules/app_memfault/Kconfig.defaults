@@ -67,7 +67,8 @@ config MEMFAULT_COREDUMP_COLLECT_BSS_REGIONS
 	default n
 
 config MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP
-	default y if APP_MEMFAULT_MODULE
+	default n if APP_MEMFAULT_MODULE && BOARD_NRF7002DK_NRF5340_CPUAPP
+	default n if APP_MEMFAULT_MODULE && BOARD_NRF54LM20DK_NRF54LM20A_CPUAPP
 
 # ---------------------------------------------------------------------------
 # Firmware type (Memfault Software Type) — set per board target
