@@ -248,15 +248,15 @@ jobs:
             [ -f "${APP_S}" ]   && PARTS="${PARTS} ${APP_S}" || [ -f "${APP_P}" ] && PARTS="${PARTS} ${APP_P}"
             [ -f "${CPUNET}" ]  && PARTS="${PARTS} ${CPUNET}"
             if [ -n "${PARTS}" ]; then
-              python3 - ${PARTS} "${MERGED}" <<'PYEOF'
-import sys
-from intelhex import IntelHex
-out = IntelHex()
-for f in sys.argv[1:-1]:
-    ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap='replace')
-out.write_hex_file(sys.argv[-1])
-print(f"merged.hex created from: {' '.join(sys.argv[1:-1])}")
-PYEOF
+              {
+                echo 'import sys'
+                echo 'from intelhex import IntelHex'
+                echo 'out = IntelHex()'
+                echo 'for f in sys.argv[1:-1]:'
+                echo '  ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap="replace")'
+                echo 'out.write_hex_file(sys.argv[-1])'
+                echo 'print("merged.hex created from: " + " ".join(sys.argv[1:-1]))'
+              } | python3 - ${PARTS} "${MERGED}"
             else
               echo "ERROR: no hex files found in ${BUILD_DIR}"; find "${BUILD_DIR}" -name "*.hex" | head -20; exit 1
             fi
@@ -305,15 +305,15 @@ PYEOF
             [ -f "${MCUBOOT}" ] && PARTS="${PARTS} ${MCUBOOT}"
             [ -f "${APP_S}" ]   && PARTS="${PARTS} ${APP_S}" || [ -f "${APP_P}" ] && PARTS="${PARTS} ${APP_P}"
             if [ -n "${PARTS}" ]; then
-              python3 - ${PARTS} "${MERGED}" <<'PYEOF'
-import sys
-from intelhex import IntelHex
-out = IntelHex()
-for f in sys.argv[1:-1]:
-    ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap='replace')
-out.write_hex_file(sys.argv[-1])
-print(f"merged.hex created from: {' '.join(sys.argv[1:-1])}")
-PYEOF
+              {
+                echo 'import sys'
+                echo 'from intelhex import IntelHex'
+                echo 'out = IntelHex()'
+                echo 'for f in sys.argv[1:-1]:'
+                echo '  ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap="replace")'
+                echo 'out.write_hex_file(sys.argv[-1])'
+                echo 'print("merged.hex created from: " + " ".join(sys.argv[1:-1]))'
+              } | python3 - ${PARTS} "${MERGED}"
             else
               echo "ERROR: no hex files found in ${BUILD_DIR}"; find "${BUILD_DIR}" -name "*.hex" | head -20; exit 1
             fi
@@ -386,15 +386,15 @@ PYEOF
             [ -f "${MCUBOOT}" ] && PARTS="${PARTS} ${MCUBOOT}"
             [ -f "${APP_S}" ]   && PARTS="${PARTS} ${APP_S}" || [ -f "${APP_P}" ] && PARTS="${PARTS} ${APP_P}"
             [ -f "${CPUNET}" ]  && PARTS="${PARTS} ${CPUNET}"
-            python3 - ${PARTS} "${MERGED}" <<'PYEOF'
-import sys
-from intelhex import IntelHex
-out = IntelHex()
-for f in sys.argv[1:-1]:
-    ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap='replace')
-out.write_hex_file(sys.argv[-1])
-print(f"merged.hex created from: {' '.join(sys.argv[1:-1])}")
-PYEOF
+            {
+              echo 'import sys'
+              echo 'from intelhex import IntelHex'
+              echo 'out = IntelHex()'
+              echo 'for f in sys.argv[1:-1]:'
+              echo '  ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap="replace")'
+              echo 'out.write_hex_file(sys.argv[-1])'
+              echo 'print("merged.hex created from: " + " ".join(sys.argv[1:-1]))'
+            } | python3 - ${PARTS} "${MERGED}"
           fi
 
       - name: Build nRF54LM20DK — terr_project
@@ -419,15 +419,15 @@ PYEOF
             PARTS=""
             [ -f "${MCUBOOT}" ] && PARTS="${PARTS} ${MCUBOOT}"
             [ -f "${APP_S}" ]   && PARTS="${PARTS} ${APP_S}" || [ -f "${APP_P}" ] && PARTS="${PARTS} ${APP_P}"
-            python3 - ${PARTS} "${MERGED}" <<'PYEOF'
-import sys
-from intelhex import IntelHex
-out = IntelHex()
-for f in sys.argv[1:-1]:
-    ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap='replace')
-out.write_hex_file(sys.argv[-1])
-print(f"merged.hex created from: {' '.join(sys.argv[1:-1])}")
-PYEOF
+            {
+              echo 'import sys'
+              echo 'from intelhex import IntelHex'
+              echo 'out = IntelHex()'
+              echo 'for f in sys.argv[1:-1]:'
+              echo '  ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap="replace")'
+              echo 'out.write_hex_file(sys.argv[-1])'
+              echo 'print("merged.hex created from: " + " ".join(sys.argv[1:-1]))'
+            } | python3 - ${PARTS} "${MERGED}"
           fi
 
       - name: Stage terr_project artifacts
