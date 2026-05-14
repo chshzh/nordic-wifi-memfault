@@ -549,7 +549,7 @@ jobs:
           - \`_zephyr.signed.bin\` — OTA image for Memfault over-the-air update via MCUboot
           - \`_zephyr.elf\` — Symbol file for Memfault crash decoding and coredump analysis
 
-          For flashing and connection instructions, see the [README](${REPO}/blob/main/README.md#quick-start).
+           For flashing and connection instructions, see the [Evaluator Quick Start guide](https://github.com/chshzh/nordic-wifi-memfault/blob/main/README.md#evaluator-quick-start) in the README.
 
           ### 📝 Changes Since Last Release
 
