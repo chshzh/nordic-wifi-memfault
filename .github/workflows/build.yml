@@ -23,7 +23,14 @@ jobs:
         id: extract-version
         working-directory: app-workspace/memfault-nrf7002dk
         run: |
-          NCS_VERSION=$(grep 'revision:' west.yml | awk '{print $2}')
+          NCS_VERSION=$(awk '
+            $1=="-" && $2=="name:" && $3=="sdk-nrf" { in_sdk=1; next }
+            in_sdk && $1=="revision:" { print $2; exit }
+          ' west.yml)
+          if [ -z "${NCS_VERSION}" ]; then
+            echo "Failed to extract sdk-nrf revision from west.yml" >&2
+            exit 1
+          fi
           echo "NCS_VERSION=${NCS_VERSION}" >> $GITHUB_OUTPUT
 
   build-and-test:
