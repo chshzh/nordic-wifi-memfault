@@ -1,4 +1,4 @@
-name: Build Memfault Firmware For Nordic WiFi
+name: Build and Release Nordic Wi-Fi Memfault
 
 on:
   push:
@@ -8,11 +8,20 @@ on:
   pull_request:
     branches: [ main, dev/refactoring ]
 
+# Cancel any in-progress run for the same branch/PR to avoid wasting CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
 jobs:
   set-version:
     runs-on: ubuntu-24.04
     outputs:
       NCS_VERSION: ${{ steps.extract-version.outputs.NCS_VERSION }}
+      TOOLCHAIN_VERSION: ${{ steps.extract-version.outputs.TOOLCHAIN_VERSION }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,20 +41,44 @@ jobs:
             exit 1
           fi
           echo "NCS_VERSION=${NCS_VERSION}" >> $GITHUB_OUTPUT
+          # The toolchain Docker image tag matches the NCS revision exactly.
+          echo "TOOLCHAIN_VERSION=${NCS_VERSION}" >> $GITHUB_OUTPUT
 
   build-and-test:
     needs: set-version
     if: "!startsWith(github.ref, 'refs/tags/')"
     runs-on: ubuntu-24.04
-    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.set-version.outputs.NCS_VERSION }}
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.set-version.outputs.TOOLCHAIN_VERSION }}
     defaults:
       run:
         shell: bash
+    strategy:
+      matrix:
+        config:
+          - name: "nRF7002DK"
+            build_dir: "build_nrf7002dk"
+            board: "nrf7002dk/nrf5340/cpuapp"
+            cmake_args: ""
+          - name: "nRF54LM20DK + nRF7002EB2"
+            build_dir: "build_nrf54lm20dk_wifi"
+            board: "nrf54lm20dk/nrf54lm20a/cpuapp"
+            cmake_args: "-DSHIELD=nrf7002eb2"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           path: app-workspace/memfault-nrf7002dk
+
+      - name: Cache west workspace
+        uses: actions/cache@v4
+        with:
+          path: |
+            app-workspace/nrf
+            app-workspace/zephyr
+            app-workspace/modules
+            app-workspace/nrfxlib
+            app-workspace/bootloader
+          key: west-${{ needs.set-version.outputs.NCS_VERSION }}-${{ hashFiles('app-workspace/memfault-nrf7002dk/west.yml') }}
 
       - name: Prepare west workspace
         working-directory: app-workspace
@@ -65,35 +98,84 @@ jobs:
             echo "No MEMFAULT_PROJECT_KEY secret configured; using dummy key"
           fi
 
-      - name: Build nRF7002DK (nrf5340/cpuapp)
+      - name: Build ${{ matrix.config.name }}
         working-directory: app-workspace/memfault-nrf7002dk
         run: |
-          west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
-            -DEXTRA_CONF_FILE="overlay-ci-key.conf"
+          BUILD_LOG="${{ matrix.config.build_dir }}/build.log"
+          mkdir -p "${{ matrix.config.build_dir }}"
+          set -o pipefail
+          west build -p -b ${{ matrix.config.board }} -d ${{ matrix.config.build_dir }} -- \
+            ${{ matrix.config.cmake_args }} \
+            -DEXTRA_CONF_FILE="overlay-ci-key.conf" 2>&1 | tee "$BUILD_LOG"
 
-      - name: Build nRF54LM20DK + nRF7002EB2 (nrf54lm20a/cpuapp)
+      - name: Extract memory usage for ${{ matrix.config.name }}
+        if: always()
         working-directory: app-workspace/memfault-nrf7002dk
         run: |
-          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi \
-            --shield nrf7002eb2 \
-            -- -DEXTRA_CONF_FILE="overlay-ci-key.conf"
+          BUILD_LOG="${{ matrix.config.build_dir }}/build.log"
+          USAGE_SUMMARY="${{ matrix.config.build_dir }}/usage-summary.txt"
 
-      - name: Upload nRF7002DK artifact
+          if [ -f "$BUILD_LOG" ]; then
+            ROM_USAGE="$(awk '/^[[:space:]]*FLASH:/ {print $2 " " $3 " / " $4 " " $5 " (" $6 ")"}' "$BUILD_LOG" | tail -n 1)"
+            RAM_USAGE="$(awk '/^[[:space:]]*RAM:/ {print $2 " " $3 " / " $4 " " $5 " (" $6 ")"}' "$BUILD_LOG" | tail -n 1)"
+          else
+            ROM_USAGE="n/a"
+            RAM_USAGE="n/a"
+          fi
+
+          : "${ROM_USAGE:=n/a}"
+          : "${RAM_USAGE:=n/a}"
+
+          {
+            echo "ROM_USAGE=$ROM_USAGE"
+            echo "RAM_USAGE=$RAM_USAGE"
+          } > "$USAGE_SUMMARY"
+
+          echo "ROM usage: $ROM_USAGE"
+          echo "RAM usage: $RAM_USAGE"
+
+      - name: Capture size report for ${{ matrix.config.name }}
+        if: always()
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          ELF_PATH="${{ matrix.config.build_dir }}/memfault-nrf7002dk/zephyr/zephyr.elf"
+          SIZE_REPORT="${{ matrix.config.build_dir }}/size-report.txt"
+          SIZE_TOOL="$(command -v arm-zephyr-eabi-size || command -v llvm-size || command -v size)"
+
+          echo "ELF: ${ELF_PATH}" > "$SIZE_REPORT"
+          echo "Tool: ${SIZE_TOOL}" >> "$SIZE_REPORT"
+          echo >> "$SIZE_REPORT"
+
+          if [ -f "$ELF_PATH" ] && [ -n "$SIZE_TOOL" ]; then
+            "$SIZE_TOOL" "$ELF_PATH" >> "$SIZE_REPORT"
+          else
+            echo "size data unavailable" >> "$SIZE_REPORT"
+          fi
+
+          echo "Generated size report: $SIZE_REPORT"
+
+      - name: Stage artifacts for ${{ matrix.config.name }}
+        if: always()
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          STAGE="artifact-staging-${{ matrix.config.build_dir }}"
+          mkdir -p "$STAGE"
+          for f in build.log usage-summary.txt size-report.txt; do
+            cp "${{ matrix.config.build_dir }}/$f" "$STAGE/" 2>/dev/null || true
+          done
+          ELF="${{ matrix.config.build_dir }}/memfault-nrf7002dk/zephyr/zephyr.elf"
+          [ -f "$ELF" ] && cp "$ELF" "$STAGE/" || true
+
+      - name: Upload artifacts for ${{ matrix.config.name }}
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-nrf7002dk
-          path: app-workspace/memfault-nrf7002dk/build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf
-
-      - name: Upload nRF54LM20DK artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-nrf54lm20dk
-          path: app-workspace/memfault-nrf7002dk/build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf
+          if-no-files-found: warn
+          name: build-${{ matrix.config.build_dir }}
+          path: app-workspace/memfault-nrf7002dk/artifact-staging-${{ matrix.config.build_dir }}/
 
   # ─────────────────────────────────────────────────────────────
-  # Release jobs: only on version tags (e.g. v3.0.0)
+  # Release jobs: only on version tags (e.g. 3.3.0)
   # Builds firmware twice — once per Memfault project — for both
   # hardware targets, then publishes a GitHub Release.
   # ─────────────────────────────────────────────────────────────
@@ -101,7 +183,7 @@ jobs:
     needs: set-version
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
-    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.set-version.outputs.NCS_VERSION }}
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.set-version.outputs.TOOLCHAIN_VERSION }}
     defaults:
       run:
         shell: bash
@@ -139,15 +221,40 @@ jobs:
       - name: Build nRF7002DK — nord_project
         working-directory: app-workspace/memfault-nrf7002dk
         run: |
+          mkdir -p build_nrf7002dk
+          set -o pipefail
           west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
-            -DEXTRA_CONF_FILE="overlay-release-key.conf"
+            -DEXTRA_CONF_FILE="overlay-release-key.conf" 2>&1 | tee build_nrf7002dk/build.log
+
+      - name: Extract memory usage — nRF7002DK
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          BUILD_LOG="build_nrf7002dk/build.log"
+          ROM_USAGE="$(awk '/^[[:space:]]*FLASH:/ {print $2 " " $3 " / " $4 " " $5 " (" $6 ")"}' "$BUILD_LOG" | tail -n 1)"
+          RAM_USAGE="$(awk '/^[[:space:]]*RAM:/ {print $2 " " $3 " / " $4 " " $5 " (" $6 ")"}' "$BUILD_LOG" | tail -n 1)"
+          : "${ROM_USAGE:=n/a}"
+          : "${RAM_USAGE:=n/a}"
+          printf "ROM_USAGE=%s\nRAM_USAGE=%s\n" "$ROM_USAGE" "$RAM_USAGE" > release-usage-nrf7002dk.txt
+          echo "nRF7002DK  ROM: $ROM_USAGE | RAM: $RAM_USAGE"
 
       - name: Build nRF54LM20DK — nord_project
         working-directory: app-workspace/memfault-nrf7002dk
         run: |
-          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi \
-            --shield nrf7002eb2 \
-            -- -DEXTRA_CONF_FILE="overlay-release-key.conf"
+          mkdir -p build_nrf54lm20dk_wifi
+          set -o pipefail
+          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi -- \
+            -DSHIELD=nrf7002eb2 -DEXTRA_CONF_FILE="overlay-release-key.conf" 2>&1 | tee build_nrf54lm20dk_wifi/build.log
+
+      - name: Extract memory usage — nRF54LM20DK
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          BUILD_LOG="build_nrf54lm20dk_wifi/build.log"
+          ROM_USAGE="$(awk '/^[[:space:]]*FLASH:/ {print $2 " " $3 " / " $4 " " $5 " (" $6 ")"}' "$BUILD_LOG" | tail -n 1)"
+          RAM_USAGE="$(awk '/^[[:space:]]*RAM:/ {print $2 " " $3 " / " $4 " " $5 " (" $6 ")"}' "$BUILD_LOG" | tail -n 1)"
+          : "${ROM_USAGE:=n/a}"
+          : "${RAM_USAGE:=n/a}"
+          printf "ROM_USAGE=%s\nRAM_USAGE=%s\n" "$ROM_USAGE" "$RAM_USAGE" > release-usage-nrf54lm20dk.txt
+          echo "nRF54LM20DK  ROM: $ROM_USAGE | RAM: $RAM_USAGE"
 
       - name: Stage nord_project artifacts
         working-directory: app-workspace/memfault-nrf7002dk
@@ -155,14 +262,12 @@ jobs:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
           mkdir -p release
-          # nRF7002DK: sysbuild merged.hex already contains MCUboot + CPUAPP + CPUNET
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
              release/nord_project_${VER}_nrf7002dk_zephyr.elf
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
              release/nord_project_${VER}_nrf7002dk_zephyr.signed.bin
           cp build_nrf7002dk/merged.hex \
              release/nord_project_${VER}_nrf7002dk_full.hex
-          # nRF54LM20DK: sysbuild merged.hex contains MCUboot + app
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf \
              release/nord_project_${VER}_nrf54lm20dk_zephyr.elf
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
@@ -188,29 +293,29 @@ jobs:
       - name: Build nRF54LM20DK — terr_project
         working-directory: app-workspace/memfault-nrf7002dk
         run: |
-          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi \
-            --shield nrf7002eb2 \
-            -- -DEXTRA_CONF_FILE="overlay-release-key.conf"
+          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi -- \
+            -DSHIELD=nrf7002eb2 -DEXTRA_CONF_FILE="overlay-release-key.conf"
 
       - name: Stage terr_project artifacts
         working-directory: app-workspace/memfault-nrf7002dk
         env:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
-          # nRF7002DK: sysbuild merged.hex already contains MCUboot + CPUAPP + CPUNET
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
              release/terr_project_${VER}_nrf7002dk_zephyr.elf
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
              release/terr_project_${VER}_nrf7002dk_zephyr.signed.bin
           cp build_nrf7002dk/merged.hex \
              release/terr_project_${VER}_nrf7002dk_full.hex
-          # nRF54LM20DK: sysbuild merged.hex contains MCUboot + app
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf \
              release/terr_project_${VER}_nrf54lm20dk_zephyr.elf
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
              release/terr_project_${VER}_nrf54lm20dk_zephyr.signed.bin
           cp build_nrf54lm20dk_wifi/merged.hex \
              release/terr_project_${VER}_nrf54lm20dk_full.hex
+          # Include memory summaries so create-release can read them
+          cp release-usage-nrf7002dk.txt release/
+          cp release-usage-nrf54lm20dk.txt release/
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
@@ -219,12 +324,17 @@ jobs:
           path: app-workspace/memfault-nrf7002dk/release/
 
   create-release:
-    needs: build-release
+    needs: [set-version, build-release, static-analysis, validate-documentation]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Extract version from tag
         id: ver
         run: |
@@ -237,79 +347,99 @@ jobs:
           name: release-${{ steps.ver.outputs.VERSION }}
           path: release/
 
+      - name: Generate release notes
+        id: release-notes
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "First release — no previous tag found"
+            CHANGELOG="Initial release of Nordic Wi-Fi Memfault"
+          else
+            echo "Generating changelog from $PREV_TAG to ${{ steps.ver.outputs.VERSION }}"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" ${PREV_TAG}..HEAD)
+          fi
+
+          echo "$CHANGELOG" > /tmp/changelog.txt
+          COMMIT_COUNT=$(git rev-list ${PREV_TAG}..HEAD --count 2>/dev/null || echo "0")
+          echo "COMMIT_COUNT=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Prepare release body
+        run: |
+          read_usage() {
+            local file="$1"
+            local key="$2"
+            grep "^${key}=" "$file" 2>/dev/null | cut -d= -f2-
+          }
+
+          VER="${{ steps.ver.outputs.VERSION }}"
+          REPO="${{ github.server_url }}/${{ github.repository }}"
+          DL_BASE="${REPO}/releases/download/${VER}"
+
+          NRF7002DK_ROM="$(read_usage "release/release-usage-nrf7002dk.txt"   ROM_USAGE)"
+          NRF7002DK_RAM="$(read_usage "release/release-usage-nrf7002dk.txt"   RAM_USAGE)"
+          NRF54LM20_ROM="$(read_usage "release/release-usage-nrf54lm20dk.txt" ROM_USAGE)"
+          NRF54LM20_RAM="$(read_usage "release/release-usage-nrf54lm20dk.txt" RAM_USAGE)"
+
+          : "${NRF7002DK_ROM:=n/a}"
+          : "${NRF7002DK_RAM:=n/a}"
+          : "${NRF54LM20_ROM:=n/a}"
+          : "${NRF54LM20_RAM:=n/a}"
+
+          cat > /tmp/release-body.txt <<EOF
+          ## Nordic Wi-Fi Memfault Release ${VER}
+
+          > Built with NCS ${{ needs.set-version.outputs.NCS_VERSION }}
+
+          ### 📦 Firmware Files
+
+          Each Memfault project (\`nord_project\`, \`terr_project\`) ships **6 files** across two hardware targets.
+
+          #### \`nord_project\` — Nord Memfault project
+
+          | Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
+          |-------|-------------|-----------|-------------|-----------|-----------|
+          | nRF7002DK | [nord_project_${VER}_nrf7002dk_full.hex](${DL_BASE}/nord_project_${VER}_nrf7002dk_full.hex) | [.signed.bin](${DL_BASE}/nord_project_${VER}_nrf7002dk_zephyr.signed.bin) | [zephyr.elf](${DL_BASE}/nord_project_${VER}_nrf7002dk_zephyr.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
+          | nRF54LM20DK + nRF7002EB2 | [nord_project_${VER}_nrf54lm20dk_full.hex](${DL_BASE}/nord_project_${VER}_nrf54lm20dk_full.hex) | [.signed.bin](${DL_BASE}/nord_project_${VER}_nrf54lm20dk_zephyr.signed.bin) | [zephyr.elf](${DL_BASE}/nord_project_${VER}_nrf54lm20dk_zephyr.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
+
+          #### \`terr_project\` — Terr Memfault project
+
+          | Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
+          |-------|-------------|-----------|-------------|-----------|-----------|
+          | nRF7002DK | [terr_project_${VER}_nrf7002dk_full.hex](${DL_BASE}/terr_project_${VER}_nrf7002dk_full.hex) | [.signed.bin](${DL_BASE}/terr_project_${VER}_nrf7002dk_zephyr.signed.bin) | [zephyr.elf](${DL_BASE}/terr_project_${VER}_nrf7002dk_zephyr.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
+          | nRF54LM20DK + nRF7002EB2 | [terr_project_${VER}_nrf54lm20dk_full.hex](${DL_BASE}/terr_project_${VER}_nrf54lm20dk_full.hex) | [.signed.bin](${DL_BASE}/terr_project_${VER}_nrf54lm20dk_zephyr.signed.bin) | [zephyr.elf](${DL_BASE}/terr_project_${VER}_nrf54lm20dk_zephyr.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
+
+          **File types:**
+          - \`_full.hex\` — Full board image for initial provisioning via \`nrfutil device program\`
+          - \`_zephyr.signed.bin\` — OTA image for Memfault over-the-air update via MCUboot
+          - \`_zephyr.elf\` — Symbol file for Memfault crash decoding and coredump analysis
+
+          For flashing and connection instructions, see the [README](${REPO}/blob/main/README.md#quick-start).
+
+          ### 📝 Changes Since Last Release
+
+          EOF
+
+          if [ -f /tmp/changelog.txt ]; then
+            cat /tmp/changelog.txt >> /tmp/release-body.txt
+          else
+            echo "Initial release" >> /tmp/release-body.txt
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Release ${{ steps.ver.outputs.VERSION }}
-          tag_name: ${{ steps.ver.outputs.VERSION }}
-          generate_release_notes: true
-          body: |
-            ## Firmware Files
-
-            Each Memfault project (`nord_project`, `terr_project`) ships **6 files** across two hardware targets.
-
-            ### nRF7002DK (`nrf7002dk/nrf5340/cpuapp`)
-
-            | File suffix | Purpose | How to use |
-            |---|---|---|
-            | `*_nrf7002dk_zephyr.elf` | Debug symbol file | Upload to **Memfault → Software → Symbol Files** to decode stack traces and coredumps |
-            | `*_nrf7002dk_zephyr.signed.bin` | OTA update image | Upload to **Memfault → Software → OTA Releases** to deploy over-the-air via MCUboot |
-            | `*_nrf7002dk_full.hex` | Full board image (CPUAPP + CPUNET) | One-shot initial provisioning: `nrfutil device program --firmware *_nrf7002dk_full.hex --core All --erase-all` |
-
-            ### nRF54LM20DK + nRF7002EB2 (`nrf54lm20dk/nrf54lm20a/cpuapp`)
-
-            | File suffix | Purpose | How to use |
-            |---|---|---|
-            | `*_nrf54lm20dk_zephyr.elf` | Debug symbol file | Upload to **Memfault → Software → Symbol Files** to decode stack traces and coredumps |
-            | `*_nrf54lm20dk_zephyr.signed.bin` | OTA update image | Upload to **Memfault → Software → OTA Releases** to deploy over-the-air via MCUboot |
-            | `*_nrf54lm20dk_full.hex` | Full board image (MCUboot + app) | One-shot initial provisioning: `nrfutil device program --firmware *_nrf54lm20dk_full.hex --recover` |
-
-            > **`nord_project`** artifacts are built with the Memfault project key for the Nord project.
-            > **`terr_project`** artifacts are built with the Memfault project key for the Terr project.
-
+          name: "Nordic Wi-Fi Memfault ${{ steps.ver.outputs.VERSION }}"
+          body_path: /tmp/release-body.txt
           files: |
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_full.hex
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.elf
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.signed.bin
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_full.hex
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_full.hex
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.elf
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.signed.bin
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_full.hex
-
-  validate-documentation:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          path: app-workspace/memfault-nrf7002dk
-
-      - name: Validate README structure
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          echo "Validating README.md structure..."
-          grep -q "Overview" README.md || (echo "Missing Overview section" && exit 1)
-          grep -q "Platform Support" README.md || (echo "Missing Platform Support section" && exit 1)
-          grep -q "Quick Start" README.md || (echo "Missing Quick Start section" && exit 1)
-          grep -q "west build" README.md || (echo "Missing build commands" && exit 1)
-          grep -q "Project Structure" README.md || (echo "Missing Project Structure section" && exit 1)
-          echo "README.md validation passed"
-
-      - name: Validate configuration files
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          echo "Checking configuration files..."
-          [ -f prj.conf ] || (echo "Missing prj.conf" && exit 1)
-          [ -f west.yml ] || (echo "Missing west.yml" && exit 1)
-          [ -f CMakeLists.txt ] || (echo "Missing CMakeLists.txt" && exit 1)
-          [ -f Kconfig ] || (echo "Missing Kconfig" && exit 1)
-          [ -f LICENSE ] || (echo "Missing LICENSE" && exit 1)
-          echo "Configuration files validation passed"
+            release/*.elf
+            release/*.bin
+            release/*.hex
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   static-analysis:
     needs: set-version
@@ -342,4 +472,4 @@ jobs:
               fi
             done
           fi
-          echo "Checkpatch analysis completed"
+          echo "Checkpatch analysis completed ✓"
