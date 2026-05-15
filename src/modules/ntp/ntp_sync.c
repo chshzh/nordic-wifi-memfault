@@ -46,10 +46,9 @@ static void ntp_work_handler(struct k_work *work)
 
 	ret = sntp_simple(CONFIG_NTP_SERVER, CONFIG_NTP_TIMEOUT_MS, &ts);
 	if (ret < 0) {
-		LOG_WRN("SNTP query failed (%d) — retry in %ds",
-			ret, CONFIG_NTP_RETRY_INTERVAL_SEC);
-		k_work_reschedule(&ntp_work,
-				  K_SECONDS(CONFIG_NTP_RETRY_INTERVAL_SEC));
+		LOG_WRN("SNTP query failed (%d) — retry in %ds", ret,
+			CONFIG_NTP_RETRY_INTERVAL_SEC);
+		k_work_reschedule(&ntp_work, K_SECONDS(CONFIG_NTP_RETRY_INTERVAL_SEC));
 		return;
 	}
 
@@ -63,7 +62,7 @@ static void ntp_work_handler(struct k_work *work)
 	}
 
 	ntp_synced = true;
-	LOG_INF("Time synced — epoch %llu", ts.seconds);
+	LOG_INF("Time synced, epoch %llu", ts.seconds);
 }
 
 static void ntp_notify_connected(void)
