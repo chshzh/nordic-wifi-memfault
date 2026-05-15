@@ -7,6 +7,12 @@ target_sources(app PRIVATE
 )
 endif()
 
+# NTP module is only enabled on nrf54lm20dk; provide a CLOCK_REALTIME-backed
+# memfault_platform_time_get_current() so Memfault events get wall-clock timestamps.
+if(CONFIG_NTP_MODULE)
+	target_sources(app PRIVATE core/memfault_platform_time.c)
+endif()
+
 if(CONFIG_MEMFAULT_NCS_STACK_METRICS)
 	target_sources(app PRIVATE metrics/stack_metrics.c)
 	target_include_directories(app PRIVATE ${ZEPHYR_NRF_MODULE_DIR}/modules/memfault-firmware-sdk/include)
