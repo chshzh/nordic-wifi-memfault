@@ -93,7 +93,6 @@ static void on_connect(void)
 		return;
 	}
 	memfault_metrics_heartbeat_debug_trigger();
-	memfault_log_trigger_collection();
 	if (!memfault_packetizer_data_available()) {
 		LOG_INF("Memfault: no data queued, skipping upload");
 		return;
