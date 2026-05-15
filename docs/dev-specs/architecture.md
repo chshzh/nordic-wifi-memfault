@@ -19,6 +19,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-05-14-14-13 | Reverse-design architecture baseline generated from implementation |
+| 2026-05-15-10-31 | Add app_memfault core as NETWORK_CHAN subscriber |
 
 ---
 
@@ -65,7 +66,7 @@ src/
 |---------|-------------|-----------|-------------|-----------|
 | BUTTON_CHAN | struct button_msg | button module | app_memfault core, app_memfault ota, app_memfault cdr | runtime |
 | WIFI_CHAN | struct wifi_msg | network module | app_memfault core, app_memfault ota, wifi_prov_over_ble, app_https_client, app_mqtt_client | runtime |
-| NETWORK_CHAN | struct network_msg | network module | ntp (optional) | runtime |
+| NETWORK_CHAN | struct network_msg | network module | app_memfault core, ntp (optional) | runtime |
 
 ### Message Definitions
 
