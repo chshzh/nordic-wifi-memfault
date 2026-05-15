@@ -207,7 +207,13 @@ static void send_http_request(void)
 	bool request_failed = false;
 
 	if (!network_ready) {
-		LOG_WRN("Network not ready, skipping HTTPS request");
+		LOG_WRN("Network not ready, counting as HTTPS failure");
+		https_req_total++;
+		https_req_failures++;
+		MEMFAULT_METRIC_SET_UNSIGNED(https_req_total_count, https_req_total);
+		MEMFAULT_METRIC_SET_UNSIGNED(https_req_fail_count, https_req_failures);
+		LOG_INF("HTTPS Request Test Metrics - Total: %u, Failures: %u",
+			https_req_total, https_req_failures);
 		return;
 	}
 
@@ -409,7 +415,10 @@ static void https_client_thread(void *arg1, void *arg2, void *arg3)
 			LOG_WRN("Starting HTTPS operations without DNS "
 				"confirmation");
 		}
-		while (https_client_running && network_ready) {
+		/* Keep running test cycle regardless of network state;
+		 * send_http_request() counts offline attempts as failures.
+		 */
+		while (https_client_running) {
 			send_http_request();
 			LOG_INF("HTTP request count: %d", http_request_count++);
 
@@ -417,7 +426,7 @@ static void https_client_thread(void *arg1, void *arg2, void *arg3)
 			k_sleep(K_SECONDS(HTTPS_REQUEST_INTERVAL_SEC));
 		}
 
-		LOG_INF("Network disconnected or client stopped");
+		LOG_INF("HTTPS client stopped");
 	}
 
 	LOG_INF("HTTPS client thread exiting");
