@@ -217,7 +217,11 @@ static int mqtt_publish_message(void)
 	char payload[128];
 
 	if (!network_ready) {
-		LOG_WRN("Network not ready, skipping publish");
+		LOG_WRN("Network not ready, counting as MQTT failure");
+		message_count++;
+		mqtt_echo_failures++;
+		MEMFAULT_METRIC_SET_UNSIGNED(mqtt_echo_fail_count,
+					     mqtt_echo_failures);
 		return -ENETDOWN;
 	}
 
@@ -281,8 +285,24 @@ static void mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 	}
 
 	while (mqtt_client_running) {
-		/* Wait for network connection */
-		k_sem_take(&mqtt_thread_sem, K_FOREVER);
+		/* Wait for network; count offline intervals as failures at
+		 * the publish rate so test metrics reflect disconnection.
+		 */
+		while (true) {
+			int ret = k_sem_take(
+				&mqtt_thread_sem,
+				K_SECONDS(CONFIG_MQTT_CLIENT_PUBLISH_INTERVAL_SEC));
+			if (ret == 0 || !mqtt_client_running) {
+				break;
+			}
+			/* Timeout: network still offline, count as failure */
+			message_count++;
+			mqtt_echo_failures++;
+			MEMFAULT_METRIC_SET_UNSIGNED(mqtt_echo_fail_count,
+						     mqtt_echo_failures);
+			LOG_WRN("app_mqtt_client: offline count=%u fail=%u",
+				message_count, mqtt_echo_failures);
+		}
 
 		if (!mqtt_client_running) {
 			break;
