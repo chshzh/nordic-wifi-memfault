@@ -210,10 +210,10 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 			LOG_WRN("Stack overflow will now be triggered");
 			fib(10000);
 		} else {
-			LOG_INF("Button 1 short press: Memfault heartbeat");
+			LOG_INF("Button 1 short press: Memfault heartbeat + upload");
 			if (wifi_connected) {
 				memfault_metrics_heartbeat_debug_trigger();
-				memfault_zephyr_port_post_data();
+				k_sem_give(&upload_sem);
 			} else {
 				LOG_WRN("WiFi not connected, cannot collect "
 					"metrics");
