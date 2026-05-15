@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Module | app_memfault |
-| Version | 2026-05-14-14-13 |
+| Version | 2026-05-15-15-00 |
 | PRD Version | 2026-05-14-14-13 |
 | Author | GitHub Copilot |
 | Status | Draft |
@@ -18,6 +18,7 @@
 |---|---|
 | 2026-05-14-14-13 | Reverse-design spec created from src/modules/app_memfault implementation |
 | 2026-05-15-10-31 | Add NETWORK_CHAN subscription; log-freeze-on-disconnect behaviour; sync success metrics |
+| 2026-05-15-15-00 | Add NTP-backed Memfault timestamp provider; clarify on_connect() must NOT call log_trigger_collection(); add rate-limit constraint |
 
 ---
 
@@ -35,6 +36,23 @@ Memfault RAM log buffer at the disconnect-time snapshot — new logs are dropped
 rather than overwriting the context. On the next successful upload the frozen
 snapshot is sent to the Memfault backend and the buffer is unfrozen.
 
+**Design constraint — do NOT call `memfault_log_trigger_collection()` in `on_connect()`:**
+The NCS periodic upload (`CONFIG_MEMFAULT_PERIODIC_UPLOAD_INTERVAL_SECS`) already calls
+this API on its own schedule. Calling it again on connect freezes the buffer immediately
+after reconnect, causing all subsequent `LOG_INF` messages (including the upload status
+logs) to be silently dropped by `prv_try_free_space()` until the upload completes.
+Additionally, Memfault rate-limits log file ingestion to approximately **1 file/hour per
+device**; the periodic upload already approaches this limit — extra triggers accelerate
+exhaustion without any observable benefit. Bypass: enable Server-Side Developer Mode on
+the device page for testing.
+
+**NTP-backed Memfault event timestamps (nrf54lm20dk only):** `memfault_platform_time.c`
+implements `memfault_platform_time_get_current()` using `CLOCK_REALTIME`, which is set
+by the NTP module after a successful SNTP sync. This gives Memfault events (crashes,
+traces, metrics, log files) wall-clock timestamps on the dashboard instead of
+epoch-0 placeholders. Enabled via `CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM=y`;
+only compiled when `CONFIG_NTP_MODULE=y` (nrf54lm20dk board config).
+
 ---
 
 ## Location
@@ -42,6 +60,7 @@ snapshot is sent to the Memfault backend and the buffer is unfrozen.
 - Path: src/modules/app_memfault/
 - Files:
   - core/memfault_core.c(.h)
+  - core/memfault_platform_time.c (nrf54lm20dk only — NTP-backed timestamp provider)
   - metrics/wifi_metrics.c(.h), metrics/stack_metrics.c(.h)
   - ota/ota_triggers.c(.h)
   - cdr/nrf70_fw_stats_cdr.c(.h)
@@ -65,7 +84,8 @@ snapshot is sent to the Memfault backend and the buffer is unfrozen.
 | Library internal threads | Upload/FOTA workqueues managed by Memfault/NCS ports |
 
 Representative API usage from this wrapper module:
-- `memfault_log_trigger_collection()` — freeze log buffer on connectivity loss
+- `memfault_log_trigger_collection()` — freeze log buffer on connectivity loss (**disconnect handlers only** — never in `on_connect()`)
+- `memfault_platform_time_get_current()` — provide wall-clock timestamp from `CLOCK_REALTIME` (implemented in `memfault_platform_time.c`; returns false until NTP sync)
 - `memfault_zephyr_port_post_data()` — post queued data; return code checked and logged
 - `memfault_metrics_heartbeat_debug_trigger()` — force heartbeat snapshot on connect
 - `memfault_fota_start()` — initiate OTA check
@@ -104,6 +124,7 @@ Does not define its own public zbus channel in current implementation.
 | CONFIG_NRF70_FW_STATS_CDR_ENABLED | bool | n (enabled in prj.conf) | Enable nRF70 CDR uploads |
 | CONFIG_MEMFAULT_METRICS_SYNC_SUCCESS | bool | y | Enable sync_successful/sync_failure heartbeat counters |
 | CONFIG_MEMFAULT_METRICS_MEMFAULT_SYNC_SUCCESS | bool | y | Enable sync_memfault_successful/failure counters for Memfault uploads |
+| CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM | bool | y (nrf54lm20dk) | Use custom `memfault_platform_time_get_current()` backed by CLOCK_REALTIME (set by NTP module) |
 
 ---
 
@@ -124,6 +145,7 @@ Public headers expose module-specific helpers used within module group component
 | IP-layer loss (DHCP expiry, addr removal) | `NETWORK_NOT_READY` on NETWORK_CHAN | `memfault_log_trigger_collection()` freezes log buffer; no connectivity metric change (Wi-Fi may still be associated) |
 | OTA check failure | `memfault_fota_start` result | log error and retain current firmware |
 | CDR upload limit reached | Memfault CDR limit handling | skip until permitted window |
+| Log file rate limit exceeded | Memfault backend silently drops assembled log file (device still receives HTTP 202 for chunks — **no firmware-side warning**) | visible only in Platform UI → Device → Developer Mode → Processing Errors; enable Server-Side Developer Mode for testing; set `MEMFAULT_PERIODIC_UPLOAD_INTERVAL_SECS=3600` for production |
 
 ---
 
@@ -147,6 +169,7 @@ Public headers expose module-specific helpers used within module group component
 | IP-layer loss (DHCP) | `IP address removed from interface` → `Network connectivity lost — freezing Memfault logs` (no `WiFi DISCONNECTED` line) | NETWORK_CHAN listener acting independently of Wi-Fi layer |
 | Upload failure (internet down) | `Memfault upload failed: <errno>` | error visible; `sync_memfault_failure` metric incremented in dashboard |
 | Reconnect after disconnect | frozen logs appear in Memfault Issues/Logs view | disconnect-time log snapshot preserved and uploaded |
+| Memfault event timestamp (post NTP sync) | Memfault log file captured_date matches wall clock ± 2 s | NTP sync must precede the event; `CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM=y` required |
 | Button 1 short | heartbeat trigger log | heartbeat metric increment |
 | Button 2 short | OTA check trigger log | Memfault OTA check invoked |
 | Button long press demos | crash trigger log | expected fault path for validation builds |

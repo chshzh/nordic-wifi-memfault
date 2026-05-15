@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault |
-| Version | 2026-05-14-14-13 |
+| Version | 2026-05-15-16-20 |
 | Previous Version | 1.1 (legacy pm/PRD.md) |
 | Status | Draft |
 | Product Manager | Reverse update from implementation baseline |
@@ -20,6 +20,7 @@
 |---|---|
 | 2026-05-14-14-13 | Reverse update: migrated canonical PRD to docs/pm-prd and reconciled requirements to currently implemented behavior |
 | 2026-05-14-15-00 | Added FR-006: NTP time synchronization for real-world timestamps in debug log |
+| 2026-05-15-16-20 | FR-006: extend acceptance criteria — NTP sync also gives Memfault dashboard events wall-clock timestamps (nrf54lm20dk only) |
 
 ---
 
@@ -117,7 +118,7 @@ bring-up time.
 | ID | As a... | I want to... | So that... | Acceptance Criteria | Engineering Spec |
 |---|---|---|---|---|---|
 | FR-005 | developer | enable optional BLE/HTTPS/MQTT support paths | I can validate broader connectivity behavior | Optional modules start and react to WIFI_CHAN connectivity state | [app-wifi-prov-ble-module.md](../dev-specs/app-wifi-prov-ble-module.md), [app-https-client-module.md](../dev-specs/app-https-client-module.md), [app-mqtt-client-module.md](../dev-specs/app-mqtt-client-module.md) |
-| FR-006 | developer | have the device synchronize its clock from an NTP server after connecting to the network | debug log lines show real-world wall-clock timestamps instead of uptime-relative milliseconds | After network ready event, device queries pool.ntp.org; subsequent log lines display ISO date/time; feature is Kconfig-gated and off by default | [ntp-module.md](../dev-specs/ntp-module.md) |
+| FR-006 | developer | have the device synchronize its clock from an NTP server after connecting to the network | debug log lines show real-world wall-clock timestamps instead of uptime-relative milliseconds, and Memfault events carry accurate timestamps on the dashboard | After network ready event, device queries pool.ntp.org; subsequent log lines display ISO date/time; Memfault events captured after first sync show wall-clock captured_date on the dashboard (nrf54lm20dk only); events before sync are marked unknown rather than epoch-0; feature is Kconfig-gated and off by default | [ntp-module.md](../dev-specs/ntp-module.md), [app-memfault-module.md](../dev-specs/app-memfault-module.md) |
 
 ---
 

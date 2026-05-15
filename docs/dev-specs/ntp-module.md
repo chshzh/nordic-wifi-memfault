@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Module | ntp |
-| Version | 2026-05-14-15-00 |
+| Version | 2026-05-15-15-00 |
 | PRD Version | 2026-05-14-15-00 |
 | Author | GitHub Copilot |
 | Status | Draft |
@@ -17,6 +17,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-05-14-15-00 | Initial spec for FR-006: NTP time synchronization |
+| 2026-05-15-15-00 | Add downstream Memfault timestamp integration note |
 
 ---
 
@@ -30,6 +31,14 @@ correlatable with external events.
 
 The module is Kconfig-gated (`CONFIG_NTP_MODULE`) and disabled by default so it
 adds zero overhead to builds that do not need it.
+
+**Downstream integration — Memfault event timestamps:** when `CONFIG_NTP_MODULE=y`,
+the `app_memfault` module also compiles `memfault_platform_time.c`, which implements
+`memfault_platform_time_get_current()` via `CLOCK_REALTIME`. This gives Memfault
+events (log files, traces, heartbeats, crashes) accurate wall-clock timestamps on
+the Memfault dashboard. Requires `CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM=y`
+(set in `boards/nrf54lm20dk_nrf54lm20a_cpuapp.conf`). The function returns false
+until epoch > 2020-01-01 to suppress epoch-0 dashboard noise before first sync.
 
 ---
 
