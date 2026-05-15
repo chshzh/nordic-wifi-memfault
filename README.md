@@ -226,8 +226,18 @@ Connect at `115200` baud and observe module/init and connectivity logs.
 ### Developer Notes
 
 - Keep `overlay-app-memfault-project-info.conf` out of git history.
-- Board-specific behavior for nRF54LM20DK is configured in `boards/*.conf`.
+- Board-specific overrides are in `boards/*.conf` (both nRF54LM20DK and nRF7002DK).
 - Coredump and partition behavior follows DTS fixed-partitions for NCS v3.3.0.
+- nRF7002DK uses a custom flash coredump backend (`CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y`) in `src/modules/app_memfault/core/memfault_flash_coredump_storage.c` to bypass the upstream `PARTITION_MANAGER_ENABLED` dependency in `CONFIG_MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP`.
+- Memfault Storage Architecture:
+
+| Data | Kconfig | Storage | Volatile? |
+|------|---------|---------|-----------|
+| Coredump (nRF54LM20DK) | `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM=y` | RRAM partition `memfault_coredump_partition` (64 KB at `0x1d5000`) | No — survives power cycle |
+| Coredump (nRF7002DK) | `CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y` | Flash partition `memfault_storage` (64 KB at `0xf0000`) | No — survives power cycle |
+| Log file | `CONFIG_MEMFAULT_LOGGING_RAM_SIZE=4096` | RAM circular buffer | Yes — lost on hard reset |
+| CDR (nRF70 FW stats) | `CONFIG_NRF70_FW_STATS_CDR_ENABLED=y` | Static RAM buffer (up to 1 KB) | Yes — lost on reboot before upload |
+| Heartbeat / trace events | `CONFIG_MEMFAULT_EVENT_STORAGE_SIZE=4096` | RAM ring buffer | Yes — lost on hard reset |
 
 ## Documentation
 

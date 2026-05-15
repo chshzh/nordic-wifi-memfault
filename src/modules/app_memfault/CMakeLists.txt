@@ -7,6 +7,13 @@ target_sources(app PRIVATE
 )
 endif()
 
+# nRF7002DK: DTS-partition flash coredump backend (bypasses PM dependency).
+# Upstream Kconfig requires PARTITION_MANAGER_ENABLED even though the
+# implementation only uses FIXED_PARTITION_* DTS macros.
+if(CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM AND CONFIG_BOARD_NRF7002DK_NRF5340_CPUAPP)
+	target_sources(app PRIVATE core/memfault_flash_coredump_storage.c)
+endif()
+
 # NTP module is only enabled on nrf54lm20dk; provide a CLOCK_REALTIME-backed
 # memfault_platform_time_get_current() so Memfault events get wall-clock timestamps.
 if(CONFIG_NTP_MODULE)

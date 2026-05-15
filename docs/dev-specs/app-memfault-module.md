@@ -19,6 +19,7 @@
 | 2026-05-14-14-13 | Reverse-design spec created from src/modules/app_memfault implementation |
 | 2026-05-15-10-31 | Add NETWORK_CHAN subscription; log-freeze-on-disconnect behaviour; sync success metrics |
 | 2026-05-15-15-00 | Add NTP-backed Memfault timestamp provider; clarify on_connect() must NOT call log_trigger_collection(); add rate-limit constraint |
+| 2026-05-15-22-02 | Button 1 short press: change to async upload via semaphore to avoid TLS-on-sysworkq stack overflow; add per-board coredump Kconfig; update upload thread scope |
 
 ---
 
@@ -86,7 +87,7 @@ only compiled when `CONFIG_NTP_MODULE=y` (nrf54lm20dk board config).
 Representative API usage from this wrapper module:
 - `memfault_log_trigger_collection()` — freeze log buffer on connectivity loss (**disconnect handlers only** — never in `on_connect()`)
 - `memfault_platform_time_get_current()` — provide wall-clock timestamp from `CLOCK_REALTIME` (implemented in `memfault_platform_time.c`; returns false until NTP sync)
-- `memfault_zephyr_port_post_data()` — post queued data; return code checked and logged
+- `memfault_zephyr_port_post_data()` — post queued data; return code checked and logged. **Called only from the dedicated upload thread** (`memfault_upload_tid`), never from zbus listeners or the system workqueue.
 - `memfault_metrics_heartbeat_debug_trigger()` — force heartbeat snapshot on connect
 - `memfault_fota_start()` — initiate OTA check
 - Memfault metrics/trace APIs used by metrics and button handlers
@@ -97,7 +98,7 @@ Callbacks and listener paths:
 - NETWORK_CHAN listener: `NETWORK_NOT_READY` calls `memfault_log_trigger_collection()`
   to catch IP-layer losses (DHCP expiry, address removal) independently of Wi-Fi association.
 - BUTTON_CHAN listener in core/ota/cdr maps button actions to heartbeat, OTA check,
-  and crash demo triggers.
+  and crash demo triggers. **Button 1 short press** calls `memfault_metrics_heartbeat_debug_trigger()` then `k_sem_give(&upload_sem)` to wake the upload thread asynchronously — it does NOT call `memfault_zephyr_port_post_data()` directly, as that performs TLS operations unsuitable for the system workqueue stack.
 
 ---
 
@@ -117,7 +118,7 @@ Does not define its own public zbus channel in current implementation.
 | Symbol | Type | Default | Description |
 |--------|------|---------|-------------|
 | CONFIG_APP_MEMFAULT_MODULE | bool | n (enabled from prj.conf) | Enable module group |
-| CONFIG_MEMFAULT_UPLOAD_THREAD_STACK_SIZE | int | 4096 | On-connect upload thread stack |
+| CONFIG_MEMFAULT_UPLOAD_THREAD_STACK_SIZE | int | 5413 | Upload thread stack (sized for TLS; handles both on-connect and button-triggered uploads) |
 | CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN | int | 60 | Periodic OTA check interval |
 | CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC | int | 30 | Delay before OTA after event |
 | CONFIG_MEMFAULT_OTA_THREAD_STACK_SIZE | int | 4096 | OTA trigger thread stack |
@@ -125,6 +126,8 @@ Does not define its own public zbus channel in current implementation.
 | CONFIG_MEMFAULT_METRICS_SYNC_SUCCESS | bool | y | Enable sync_successful/sync_failure heartbeat counters |
 | CONFIG_MEMFAULT_METRICS_MEMFAULT_SYNC_SUCCESS | bool | y | Enable sync_memfault_successful/failure counters for Memfault uploads |
 | CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM | bool | y (nrf54lm20dk) | Use custom `memfault_platform_time_get_current()` backed by CLOCK_REALTIME (set by NTP module) |
+| CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM | bool | y (nrf54lm20dk) | RRAM-backed coredump storage using DTS `memfault_coredump_partition` |
+| CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM | bool | y (nrf7002dk) | Custom flash coredump backend in `core/memfault_flash_coredump_storage.c` using DTS `memfault_storage` partition; bypasses `PARTITION_MANAGER_ENABLED` dependency in upstream Kconfig |
 
 ---
 
@@ -170,6 +173,6 @@ Public headers expose module-specific helpers used within module group component
 | Upload failure (internet down) | `Memfault upload failed: <errno>` | error visible; `sync_memfault_failure` metric incremented in dashboard |
 | Reconnect after disconnect | frozen logs appear in Memfault Issues/Logs view | disconnect-time log snapshot preserved and uploaded |
 | Memfault event timestamp (post NTP sync) | Memfault log file captured_date matches wall clock ± 2 s | NTP sync must precede the event; `CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM=y` required |
-| Button 1 short | heartbeat trigger log | heartbeat metric increment |
+| Button 1 short | `Button 1 short press: Memfault heartbeat + upload` | heartbeat metric increment + upload triggered in upload thread |
 | Button 2 short | OTA check trigger log | Memfault OTA check invoked |
 | Button long press demos | crash trigger log | expected fault path for validation builds |

@@ -18,6 +18,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-05-15-22-02 | nRF54LM20DK: boot partition 56 KB → 64 KB; nRF7002DK: coredump backend changed from RAM-backed to flash-backed (custom) |
 | 2026-05-14-14-23 | Added detailed flash/partition layout and PM-to-DTS migration compatibility notes |
 
 ---
@@ -35,7 +36,7 @@ NCS v3.3+ Migration Note: As of NCS v3.3.0, this project has migrated from the l
 | `0x00000` | `boot_partition` | 40 KB | Bootloader (MCUboot) |
 | `0x0A000` | `slot0_partition` | 920 KB | Primary app image |
 | `0xEE000` | `storage_partition` | 8 KB | WiFi credentials / NVS |
-| `0xF0000` | `memfault_storage` | 64 KB | Crash coredumps |
+| `0xF0000` | `memfault_storage` | 64 KB | Crash coredumps (flash-backed, `CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y`) |
 
 External flash - MX25R64 (8 MB):
 
@@ -65,16 +66,16 @@ Internal flash - RRAM (`cpuapp_rram`):
 
 | Address | Partition | Size | Purpose |
 |---------|-----------|------|---------|
-| `0x000000` | `boot_partition` | 56 KB | Bootloader (MCUboot) |
-| `0x0E000` | `slot0_partition` | 1844 KB | Primary app image |
+| `0x000000` | `boot_partition` | 64 KB | Bootloader (MCUboot) |
+| `0x010000` | `slot0_partition` | 1804 KB | Primary app image |
 | `0x1D3000` | `storage_partition` | 8 KB | WiFi credentials / NVS |
-| `0x1D5000` | `memfault_coredump_partition` | 64 KB | Crash coredumps |
+| `0x1D5000` | `memfault_coredump_partition` | 64 KB | Crash coredumps (RRAM-backed, `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM=y`) |
 
 External flash - MX25R6435F (8 MB via spi00):
 
 | Address | Partition | Size | Purpose |
 |---------|-----------|------|---------|
-| `0x000000` | `slot1_partition` | 1844 KB | Secondary OTA slot |
+| `0x000000` | `slot1_partition` | 1804 KB | Secondary OTA slot |
 
 #### Legacy Layout (Partition Manager, NCS 3.2 and earlier)
 
@@ -92,7 +93,7 @@ External flash - MX25R6435F (8 MB via spi00):
 
 | Address | Partition | Size | Purpose | Notes |
 |---------|-----------|------|---------|-------|
-| `0x000000` | `mcuboot_secondary` | 1812 KB | OTA slot | Now 1844 KB in DTS |
+| `0x000000` | `mcuboot_secondary` | 1812 KB | OTA slot | Now 1804 KB in DTS |
 
 ---
 
