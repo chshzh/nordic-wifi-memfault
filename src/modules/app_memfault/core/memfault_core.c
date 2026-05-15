@@ -94,12 +94,16 @@ static void on_connect(void)
 	}
 	LOG_INF("Sending already captured data to Memfault");
 	memfault_metrics_heartbeat_debug_trigger();
+	memfault_log_trigger_collection();
 	if (!memfault_packetizer_data_available()) {
 		LOG_DBG("There was no data to be sent");
 		return;
 	}
 	LOG_DBG("Sending stored data...");
-	memfault_zephyr_port_post_data();
+	int err = memfault_zephyr_port_post_data();
+	if (err) {
+		LOG_ERR("Memfault upload failed: %d", err);
+	}
 }
 
 /* Upload thread: wait for connect sem, DNS wait, then on_connect */
@@ -159,6 +163,7 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 		wifi_connected = false;
 		memfault_metrics_connectivity_connected_state_change(
 			kMemfaultMetricsConnectivityState_ConnectionLost);
+		memfault_log_trigger_collection();
 		break;
 	default:
 		break;
@@ -167,6 +172,23 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 
 ZBUS_LISTENER_DEFINE(memfault_wifi_listener_def, memfault_wifi_listener);
 ZBUS_CHAN_ADD_OBS(WIFI_CHAN, memfault_wifi_listener_def, 0);
+
+/* NETWORK_CHAN listener — catches IP-layer loss (DHCP expiry, addr removal)
+ * independently of Wi-Fi association state. */
+extern const struct zbus_channel NETWORK_CHAN;
+
+static void memfault_network_listener(const struct zbus_channel *chan)
+{
+	const struct network_msg *msg = zbus_chan_const_msg(chan);
+
+	if (msg->type == NETWORK_NOT_READY) {
+		LOG_WRN("Network connectivity lost — freezing Memfault logs");
+		memfault_log_trigger_collection();
+	}
+}
+
+ZBUS_LISTENER_DEFINE(memfault_network_listener_def, memfault_network_listener);
+ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, memfault_network_listener_def, 0);
 
 /* BUTTON_CHAN listener: heartbeat, crash demos, metric, trace */
 extern const struct zbus_channel BUTTON_CHAN;
