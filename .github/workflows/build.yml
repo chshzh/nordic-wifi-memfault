@@ -345,17 +345,17 @@ jobs:
         run: |
           mkdir -p release
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
-             release/nord_project_${VER}_nrf7002dk_zephyr.elf
+             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
-             release/nord_project_${VER}_nrf7002dk_zephyr.signed.bin
+             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin
           cp build_nrf7002dk/merged.hex \
-             release/nord_project_${VER}_nrf7002dk_full.hex
+             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf \
-             release/nord_project_${VER}_nrf54lm20dk_zephyr.elf
+             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.elf
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
-             release/nord_project_${VER}_nrf54lm20dk_zephyr.signed.bin
+             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.signed.bin
           cp build_nrf54lm20dk_wifi/merged.hex \
-             release/nord_project_${VER}_nrf54lm20dk_full.hex
+             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex
 
       # ── terr_project build ──────────────────────────────────
       - name: Create overlay — terr_project
@@ -444,17 +444,17 @@ jobs:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
-             release/terr_project_${VER}_nrf7002dk_zephyr.elf
+             release/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.elf
           cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
-             release/terr_project_${VER}_nrf7002dk_zephyr.signed.bin
+             release/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.signed.bin
           cp build_nrf7002dk/merged.hex \
-             release/terr_project_${VER}_nrf7002dk_full.hex
+             release/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.hex
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf \
-             release/terr_project_${VER}_nrf54lm20dk_zephyr.elf
+             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.elf
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
-             release/terr_project_${VER}_nrf54lm20dk_zephyr.signed.bin
+             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.signed.bin
           cp build_nrf54lm20dk_wifi/merged.hex \
-             release/terr_project_${VER}_nrf54lm20dk_full.hex
+             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.hex
           # Include memory summaries so create-release can read them
           cp release-usage-nrf7002dk.txt release/
           cp release-usage-nrf54lm20dk.txt release/
@@ -536,26 +536,26 @@ jobs:
 
           ### 📦 Firmware Files
 
-          Each Memfault project (\`nord_project\`, \`terr_project\`) ships **6 files** across two hardware targets.
+          Each Memfault project (\`nord-project\`, \`terr-project\`) ships **6 files** across two hardware targets.
 
-          #### \`nord_project\` — Nord Memfault project
-
-          | Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
-          |-------|-------------|-----------|-------------|-----------|-----------|
-          | nRF7002DK | [nord_project_${VER}_nrf7002dk_full.hex](${DL_BASE}/nord_project_${VER}_nrf7002dk_full.hex) | [.signed.bin](${DL_BASE}/nord_project_${VER}_nrf7002dk_zephyr.signed.bin) | [zephyr.elf](${DL_BASE}/nord_project_${VER}_nrf7002dk_zephyr.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
-          | nRF54LM20DK + nRF7002EB2 | [nord_project_${VER}_nrf54lm20dk_full.hex](${DL_BASE}/nord_project_${VER}_nrf54lm20dk_full.hex) | [.signed.bin](${DL_BASE}/nord_project_${VER}_nrf54lm20dk_zephyr.signed.bin) | [zephyr.elf](${DL_BASE}/nord_project_${VER}_nrf54lm20dk_zephyr.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
-
-          #### \`terr_project\` — Terr Memfault project
+          #### \`nord-project\` — Nord Memfault project
 
           | Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
           |-------|-------------|-----------|-------------|-----------|-----------|
-          | nRF7002DK | [terr_project_${VER}_nrf7002dk_full.hex](${DL_BASE}/terr_project_${VER}_nrf7002dk_full.hex) | [.signed.bin](${DL_BASE}/terr_project_${VER}_nrf7002dk_zephyr.signed.bin) | [zephyr.elf](${DL_BASE}/terr_project_${VER}_nrf7002dk_zephyr.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
-          | nRF54LM20DK + nRF7002EB2 | [terr_project_${VER}_nrf54lm20dk_full.hex](${DL_BASE}/terr_project_${VER}_nrf54lm20dk_full.hex) | [.signed.bin](${DL_BASE}/terr_project_${VER}_nrf54lm20dk_zephyr.signed.bin) | [zephyr.elf](${DL_BASE}/terr_project_${VER}_nrf54lm20dk_zephyr.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
+          | nRF7002DK | [nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
+          | nRF54LM20DK + nRF7002EBII | [nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
+
+          #### \`terr-project\` — Terr Memfault project
+
+          | Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
+          |-------|-------------|-----------|-------------|-----------|-----------|
+          | nRF7002DK | [nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
+          | nRF54LM20DK + nRF7002EBII | [nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
 
           **File types:**
-          - \`_full.hex\` — Full board image for initial provisioning via \`nrfutil device program\`
-          - \`_zephyr.signed.bin\` — OTA image for Memfault over-the-air update via MCUboot
-          - \`_zephyr.elf\` — Symbol file for Memfault crash decoding and coredump analysis
+          - \`.hex\` — Full board image for initial provisioning via \`nrfutil device program\`
+          - \`.signed.bin\` — OTA image for Memfault over-the-air update via MCUboot
+          - \`.elf\` — Symbol file for Memfault crash decoding and coredump analysis
 
            For flashing and connection instructions, see the [Evaluator Quick Start guide](https://github.com/chshzh/nordic-wifi-memfault/blob/main/README.md#evaluator-quick-start) in the README.
 
