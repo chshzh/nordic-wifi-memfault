@@ -33,8 +33,7 @@ static const char *consume_trigger_context(void)
 	if (flags == 0) {
 		return "manual";
 	}
-	if ((flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG) &&
-	    (flags & MFLT_OTA_TRIGGERS_CONNECT_FLAG)) {
+	if ((flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG) && (flags & MFLT_OTA_TRIGGERS_CONNECT_FLAG)) {
 		return "button+connect";
 	}
 	if (flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG) {
@@ -78,11 +77,11 @@ static void mflt_ota_triggers_thread(void *p1, void *p2, void *p3)
 	ARG_UNUSED(p2);
 	ARG_UNUSED(p3);
 
-	LOG_INF("Memfault OTA trigger thread started");
+	LOG_INF("Memfault OTA check triggers after %d seconds",
+		CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC);
 
 	while (true) {
-		int ret =
-			k_sem_take(&mflt_ota_triggers_sem, OTA_CHECK_INTERVAL);
+		int ret = k_sem_take(&mflt_ota_triggers_sem, OTA_CHECK_INTERVAL);
 		k_sleep(K_SECONDS(CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC));
 
 		if (ret == 0) {
@@ -97,8 +96,8 @@ static void mflt_ota_triggers_thread(void *p1, void *p2, void *p3)
 }
 
 K_THREAD_DEFINE(mflt_ota_triggers_tid, MFLT_OTA_TRIGGERS_THREAD_STACK_SIZE,
-		mflt_ota_triggers_thread, NULL, NULL, NULL,
-		MFLT_OTA_TRIGGERS_THREAD_PRIORITY, 0, 0);
+		mflt_ota_triggers_thread, NULL, NULL, NULL, MFLT_OTA_TRIGGERS_THREAD_PRIORITY, 0,
+		0);
 
 void mflt_ota_triggers_notify_button(void)
 {
