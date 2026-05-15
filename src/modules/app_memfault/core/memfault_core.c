@@ -92,17 +92,18 @@ static void on_connect(void)
 	    memfault_coredump_has_valid_coredump(NULL)) {
 		return;
 	}
-	LOG_INF("Sending already captured data to Memfault");
 	memfault_metrics_heartbeat_debug_trigger();
 	memfault_log_trigger_collection();
 	if (!memfault_packetizer_data_available()) {
-		LOG_DBG("There was no data to be sent");
+		LOG_INF("Memfault: no data queued, skipping upload");
 		return;
 	}
-	LOG_DBG("Sending stored data...");
+	LOG_INF("Memfault: uploading queued data...");
 	int err = memfault_zephyr_port_post_data();
 	if (err) {
 		LOG_ERR("Memfault upload failed: %d", err);
+	} else {
+		LOG_INF("Memfault upload complete");
 	}
 }
 
