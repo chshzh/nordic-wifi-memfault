@@ -36,9 +36,9 @@
 LOG_MODULE_REGISTER(app_https_client, CONFIG_APP_HTTPS_CLIENT_LOG_LEVEL);
 
 #define HTTPS_PORT "443"
-#define HTTP_HEAD                                                              \
-	"HEAD / HTTP/1.1\r\n"                                                  \
-	"Host: " CONFIG_APP_HTTPS_HOSTNAME ":" HTTPS_PORT "\r\n"               \
+#define HTTP_HEAD                                                                                  \
+	"HEAD / HTTP/1.1\r\n"                                                                      \
+	"Host: " CONFIG_APP_HTTPS_HOSTNAME ":" HTTPS_PORT "\r\n"                                   \
 	"Connection: close\r\n\r\n"
 
 #define HTTP_HEAD_LEN (sizeof(HTTP_HEAD) - 1)
@@ -85,47 +85,40 @@ static int cert_provision(void)
 	 * check that a certificate exists before comparing it with what we
 	 * expect it to be.
 	 */
-	err = modem_key_mgmt_exists(TLS_SEC_TAG,
-				    MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN, &exists);
+	err = modem_key_mgmt_exists(TLS_SEC_TAG, MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN, &exists);
 	if (err) {
 		LOG_ERR("Failed to check for certificates err %d", err);
 		return err;
 	}
 
 	if (exists) {
-		mismatch = modem_key_mgmt_cmp(TLS_SEC_TAG,
-					      MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN,
-					      cert, sizeof(cert));
+		mismatch = modem_key_mgmt_cmp(TLS_SEC_TAG, MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN, cert,
+					      sizeof(cert));
 		if (!mismatch) {
 			LOG_INF("Certificate match");
 			return 0;
 		}
 
 		LOG_INF("Certificate mismatch");
-		err = modem_key_mgmt_delete(TLS_SEC_TAG,
-					    MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN);
+		err = modem_key_mgmt_delete(TLS_SEC_TAG, MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN);
 		if (err) {
-			LOG_ERR("Failed to delete existing certificate, err %d",
-				err);
+			LOG_ERR("Failed to delete existing certificate, err %d", err);
 		}
 	}
 
 	LOG_INF("Provisioning certificate to the modem");
 
 	/*  Provision certificate to the modem */
-	err = modem_key_mgmt_write(TLS_SEC_TAG,
-				   MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN, cert,
+	err = modem_key_mgmt_write(TLS_SEC_TAG, MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN, cert,
 				   sizeof(cert));
 	if (err) {
 		LOG_ERR("Failed to provision certificate, err %d", err);
 		return err;
 	}
 #else  /* CONFIG_MODEM_KEY_MGMT */
-	err = tls_credential_add(TLS_SEC_TAG, TLS_CREDENTIAL_CA_CERTIFICATE,
-				 cert, sizeof(cert));
+	err = tls_credential_add(TLS_SEC_TAG, TLS_CREDENTIAL_CA_CERTIFICATE, cert, sizeof(cert));
 	if (err == -EEXIST) {
-		LOG_INF("CA certificate already exists, sec tag: %d",
-			TLS_SEC_TAG);
+		LOG_INF("CA certificate already exists, sec tag: %d", TLS_SEC_TAG);
 	} else if (err < 0) {
 		LOG_ERR("Failed to register CA certificate: %d", err);
 		return err;
@@ -164,8 +157,7 @@ static int tls_setup(int fd)
 	/* Associate the socket with the security tag
 	 * we have provisioned the certificate with.
 	 */
-	err = setsockopt(fd, SOL_TLS, TLS_SEC_TAG_LIST, tls_sec_tag,
-			 sizeof(tls_sec_tag));
+	err = setsockopt(fd, SOL_TLS, TLS_SEC_TAG_LIST, tls_sec_tag, sizeof(tls_sec_tag));
 	if (err) {
 		LOG_ERR("Failed to setup TLS sec tag, err %d", errno);
 		return err;
@@ -231,10 +223,9 @@ static void send_http_request(void)
 
 	/* Increment total request count (both local and Memfault) */
 	https_req_total++;
-	MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_total_count,
-				     https_req_total);
+	MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_total_count, https_req_total);
 
-	LOG_INF("Looking up %s", CONFIG_APP_HTTPS_HOSTNAME);
+	LOG_DBG("Looking up %s", CONFIG_APP_HTTPS_HOSTNAME);
 
 	err = getaddrinfo(CONFIG_APP_HTTPS_HOSTNAME, HTTPS_PORT, &hints, &res);
 	if (err) {
@@ -243,14 +234,12 @@ static void send_http_request(void)
 		goto clean_up;
 	}
 
-	inet_ntop(res->ai_family,
-		  &((struct sockaddr_in *)(res->ai_addr))->sin_addr, peer_addr,
+	inet_ntop(res->ai_family, &((struct sockaddr_in *)(res->ai_addr))->sin_addr, peer_addr,
 		  INET6_ADDRSTRLEN);
 	LOG_DBG("Resolved %s (%s)", peer_addr, net_family2str(res->ai_family));
 
 	if (IS_ENABLED(CONFIG_SAMPLE_TFM_MBEDTLS)) {
-		fd = socket(res->ai_family, SOCK_STREAM | SOCK_NATIVE_TLS,
-			    IPPROTO_TLS_1_2);
+		fd = socket(res->ai_family, SOCK_STREAM | SOCK_NATIVE_TLS, IPPROTO_TLS_1_2);
 	} else {
 		fd = socket(res->ai_family, SOCK_STREAM, IPPROTO_TLS_1_2);
 	}
@@ -265,10 +254,8 @@ static void send_http_request(void)
 		.tv_sec = 30,
 		.tv_usec = 0,
 	};
-	(void)setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
-			 sizeof(timeout));
-	(void)setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout,
-			 sizeof(timeout));
+	(void)setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+	(void)setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
 	/* Setup TLS socket options */
 	err = tls_setup(fd);
@@ -337,13 +324,13 @@ static void send_http_request(void)
 clean_up:
 	if (request_failed) {
 		https_req_failures++;
-		MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_fail_count,
-					     https_req_failures);
+		MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_fail_count, https_req_failures);
 	}
-	LOG_INF("GET %s -> %s  (total=%u, fail=%u)",
-		CONFIG_APP_HTTPS_HOSTNAME,
-		request_failed ? "FAILED" : (status_line[0] ? status_line : "OK"),
-		https_req_total, https_req_failures);
+	LOG_DBG("GET %s -> %s  (total=%u, fail=%u)", CONFIG_APP_HTTPS_HOSTNAME,
+		request_failed ? "FAILED" : (status_line[0] ? status_line : "OK"), https_req_total,
+		https_req_failures);
+	LOG_INF("Test Result: %u/%u (success/total)", https_req_total - https_req_failures,
+		https_req_total);
 
 	if (fd >= 0) {
 		/* Graceful shutdown - notify peer we're done sending */
@@ -386,8 +373,7 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 		if (!cert_provisioned) {
 			int err = cert_provision();
 			if (err) {
-				LOG_ERR("Certificate provisioning failed: %d",
-					err);
+				LOG_ERR("Certificate provisioning failed: %d", err);
 				network_ready = false;
 				continue;
 			}
@@ -401,8 +387,7 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 		 * after 5 minutes */
 		int dns_wait_time = 0;
 		const int dns_timeout = 300; /* 5 minutes */
-		while (network_ready &&
-		       !check_dns_ready(CONFIG_APP_HTTPS_HOSTNAME)) {
+		while (network_ready && !check_dns_ready(CONFIG_APP_HTTPS_HOSTNAME)) {
 			if (dns_wait_time >= dns_timeout) {
 				LOG_ERR("DNS timeout after %d seconds for %s, "
 					"continuing anyway",
@@ -411,8 +396,7 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 			}
 			LOG_INF("DNS not ready for %s, checking again in %d "
 				"seconds",
-				CONFIG_APP_HTTPS_HOSTNAME,
-				DNS_CHECK_INTERVAL_SEC);
+				CONFIG_APP_HTTPS_HOSTNAME, DNS_CHECK_INTERVAL_SEC);
 			k_sleep(K_SECONDS(DNS_CHECK_INTERVAL_SEC));
 			dns_wait_time += DNS_CHECK_INTERVAL_SEC;
 		}
@@ -434,11 +418,9 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 				"confirmation");
 		}
 
-		uint32_t initial_delay = random_initial_delay_sec(
-			HTTPS_REQUEST_INTERVAL_SEC);
+		uint32_t initial_delay = random_initial_delay_sec(HTTPS_REQUEST_INTERVAL_SEC);
 		if (initial_delay > 0U) {
-			LOG_INF("Initial HTTPS request delayed by %u seconds",
-				initial_delay);
+			LOG_INF("Initial HTTPS request delayed by %u seconds", initial_delay);
 			k_sleep(K_SECONDS(initial_delay));
 		}
 
@@ -460,9 +442,8 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 	LOG_INF("App HTTPS client thread exiting");
 }
 
-K_THREAD_DEFINE(app_https_client_tid, CONFIG_APP_HTTPS_CLIENT_STACK_SIZE,
-		app_https_client_thread, NULL, NULL, NULL,
-		CONFIG_APP_HTTPS_CLIENT_THREAD_PRIORITY, 0, 0);
+K_THREAD_DEFINE(app_https_client_tid, CONFIG_APP_HTTPS_CLIENT_STACK_SIZE, app_https_client_thread,
+		NULL, NULL, NULL, CONFIG_APP_HTTPS_CLIENT_THREAD_PRIORITY, 0, 0);
 
 int app_https_client_init(void)
 {
