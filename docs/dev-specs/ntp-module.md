@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Module | ntp |
-| Version | 2026-05-15-15-00 |
+| Version | 2026-05-16-13-00 |
 | PRD Version | 2026-05-14-15-00 |
 | Author | GitHub Copilot |
 | Status | Draft |
@@ -18,6 +18,7 @@
 |---|---|
 | 2026-05-14-15-00 | Initial spec for FR-006: NTP time synchronization |
 | 2026-05-15-15-00 | Add downstream Memfault timestamp integration note |
+| 2026-05-16-13-00 | Add CONFIG_NTP_RESYNC_INTERVAL_SEC — periodic re-sync after success; update state machine and Kconfig table |
 
 ---
 
@@ -75,13 +76,17 @@ SYNCING  ──── sntp_simple() fails ──→  RETRY (k_work_delayable, CO
   │                                         │
   │  sntp_simple() succeeds                 │  NETWORK_NOT_READY received
   ▼                                         ▼
-SYNCED  ──── NETWORK_NOT_READY ──→  IDLE (synced flag cleared)
+SYNCED ◄─── periodic re-sync ─────── SYNCED (k_work_delayable, CONFIG_NTP_RESYNC_INTERVAL_SEC)
+  │
+  │  NETWORK_NOT_READY received
+  ▼
+IDLE (synced flag cleared, work cancelled)
 ```
 
 - On `NETWORK_READY`: if not yet synced, schedule work immediately.
-- On `NETWORK_NOT_READY`: cancel pending work, clear synced flag (re-sync on next connect).
-- Retry does not use a dedicated thread; a `k_work_delayable` item runs on the system
-  work queue, keeping RAM usage minimal.
+- On successful sync: reschedule work after `CONFIG_NTP_RESYNC_INTERVAL_SEC` for drift compensation.
+- On `NETWORK_NOT_READY`: cancel pending work (retry or re-sync), clear synced flag (re-sync on next connect).
+- Retry and re-sync both use the same `k_work_delayable` item on the system work queue — no dedicated thread.
 
 ---
 
@@ -93,6 +98,7 @@ SYNCED  ──── NETWORK_NOT_READY ──→  IDLE (synced flag cleared)
 | `CONFIG_NTP_SERVER` | string | `"pool.ntp.org"` | SNTP server hostname |
 | `CONFIG_NTP_TIMEOUT_MS` | int | 5000 | SNTP query timeout in ms (1000–30000) |
 | `CONFIG_NTP_RETRY_INTERVAL_SEC` | int | 30 | Seconds between retries on failure (5–3600) |
+|| `CONFIG_NTP_RESYNC_INTERVAL_SEC` | int | 10800 | Seconds between periodic re-syncs after success (60-86400); at 40 ppm, 21600 s (6 h) gives <=0.86 s drift |
 | `CONFIG_NTP_MODULE_LOG_LEVEL` | choice | INF | Log verbosity for this module |
 
 `CONFIG_NTP_MODULE` selects `CONFIG_SNTP` automatically.

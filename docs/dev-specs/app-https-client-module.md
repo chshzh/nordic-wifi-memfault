@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Module | app_https_client |
-| Version | 2026-05-14-14-13 |
+| Version | 2026-05-16-13-00 |
 | PRD Version | 2026-05-14-14-13 |
 | Author | GitHub Copilot |
 | Status | Draft |
@@ -17,6 +17,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-05-14-14-13 | Reverse-design spec created from src/modules/app_https_client implementation |
+| 2026-05-16-13-00 | Per-request GET log demoted to DBG; new INF summary log `Test Result: N/N (success/total)` emitted after each request |
 
 ---
 
@@ -91,5 +92,5 @@ when request loops are active.
 | Scenario | UART log expected | Pass condition |
 |----------|-------------------|----------------|
 | Init | app_https_client init log | module starts |
-| Connected operation | periodic HTTPS success/fail logs | counter progression visible |
+| Connected operation | `<inf> app_https_client: Test Result: N/N (success/total)` after each request; per-request `GET <host> -> <status>  (total=N, fail=N)` at `<dbg>` only | counter progression visible at INF; detail available at DBG |
 | Disconnect handling | stop/pause behavior logs | no hard fault on link loss |

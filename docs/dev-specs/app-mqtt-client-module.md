@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Module | app_mqtt_client |
-| Version | 2026-05-14-14-13 |
+| Version | 2026-05-16-13-00 |
 | PRD Version | 2026-05-14-14-13 |
 | Author | GitHub Copilot |
 | Status | Draft |
@@ -17,6 +17,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-05-14-14-13 | Reverse-design spec created from src/modules/app_mqtt_client implementation |
+| 2026-05-16-13-00 | PUB and ECHO per-message logs demoted to DBG; new INF summary log `Test Result: N/N (success/total)` emitted after each successful echo |
 
 ---
 
@@ -108,5 +109,5 @@ On disconnect events, publish activity is suspended until connectivity returns.
 | Scenario | UART log expected | Pass condition |
 |----------|-------------------|----------------|
 | Init | app_mqtt_client init log | module starts |
-| Connected operation | periodic publish/echo logs | counter progression visible |
+| Connected operation | `<inf> app_mqtt_client: Test Result: N/N (success/total)` after each successful echo; per-message `PUB #N` and `ECHO #N` at `<dbg>` only | counter progression visible at INF; detail available at DBG |
 | Link loss | reconnect/disconnect logs | clean recovery without crash |

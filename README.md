@@ -229,7 +229,7 @@ Connect at `115200` baud and observe module/init and connectivity logs.
 - Board-specific overrides are in `boards/*.conf` (both nRF54LM20DK and nRF7002DK).
 - Coredump and partition behavior follows DTS fixed-partitions for NCS v3.3.0.
 - nRF7002DK uses a custom flash coredump backend (`CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y`) in `src/modules/app_memfault/core/memfault_flash_coredump_storage.c` to bypass the upstream `PARTITION_MANAGER_ENABLED` dependency in `CONFIG_MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP`.
-- Memfault Storage Architecture:
+- Memfault Storage Architecture
 
 | Data | Kconfig | Storage | Volatile? |
 |------|---------|---------|-----------|
@@ -238,6 +238,21 @@ Connect at `115200` baud and observe module/init and connectivity logs.
 | Log file | `CONFIG_MEMFAULT_LOGGING_RAM_SIZE=4096` | RAM circular buffer | Yes — lost on hard reset |
 | CDR (nRF70 FW stats) | `CONFIG_NRF70_FW_STATS_CDR_ENABLED=y` | Static RAM buffer (up to 1 KB) | Yes — lost on reboot before upload |
 | Heartbeat / trace events | `CONFIG_MEMFAULT_EVENT_STORAGE_SIZE=4096` | RAM ring buffer | Yes — lost on hard reset |
+
+- Memfault Free-Tier Rate Limits
+
+| Feature | Limit | Rate at current config | Config |
+|---|---|---|---|
+| Heartbeats | 100/day | 96/day (`900 s` interval) | `MEMFAULT_METRICS_HEARTBEAT_INTERVAL_SECS=900` |
+| Log files | 150/day, 1000/7-day | 96/day (piggybacks on upload interval) | `MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS=900` |
+| OTA checks | 100/day | 48/day (`30 min` interval) | `MEMFAULT_OTA_CHECK_INTERVAL_MIN=30` |
+| CDR | 1/day | On-demand (button press) | `NRF70_FW_STATS_CDR_ENABLED=y` — no firmware throttle |
+| Coredumps | 24/day | Crash-triggered | N/A |
+| Trace events | 100/day | Button-triggered | N/A |
+| Reboot events | 100/day, 1400/14-day | Reset-triggered | N/A |
+| Sessions | 16/day | 0 (not used) | N/A |
+
+**NTP clock accuracy:** at 40 ppm crystal drift the device re-syncs every 6 hours (`CONFIG_NTP_RESYNC_INTERVAL_SEC=21600`), keeping log timestamp error ≤ 0.86 s. Adjust the interval for tighter or looser requirements (3 h → ≤ 0.43 s, 12 h → ≤ 1.73 s).
 
 ## Documentation
 
