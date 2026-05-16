@@ -81,6 +81,16 @@ static void mflt_ota_triggers_thread(void *p1, void *p2, void *p3)
 		int ret = k_sem_take(&mflt_ota_triggers_sem, OTA_CHECK_INTERVAL);
 
 		if (ret == 0) {
+			atomic_val_t flags = atomic_get(&mflt_ota_triggers_flags);
+			bool connect_only = (flags & MFLT_OTA_TRIGGERS_CONNECT_FLAG) &&
+					    !(flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG);
+
+			if (connect_only) {
+				LOG_INF("Memfault OTA check after network connect, "
+					"delaying %d seconds",
+					CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC);
+				k_sleep(K_SECONDS(CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC));
+			}
 			const char *context = consume_trigger_context();
 			schedule_ota_check(context);
 		} else if (ret == -EAGAIN) {
@@ -112,10 +122,7 @@ void mflt_ota_triggers_notify_connected(void)
 	atomic_or(&mflt_ota_triggers_flags, MFLT_OTA_TRIGGERS_CONNECT_FLAG);
 
 	if (k_sem_count_get(&mflt_ota_triggers_sem) == 0) {
-		LOG_INF("Memfault OTA check after network connect, triggers after %d "
-			"seconds",
-			CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC);
-		k_sleep(K_SECONDS(CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC));
+		LOG_INF("Memfault OTA check scheduled for network connect");
 		k_sem_give(&mflt_ota_triggers_sem);
 	} else {
 		LOG_DBG("Memfault OTA check already pending");
