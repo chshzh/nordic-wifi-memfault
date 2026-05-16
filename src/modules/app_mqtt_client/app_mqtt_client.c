@@ -80,8 +80,8 @@ static void on_mqtt_connack(enum mqtt_conn_return_code return_code, bool session
 		return;
 	}
 
-	LOG_INF("Connected to %s (id=%s, port=%d, TLS=yes)",
-		CONFIG_APP_MQTT_CLIENT_BROKER_HOSTNAME, client_id, CONFIG_MQTT_HELPER_PORT);
+	LOG_INF("Connected to %s (id=%s, port=%d, TLS=yes)", CONFIG_APP_MQTT_CLIENT_BROKER_HOSTNAME,
+		client_id, CONFIG_MQTT_HELPER_PORT);
 
 	current_state = APP_MQTT_STATE_CONNECTED;
 
@@ -158,12 +158,13 @@ static void on_mqtt_publish(struct mqtt_helper_buf topic, struct mqtt_helper_buf
 		mqtt_echo_failures++;
 		MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_fail_count, mqtt_echo_failures);
 		LOG_WRN("ECHO #%u <- \"%.*s\" VALUE MISMATCH (expected %u, got %u, fail=%u)",
-			mqtt_echo_total, payload.size, payload.ptr,
-			last_published_count, received_count, mqtt_echo_failures);
+			mqtt_echo_total, payload.size, payload.ptr, last_published_count,
+			received_count, mqtt_echo_failures);
 	} else {
-		LOG_INF("ECHO #%u <- \"%.*s\"  (total=%u, fail=%u)",
-			mqtt_echo_total, payload.size, payload.ptr,
-			mqtt_echo_total, mqtt_echo_failures);
+		LOG_DBG("ECHO #%u <- \"%.*s\"  (total=%u, fail=%u)", mqtt_echo_total, payload.size,
+			payload.ptr, mqtt_echo_total, mqtt_echo_failures);
+		LOG_INF("Test Result: %u/%u (success/total)", mqtt_echo_total - mqtt_echo_failures,
+			mqtt_echo_total);
 	}
 }
 
@@ -292,13 +293,12 @@ static int mqtt_publish_message(void)
 	if (err) {
 		mqtt_echo_failures++;
 		MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_fail_count, mqtt_echo_failures);
-		LOG_WRN("PUB #%u -> FAILED: %d  (fail=%u)",
-			message_count, err, mqtt_echo_failures);
+		LOG_WRN("PUB #%u -> FAILED: %d  (fail=%u)", message_count, err, mqtt_echo_failures);
 		return err;
 	}
 
 	last_published_count = message_count;
-	LOG_INF("PUB #%u -> %s: \"%s\"", message_count, pub_topic, payload);
+	LOG_DBG("PUB #%u -> %s: \"%s\"", message_count, pub_topic, payload);
 
 	/* Echo timeout: fires once at the threshold crossing (== not >=) so it
 	 * increments exactly once per silence episode rather than on every
@@ -392,11 +392,10 @@ static void app_mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 				"confirmation");
 		}
 
-		uint32_t initial_delay = random_initial_delay_sec(
-			CONFIG_APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC);
+		uint32_t initial_delay =
+			random_initial_delay_sec(CONFIG_APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC);
 		if (initial_delay > 0U) {
-			LOG_INF("Initial MQTT activity delayed by %u seconds",
-				initial_delay);
+			LOG_INF("Initial MQTT activity delayed by %u seconds", initial_delay);
 			k_sleep(K_SECONDS(initial_delay));
 		}
 
