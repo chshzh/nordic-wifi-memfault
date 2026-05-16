@@ -62,7 +62,9 @@ static void ntp_work_handler(struct k_work *work)
 	}
 
 	ntp_synced = true;
-	LOG_INF("Time synced, epoch %llu", ts.seconds);
+	LOG_INF("Time synced, epoch %llu (next resync in %d s)", ts.seconds,
+		CONFIG_NTP_RESYNC_INTERVAL_SEC);
+	k_work_reschedule(&ntp_work, K_SECONDS(CONFIG_NTP_RESYNC_INTERVAL_SEC));
 }
 
 static void ntp_notify_connected(void)

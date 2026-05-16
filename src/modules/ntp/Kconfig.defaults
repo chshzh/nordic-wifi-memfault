@@ -18,3 +18,6 @@ config NTP_TIMEOUT_MS
 
 config NTP_RETRY_INTERVAL_SEC
 	default 30 if NTP_MODULE
+
+config NTP_RESYNC_INTERVAL_SEC
+	default 10800 if NTP_MODULE

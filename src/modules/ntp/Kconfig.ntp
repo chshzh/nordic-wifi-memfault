@@ -36,6 +36,16 @@ config NTP_RETRY_INTERVAL_SEC
 	help
 	  How long to wait before retrying a failed SNTP query.
 
+config NTP_RESYNC_INTERVAL_SEC
+	int "Periodic re-sync interval after a successful sync (s)"
+	default 10800
+	range 60 86400
+	help
+	  How often to re-sync after a successful query to compensate for
+	  crystal oscillator drift. At 40 ppm, the clock drifts ~0.5 s over
+	  ~3.5 hours, so the default of 10800 s (3 h) keeps drift under 0.5 s.
+	  Set to 0 to disable periodic re-sync (sync once per connection only).
+
 module = NTP_MODULE
 module-str = NTP time sync
 source "subsys/logging/Kconfig.template.log_config"
