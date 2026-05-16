@@ -22,6 +22,7 @@
 | 2026-05-14-15-00 | Added FR-006: NTP time synchronization for real-world timestamps in debug log |
 | 2026-05-15-16-20 | FR-006: extend acceptance criteria — NTP sync also gives Memfault dashboard events wall-clock timestamps (nrf54lm20dk only) |
 || 2026-05-16-13-00 | FR-006: add periodic re-sync AC (every 6 h, 40 ppm drift, max 0.86 s error); Memfault OTA interval 30 min (48/day); HTTPS/MQTT per-request logs demoted to DBG, new INF summary logs added |
+|| 2026-05-16-17-00 | Memfault OTA check interval increased to 60 min (24/day); HTTPS request and MQTT publish intervals changed from 300 s to 900 s |
 
 ---
 

@@ -18,6 +18,7 @@
 |---|---|
 | 2026-05-14-14-13 | Reverse-design spec created from src/modules/app_mqtt_client implementation |
 | 2026-05-16-13-00 | PUB and ECHO per-message logs demoted to DBG; new INF summary log `Test Result: N/N (success/total)` emitted after each successful echo |
+| 2026-05-16-17-00 | Publish interval changed from 300 s to 900 s |
 
 ---
 

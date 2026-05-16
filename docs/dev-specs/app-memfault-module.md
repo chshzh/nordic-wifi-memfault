@@ -21,6 +21,7 @@
 | 2026-05-15-15-00 | Add NTP-backed Memfault timestamp provider; clarify on_connect() must NOT call log_trigger_collection(); add rate-limit constraint |
 | 2026-05-15-22-02 | Button 1 short press: change to async upload via semaphore to avoid TLS-on-sysworkq stack overflow; add per-board coredump Kconfig; update upload thread scope |
 | 2026-05-16-13-00 | OTA check interval changed to 30 min (48/day); document Memfault free-tier rate limits |
+| 2026-05-16-17-00 | OTA check interval increased to 60 min (24/day) |
 
 ---
 
@@ -120,7 +121,7 @@ Does not define its own public zbus channel in current implementation.
 |--------|------|---------|-------------|
 | CONFIG_APP_MEMFAULT_MODULE | bool | n (enabled from prj.conf) | Enable module group |
 | CONFIG_MEMFAULT_UPLOAD_THREAD_STACK_SIZE | int | 5413 | Upload thread stack (sized for TLS; handles both on-connect and button-triggered uploads) |
-| CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN | int | 30 | Periodic OTA check interval (48/day; free-tier limit 100/day) |
+| CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN | int | 60 | Periodic OTA check interval (24/day; free-tier limit 100/day) |
 | CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC | int | 30 | Delay before OTA after event |
 | CONFIG_MEMFAULT_OTA_THREAD_STACK_SIZE | int | 4096 | OTA trigger thread stack |
 | CONFIG_NRF70_FW_STATS_CDR_ENABLED | bool | n (enabled in prj.conf) | Enable nRF70 CDR uploads |

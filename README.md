@@ -243,9 +243,9 @@ Connect at `115200` baud and observe module/init and connectivity logs.
 
 | Feature | Limit | Rate at current config | Config |
 |---|---|---|---|
-| Heartbeats | 100/day | 96/day (`900 s` interval) | `MEMFAULT_METRICS_HEARTBEAT_INTERVAL_SECS=900` |
+| Heartbeats | 100/day | 96/day (`15 min` interval) | `MEMFAULT_METRICS_HEARTBEAT_INTERVAL_SECS=900` |
 | Log files | 150/day, 1000/7-day | 96/day (piggybacks on upload interval) | `MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS=900` |
-| OTA checks | 100/day | 48/day (`30 min` interval) | `MEMFAULT_OTA_CHECK_INTERVAL_MIN=30` |
+| OTA checks | 100/day | 24/day (`60 min` interval) | `MEMFAULT_OTA_CHECK_INTERVAL_MIN=60` |
 | CDR | 1/day | On-demand (button press) | `NRF70_FW_STATS_CDR_ENABLED=y` — no firmware throttle |
 | Coredumps | 24/day | Crash-triggered | N/A |
 | Trace events | 100/day | Button-triggered | N/A |

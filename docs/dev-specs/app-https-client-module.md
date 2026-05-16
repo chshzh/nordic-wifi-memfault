@@ -18,6 +18,7 @@
 |---|---|
 | 2026-05-14-14-13 | Reverse-design spec created from src/modules/app_https_client implementation |
 | 2026-05-16-13-00 | Per-request GET log demoted to DBG; new INF summary log `Test Result: N/N (success/total)` emitted after each request |
+| 2026-05-16-17-00 | Request interval changed from 300 s to 900 s |
 
 ---
 
