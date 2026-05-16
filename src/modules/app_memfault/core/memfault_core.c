@@ -44,6 +44,17 @@ LOG_MODULE_REGISTER(memfault_core, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 static K_SEM_DEFINE(upload_sem, 0, 1);
 static volatile bool wifi_connected;
 
+/* Delay log freeze after disconnect so post-disconnect logs are captured */
+#define LOG_FREEZE_DELAY_SEC 60
+
+static void log_freeze_work_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	memfault_log_trigger_collection();
+}
+
+static K_WORK_DELAYABLE_DEFINE(log_freeze_work, log_freeze_work_fn);
+
 /* Recursive Fibonacci for stack overflow demo */
 static int fib(int n)
 {
@@ -153,6 +164,7 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 		wifi_connected = true;
 		memfault_metrics_connectivity_connected_state_change(
 			kMemfaultMetricsConnectivityState_Connected);
+		// k_work_cancel_delayable(&log_freeze_work);
 #if CONFIG_MEMFAULT_NCS_STACK_METRICS
 		mflt_stack_metrics_init();
 		LOG_INF("Stack metrics monitoring initialized");
@@ -163,7 +175,9 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 		wifi_connected = false;
 		memfault_metrics_connectivity_connected_state_change(
 			kMemfaultMetricsConnectivityState_ConnectionLost);
-		memfault_log_trigger_collection();
+		LOG_WRN("Network connectivity lost - scheduling Memfault log freeze in %d s",
+			LOG_FREEZE_DELAY_SEC);
+		k_work_reschedule(&log_freeze_work, K_SECONDS(LOG_FREEZE_DELAY_SEC));
 		break;
 	default:
 		break;
@@ -182,8 +196,9 @@ static void memfault_network_listener(const struct zbus_channel *chan)
 	const struct network_msg *msg = zbus_chan_const_msg(chan);
 
 	if (msg->type == NETWORK_NOT_READY) {
-		LOG_WRN("Network connectivity lost — freezing Memfault logs");
-		memfault_log_trigger_collection();
+		LOG_WRN("Network connectivity lost - scheduling Memfault log freeze in %d s",
+			LOG_FREEZE_DELAY_SEC);
+		k_work_reschedule(&log_freeze_work, K_SECONDS(LOG_FREEZE_DELAY_SEC));
 	}
 }
 
