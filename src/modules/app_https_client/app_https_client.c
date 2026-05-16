@@ -364,8 +364,13 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 
 		/* Verify network is actually ready */
 		if (!network_ready) {
-			LOG_WRN("Network not ready after semaphore signal, "
-				"skipping");
+			https_req_total++;
+			https_req_failures++;
+			MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_total_count, https_req_total);
+			MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_fail_count, https_req_failures);
+			LOG_WRN("Network not ready after semaphore signal, skipping");
+			LOG_INF("Test Result: %u/%u (success/total)",
+				https_req_total - https_req_failures, https_req_total);
 			continue;
 		}
 

@@ -351,8 +351,13 @@ static void app_mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 		}
 
 		if (!network_ready) {
-			LOG_WRN("Network not ready after semaphore signal, "
-				"skipping");
+			mqtt_echo_total++;
+			mqtt_echo_failures++;
+			MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_total_count, mqtt_echo_total);
+			MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_fail_count, mqtt_echo_failures);
+			LOG_WRN("Network not ready after semaphore signal, skipping");
+			LOG_INF("Test Result: %u/%u (success/total)",
+				mqtt_echo_total - mqtt_echo_failures, mqtt_echo_total);
 			continue;
 		}
 
