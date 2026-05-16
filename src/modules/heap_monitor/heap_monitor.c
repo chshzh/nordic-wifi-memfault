@@ -43,32 +43,33 @@ static uint32_t mbedtls_peak_used_all_time;
 static size_t mbedtls_peak_blocks_all_time;
 #endif
 
-static void log_heap_line(const char *heap_name, uint32_t used, uint32_t total,
-			  uint32_t peak, bool have_blocks, size_t blocks,
-			  size_t peak_blocks, bool warn)
+static void log_heap_line(const char *heap_name, uint32_t used, uint32_t total, uint32_t peak,
+			  bool have_blocks, size_t blocks, size_t peak_blocks, bool warn)
 {
 	const uint32_t used_pct = total ? (used * 100U) / total : 0U;
 	const uint32_t peak_pct = total ? (peak * 100U) / total : 0U;
 
 	if (have_blocks) {
 		if (warn) {
-			LOG_WRN("%s Heap: used=%u/%u (%u%%) blocks=%zu, peak=%u/%u (%u%%), peak_blocks=%zu",
-				heap_name, used, total, used_pct, blocks, peak,
-				total, peak_pct, peak_blocks);
+			LOG_WRN("%s Heap: used=%u/%u (%u%%) blocks=%zu, peak=%u/%u (%u%%), "
+				"peak_blocks=%zu",
+				heap_name, used, total, used_pct, blocks, peak, total, peak_pct,
+				peak_blocks);
 		} else {
-			LOG_INF("%s Heap: used=%u/%u (%u%%) blocks=%zu, peak=%u/%u (%u%%), peak_blocks=%zu",
-				heap_name, used, total, used_pct, blocks, peak,
-				total, peak_pct, peak_blocks);
+			LOG_DBG("%s Heap: used=%u/%u (%u%%) blocks=%zu, peak=%u/%u (%u%%), "
+				"peak_blocks=%zu",
+				heap_name, used, total, used_pct, blocks, peak, total, peak_pct,
+				peak_blocks);
 		}
 	} else {
 		if (warn) {
-			LOG_WRN("%s Heap: used=%u/%u (%u%%) blocks=n/a, peak=%u/%u (%u%%), peak_blocks=n/a",
-				heap_name, used, total, used_pct, peak, total,
-				peak_pct);
+			LOG_WRN("%s Heap: used=%u/%u (%u%%) blocks=n/a, peak=%u/%u (%u%%), "
+				"peak_blocks=n/a",
+				heap_name, used, total, used_pct, peak, total, peak_pct);
 		} else {
-			LOG_INF("%s Heap: used=%u/%u (%u%%) blocks=n/a, peak=%u/%u (%u%%), peak_blocks=n/a",
-				heap_name, used, total, used_pct, peak, total,
-				peak_pct);
+			LOG_DBG("%s Heap: used=%u/%u (%u%%) blocks=n/a, peak=%u/%u (%u%%), "
+				"peak_blocks=n/a",
+				heap_name, used, total, used_pct, peak, total, peak_pct);
 		}
 	}
 }
@@ -94,8 +95,7 @@ static void report_system_heap_peak_if_needed(void)
 		return;
 	}
 
-	const uint32_t total =
-		(uint32_t)(stats.allocated_bytes + stats.free_bytes);
+	const uint32_t total = (uint32_t)(stats.allocated_bytes + stats.free_bytes);
 	if (total == 0U) {
 		return;
 	}
@@ -107,13 +107,11 @@ static void report_system_heap_peak_if_needed(void)
 	bool progressed = false;
 
 	if (peak > system_last_reported_high) {
-		progressed =
-			(peak - system_last_reported_high) >= CONFIG_HEAPS_MONITOR_STEP_BYTES;
+		progressed = (peak - system_last_reported_high) >= CONFIG_HEAPS_MONITOR_STEP_BYTES;
 	}
 
 	const bool new_warn = warn && (peak_pct > system_last_warn_pct);
-	const bool should_report =
-		progressed || new_warn || system_boot_report_pending;
+	const bool should_report = progressed || new_warn || system_boot_report_pending;
 
 	if (!should_report) {
 		return;
@@ -142,8 +140,7 @@ static void heap_listener_alloc(uintptr_t heap_id, void *mem, size_t bytes)
 	report_system_heap_peak_if_needed();
 }
 
-HEAP_LISTENER_ALLOC_DEFINE(heap_monitor_listener_alloc,
-			   HEAP_ID_FROM_POINTER(&_system_heap),
+HEAP_LISTENER_ALLOC_DEFINE(heap_monitor_listener_alloc, HEAP_ID_FROM_POINTER(&_system_heap),
 			   heap_listener_alloc);
 #endif
 
@@ -166,21 +163,16 @@ static void report_mbedtls_heap(bool warn_on_used_pct)
 	mbedtls_memory_buffer_alloc_cur_get(&cur_used, &cur_blocks);
 	mbedtls_memory_buffer_alloc_max_get(&max_used, &max_blocks);
 
-	mbedtls_peak_used_all_time =
-		MAX(mbedtls_peak_used_all_time, (uint32_t)max_used);
-	mbedtls_peak_blocks_all_time =
-		MAX(mbedtls_peak_blocks_all_time, max_blocks);
+	mbedtls_peak_used_all_time = MAX(mbedtls_peak_used_all_time, (uint32_t)max_used);
+	mbedtls_peak_blocks_all_time = MAX(mbedtls_peak_blocks_all_time, max_blocks);
 
-	update_mbedtls_heap_metrics(total, (uint32_t)cur_used,
-				    mbedtls_peak_used_all_time);
+	update_mbedtls_heap_metrics(total, (uint32_t)cur_used, mbedtls_peak_used_all_time);
 
 	const bool warn = warn_on_used_pct && (total != 0U) &&
-			  (((uint32_t)cur_used * 100U) / total >=
-			   CONFIG_HEAPS_MONITOR_WARN_PCT);
+			  (((uint32_t)cur_used * 100U) / total >= CONFIG_HEAPS_MONITOR_WARN_PCT);
 
-	log_heap_line("mbedTLS", (uint32_t)cur_used, total,
-		      mbedtls_peak_used_all_time, true, cur_blocks,
-		      mbedtls_peak_blocks_all_time, warn);
+	log_heap_line("mbedTLS", (uint32_t)cur_used, total, mbedtls_peak_used_all_time, true,
+		      cur_blocks, mbedtls_peak_blocks_all_time, warn);
 }
 #endif
 
@@ -196,13 +188,11 @@ static void periodic_heap_work_fn(struct k_work *work)
 		struct sys_memory_stats stats;
 
 		if (get_system_heap_stats(&stats) == 0) {
-			const uint32_t total =
-				(uint32_t)(stats.allocated_bytes + stats.free_bytes);
+			const uint32_t total = (uint32_t)(stats.allocated_bytes + stats.free_bytes);
 			const uint32_t used = (uint32_t)stats.allocated_bytes;
 			const uint32_t peak = (uint32_t)stats.max_allocated_bytes;
 			const bool warn = total != 0U &&
-					  ((used * 100U) / total >=
-					   CONFIG_HEAPS_MONITOR_WARN_PCT);
+					  ((used * 100U) / total >= CONFIG_HEAPS_MONITOR_WARN_PCT);
 
 			log_heap_line("System", used, total, peak, false, 0U, 0U, warn);
 			update_system_heap_metrics(total, used, peak);
@@ -228,8 +218,7 @@ static int heap_monitor_init(void)
 	report_mbedtls_heap(false);
 #endif
 
-	k_work_schedule(&periodic_heap_work,
-			K_SECONDS(CONFIG_HEAPS_MONITOR_PERIODIC_INTERVAL_SEC));
+	k_work_schedule(&periodic_heap_work, K_SECONDS(CONFIG_HEAPS_MONITOR_PERIODIC_INTERVAL_SEC));
 	return 0;
 }
 
