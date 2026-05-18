@@ -46,6 +46,7 @@ enum app_mqtt_client_state {
 static enum app_mqtt_client_state current_state = APP_MQTT_STATE_DISCONNECTED;
 static bool mqtt_client_running;
 static bool network_ready;
+static bool has_seen_network_connection;
 static uint32_t message_count;
 static uint32_t mqtt_echo_total;
 static uint32_t mqtt_echo_failures;
@@ -67,6 +68,17 @@ static uint32_t random_initial_delay_sec(uint32_t interval_sec)
 	}
 
 	return sys_rand32_get() % (interval_sec + 1U);
+}
+
+static void mqtt_record_failed_attempt(const char *reason)
+{
+	mqtt_echo_total++;
+	mqtt_echo_failures++;
+	MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_total_count, mqtt_echo_total);
+	MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_fail_count, mqtt_echo_failures);
+	LOG_WRN("%s", reason);
+	LOG_INF("Test Result: %u/%u (success/total)", mqtt_echo_total - mqtt_echo_failures,
+		mqtt_echo_total);
 }
 
 /* MQTT helper callbacks */
@@ -343,21 +355,21 @@ static void app_mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 	}
 
 	while (mqtt_client_running) {
-		/* Wait for network connection */
-		k_sem_take(&mqtt_thread_sem, K_FOREVER);
+		/* Keep waking on publish interval while disconnected so tests keep
+		 * running and are counted as failures.
+		 */
+		k_sem_take(&mqtt_thread_sem,
+			   K_SECONDS(CONFIG_APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC));
 
 		if (!mqtt_client_running) {
 			break;
 		}
 
 		if (!network_ready) {
-			mqtt_echo_total++;
-			mqtt_echo_failures++;
-			MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_total_count, mqtt_echo_total);
-			MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_fail_count, mqtt_echo_failures);
-			LOG_WRN("Network not ready after semaphore signal, skipping");
-			LOG_INF("Test Result: %u/%u (success/total)",
-				mqtt_echo_total - mqtt_echo_failures, mqtt_echo_total);
+			if (has_seen_network_connection) {
+				mqtt_record_failed_attempt(
+					"Network disconnected, MQTT interval attempt failed");
+			}
 			continue;
 		}
 
@@ -500,6 +512,7 @@ void app_mqtt_client_notify_connected(void)
 {
 	if (mqtt_client_running && !network_ready) {
 		LOG_INF("Network connected, notifying app MQTT client");
+		has_seen_network_connection = true;
 		network_ready = true;
 		k_sem_give(&mqtt_thread_sem);
 	} else if (network_ready) {
@@ -511,6 +524,7 @@ void app_mqtt_client_notify_connected(void)
 void app_mqtt_client_notify_disconnected(void)
 {
 	LOG_INF("Network disconnected, stopping app MQTT client");
+
 	network_ready = false;
 
 	/* Disconnect from broker if connected */
