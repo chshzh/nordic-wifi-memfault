@@ -54,6 +54,7 @@ static char recv_buf[RECV_BUF_SIZE];
 static K_SEM_DEFINE(https_thread_sem, 0, 1);
 static bool https_client_running;
 static bool network_ready;
+static bool has_seen_network_connection;
 static uint32_t https_req_total;    /* Local counter for total requests */
 static uint32_t https_req_failures; /* Local counter for failed requests */
 
@@ -197,6 +198,17 @@ static uint32_t random_initial_delay_sec(uint32_t interval_sec)
 	}
 
 	return sys_rand32_get() % (interval_sec + 1U);
+}
+
+static void https_record_failed_attempt(const char *reason)
+{
+	https_req_total++;
+	https_req_failures++;
+	MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_total_count, https_req_total);
+	MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_fail_count, https_req_failures);
+	LOG_WRN("%s", reason);
+	LOG_INF("Test Result: %u/%u (success/total)", https_req_total - https_req_failures,
+		https_req_total);
 }
 
 static void send_http_request(void)
@@ -355,8 +367,10 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 	LOG_INF("App HTTPS client thread started");
 
 	while (https_client_running) {
-		/* Wait for network connection */
-		k_sem_take(&https_thread_sem, K_FOREVER);
+		/* Keep waking on request interval while disconnected so tests keep
+		 * running and are counted as failures.
+		 */
+		k_sem_take(&https_thread_sem, K_SECONDS(HTTPS_REQUEST_INTERVAL_SEC));
 
 		if (!https_client_running) {
 			break;
@@ -364,13 +378,10 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 
 		/* Verify network is actually ready */
 		if (!network_ready) {
-			https_req_total++;
-			https_req_failures++;
-			MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_total_count, https_req_total);
-			MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_fail_count, https_req_failures);
-			LOG_WRN("Network not ready after semaphore signal, skipping");
-			LOG_INF("Test Result: %u/%u (success/total)",
-				https_req_total - https_req_failures, https_req_total);
+			if (has_seen_network_connection) {
+				https_record_failed_attempt(
+					"Network disconnected, HTTPS interval attempt failed");
+			}
 			continue;
 		}
 
@@ -467,6 +478,7 @@ void app_https_client_notify_connected(void)
 {
 	if (https_client_running && !network_ready) {
 		LOG_INF("Network connected, notifying app HTTPS client");
+		has_seen_network_connection = true;
 		network_ready = true;
 		k_sem_give(&https_thread_sem);
 	} else if (network_ready) {
@@ -478,6 +490,7 @@ void app_https_client_notify_connected(void)
 void app_https_client_notify_disconnected(void)
 {
 	LOG_INF("Network disconnected, pausing app HTTPS client");
+
 	network_ready = false;
 }
 
