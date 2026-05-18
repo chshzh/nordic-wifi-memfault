@@ -225,34 +225,48 @@ Connect at `115200` baud and observe module/init and connectivity logs.
 
 ### Developer Notes
 
+#### General
+
 - Keep `overlay-app-memfault-project-info.conf` out of git history.
-- Board-specific overrides are in `boards/*.conf` (both nRF54LM20DK and nRF7002DK).
+- Board-specific Kconfig overrides are in `boards/*.conf` (both nRF54LM20DK and nRF7002DK).
 - Coredump and partition behavior follows DTS fixed-partitions for NCS v3.3.0.
 - nRF7002DK uses a custom flash coredump backend (`CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y`) in `src/modules/app_memfault/core/memfault_flash_coredump_storage.c` to bypass the upstream `PARTITION_MANAGER_ENABLED` dependency in `CONFIG_MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP`.
-- Memfault Storage Architecture
+
+#### Storage Architecture
+
+Only coredumps are written to non-volatile storage and survive a reset. All other Memfault data lives in RAM and must be uploaded before a power cycle.
 
 | Data | Kconfig | Storage | Volatile? |
 |------|---------|---------|-----------|
 | Coredump (nRF54LM20DK) | `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM=y` | RRAM partition `memfault_coredump_partition` (64 KB at `0x1d5000`) | No — survives power cycle |
 | Coredump (nRF7002DK) | `CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y` | Flash partition `memfault_storage` (64 KB at `0xf0000`) | No — survives power cycle |
+| Heartbeat / trace events | `CONFIG_MEMFAULT_EVENT_STORAGE_SIZE=4096` | RAM ring buffer | Yes — lost on hard reset |
 | Log file | `CONFIG_MEMFAULT_LOGGING_RAM_SIZE=4096` | RAM circular buffer | Yes — lost on hard reset |
 | CDR (nRF70 FW stats) | `CONFIG_NRF70_FW_STATS_CDR_ENABLED=y` | Static RAM buffer (up to 1 KB) | Yes — lost on reboot before upload |
-| Heartbeat / trace events | `CONFIG_MEMFAULT_EVENT_STORAGE_SIZE=4096` | RAM ring buffer | Yes — lost on hard reset |
 
-- Memfault Free-Tier Rate Limits
+#### Free-Tier Rate Limits
 
-| Feature | Limit | Rate at current config | Config |
+| Feature | Free-tier limit | Rate at current config | Controlling config |
 |---|---|---|---|
-| Heartbeats | 100/day | 96/day (`15 min` interval) | `MEMFAULT_METRICS_HEARTBEAT_INTERVAL_SECS=900` |
+| Heartbeats | 100/day | 96/day (15 min interval) | `MEMFAULT_METRICS_HEARTBEAT_INTERVAL_SECS=900` |
 | Log files | 150/day, 1000/7-day | 96/day (piggybacks on upload interval) | `MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS=900` |
-| OTA checks | 100/day | 24/day (`60 min` interval) | `MEMFAULT_OTA_CHECK_INTERVAL_MIN=60` |
+| OTA checks | 100/day | 24/day (60 min interval) | `MEMFAULT_OTA_CHECK_INTERVAL_MIN=60` |
 | CDR | 1/day | On-demand (button press) | `NRF70_FW_STATS_CDR_ENABLED=y` — no firmware throttle |
 | Coredumps | 24/day | Crash-triggered | N/A |
 | Trace events | 100/day | Button-triggered | N/A |
 | Reboot events | 100/day, 1400/14-day | Reset-triggered | N/A |
 | Sessions | 16/day | 0 (not used) | N/A |
 
-**NTP clock accuracy:** at 40 ppm crystal drift the device re-syncs every 6 hours (`CONFIG_NTP_RESYNC_INTERVAL_SEC=21600`), keeping log timestamp error ≤ 0.86 s. Adjust the interval for tighter or looser requirements (3 h → ≤ 0.43 s, 12 h → ≤ 1.73 s).
+#### NTP Clock and Timeline Timestamps
+
+The device uses the Nordic `date_time` library (fed by SNTP) as the UTC time source for all Memfault timestamps. If NTP has not yet synced when an event is recorded, no device timestamp is embedded and the Memfault server falls back to the HTTP receive time for display.
+
+At 40 ppm crystal drift the device re-syncs every 6 hours (`CONFIG_NTP_RESYNC_INTERVAL_SEC=21600`), keeping timestamp error ≤ 0.86 s. Adjust for tighter or looser requirements (3 h → ≤ 0.43 s, 12 h → ≤ 1.73 s).
+
+| Data | When the timestamp is captured | What it means on the Memfault timeline | If NTP not yet synced |
+|---|---|---|---|
+| Log lines | When the log line is written to the Memfault RAM buffer — not at upload | UTC time the device emitted the log | Server uses HTTP receive time |
+| Heartbeat metrics | When the 900 s window closes and `memfault_metrics_heartbeat_serialize` runs — not when individual metric values were set during the window | UTC time the measurement window ended | Server uses HTTP receive time |
 
 ## Documentation
 
