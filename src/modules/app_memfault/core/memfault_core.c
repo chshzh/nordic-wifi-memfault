@@ -45,7 +45,7 @@ static K_SEM_DEFINE(upload_sem, 0, 1);
 static volatile bool wifi_connected;
 
 /* Delay log freeze after disconnect so post-disconnect logs are captured */
-#define LOG_FREEZE_DELAY_SEC 60
+#define LOG_FREEZE_DELAY_SEC 10
 
 static void log_freeze_work_fn(struct k_work *work)
 {
