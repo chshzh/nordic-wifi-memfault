@@ -7,12 +7,13 @@
  * and restore it into the live ring buffer at the next WiFi connect so the
  * disconnect-time log snapshot can be uploaded to the Memfault cloud.
  *
- * Design note: the Memfault SDK's MEMFAULT_LOG_RESTORE_STATE boot hook fires
- * from the Zephyr log backend init (PRE_KERNEL / POST_KERNEL level), before
- * Zephyr settings is initialized (APPLICATION level ~95).  Calling
- * settings_load_subtree() that early silently fails and the restore is
- * skipped.  We therefore set MEMFAULT_LOG_RESTORE_STATE=0 and perform the
- * restore in on_connect() instead, where settings is guaranteed ready.
+ * Design note: MEMFAULT_LOG_RESTORE_STATE=1 is required to compile
+ * memfault_log_get_state(), which this module uses at connect-time.
+ * The SDK calls memfault_log_restore_state() (defined below) from the Zephyr
+ * log backend init (PRE_KERNEL / POST_KERNEL level), before Zephyr settings is
+ * initialized (APPLICATION level ~95).  That stub intentionally returns false
+ * (no-op).  The actual restore is performed in on_connect() instead, where
+ * settings is guaranteed ready.
  */
 
 #include "memfault_log_state_restore.h"
@@ -195,4 +196,14 @@ int memfault_log_state_restore_on_connect(void)
 
 	LOG_INF("Disconnect log-state restored into live ring buffer");
 	return 0;
+}
+
+/* Called by the SDK from the Zephyr log backend init (PRE_KERNEL level) before
+ * Zephyr settings is initialized.  Always return false here; connect-time
+ * restore is handled by memfault_log_state_restore_on_connect().
+ */
+bool memfault_log_restore_state(sMfltLogSaveState *state)
+{
+	(void)state;
+	return false;
 }
