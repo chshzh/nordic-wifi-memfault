@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault |
-| Version | 2026-05-16-13-00 |
+| Version | 2026-05-19-09-07 |
 | Previous Version | 1.1 (legacy pm/PRD.md) |
 | Status | Draft |
 | Product Manager | Reverse update from implementation baseline |
@@ -23,6 +23,7 @@
 | 2026-05-15-16-20 | FR-006: extend acceptance criteria — NTP sync also gives Memfault dashboard events wall-clock timestamps (nrf54lm20dk only) |
 || 2026-05-16-13-00 | FR-006: add periodic re-sync AC (every 6 h, 40 ppm drift, max 0.86 s error); Memfault OTA interval 30 min (48/day); HTTPS/MQTT per-request logs demoted to DBG, new INF summary logs added |
 || 2026-05-16-17-00 | Memfault OTA check interval increased to 60 min (24/day); HTTPS request and MQTT publish intervals changed from 300 s to 900 s |
+|| 2026-05-19-09-07 | Added FR-007: persist disconnect-time log state to flash and restore it on next WiFi reconnect for Memfault cloud upload |
 
 ---
 
@@ -85,7 +86,7 @@ bring-up time.
 
 ### 2.3 Storage and Persistence
 
-- Settings storage is used for credential persistence.
+- Settings storage is used for credential persistence and compact disconnect-diagnostic blobs.
 - Dedicated crash storage partition is used for coredump retention.
 
 ### 2.4 Buttons and User Controls
@@ -121,6 +122,7 @@ bring-up time.
 |---|---|---|---|---|---|
 | FR-005 | developer | enable optional BLE/HTTPS/MQTT support paths | I can validate broader connectivity behavior | Optional modules start and react to WIFI_CHAN connectivity state | [app-wifi-prov-ble-module.md](../dev-specs/app-wifi-prov-ble-module.md), [app-https-client-module.md](../dev-specs/app-https-client-module.md), [app-mqtt-client-module.md](../dev-specs/app-mqtt-client-module.md) |
 | FR-006 | developer | have the device synchronize its clock from an NTP server after connecting to the network | debug log lines show real-world wall-clock timestamps instead of uptime-relative milliseconds, and Memfault events carry accurate timestamps on the dashboard | After network ready event, device queries pool.ntp.org; subsequent log lines display ISO date/time; Memfault events captured after first sync show wall-clock captured_date on the dashboard (nrf54lm20dk only); events before sync are marked unknown rather than epoch-0; device re-syncs periodically every CONFIG_NTP_RESYNC_INTERVAL_SEC seconds (default 21600 = 6 h) to compensate for crystal drift (40 ppm, max 0.86 s error per interval); feature is Kconfig-gated and off by default | [ntp-module.md](../dev-specs/ntp-module.md), [app-memfault-module.md](../dev-specs/app-memfault-module.md) |
+| FR-007 | developer | have disconnect-time log diagnostics survive a power cycle and appear in the Memfault platform after the device reconnects | I can root-cause connectivity failures that happen in the field without physical access to the device | On WIFI_STA_DISCONNECTED or NETWORK_NOT_READY: firmware freezes the Memfault log ring buffer (10 s capture window) and persists the full ring buffer state to non-volatile settings storage; on next WiFi reconnect the persisted state is restored directly into the live Memfault ring buffer and uploaded to Memfault cloud; persisted blob is deleted after upload; if restore payload exceeds storage capacity the event is silently discarded with no crash; the restored log file contains original wall-clock timestamps (as embedded text from the Zephyr log formatter); feature is Kconfig-gated; enabled on nRF54LM20DK, disabled on nRF7002DK due to flash budget | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [flash-memory-layout.md](../dev-specs/flash-memory-layout.md) |
 
 ---
 

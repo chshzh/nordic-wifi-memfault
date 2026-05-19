@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Module | app_memfault |
-| Version | 2026-05-16-13-00 |
-| PRD Version | 2026-05-14-14-13 |
+| Version | 2026-05-19-09-07 |
+| PRD Version | 2026-05-19-09-07 |
 | Author | GitHub Copilot |
 | Status | Draft |
 
@@ -22,6 +22,7 @@
 | 2026-05-15-22-02 | Button 1 short press: change to async upload via semaphore to avoid TLS-on-sysworkq stack overflow; add per-board coredump Kconfig; update upload thread scope |
 | 2026-05-16-13-00 | OTA check interval changed to 30 min (48/day); document Memfault free-tier rate limits |
 | 2026-05-16-17-00 | OTA check interval increased to 60 min (24/day) |
+| 2026-05-19-09-07 | FR-007: connect-time ring-buffer restore; removed boot-time MEMFAULT_LOG_RESTORE_STATE hook (settings ordering issue); persist on disconnect, restore+upload on next WiFi connect |
 
 ---
 
@@ -33,11 +34,36 @@ It consumes input events from BUTTON_CHAN, WIFI_CHAN, and NETWORK_CHAN and
 translates them into Memfault SDK API operations.
 
 **Log freeze on connectivity loss:** whenever a connectivity loss is detected
-(Wi-Fi deassociation via WIFI_CHAN, or IP-layer loss via NETWORK_CHAN),
-`memfault_log_trigger_collection()` is called immediately. This freezes the
-Memfault RAM log buffer at the disconnect-time snapshot — new logs are dropped
-rather than overwriting the context. On the next successful upload the frozen
-snapshot is sent to the Memfault backend and the buffer is unfrozen.
+(Wi-Fi deassociation via WIFI_CHAN, or IP-layer loss via NETWORK_CHAN), a
+10-second delayable work item is scheduled. When it fires, `memfault_log_trigger_collection()`
+freezes the Memfault RAM log buffer at the disconnect-time snapshot — new logs
+are dropped rather than overwriting the context. If the device reconnects
+without a reboot, the frozen snapshot is uploaded on the next connect and the
+buffer is unfrozen.
+
+**Persist disconnect-time log state across reboot (FR-007, `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`):**
+immediately after `memfault_log_trigger_collection()` fires, `memfault_log_state_persist_now()`
+serializes the entire Memfault ring-buffer state (context struct + storage bytes) to
+Zephyr settings-backed non-volatile storage under key `app_memfault/log_state/blob`.
+The blob is bounded to `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE_MAX_BYTES` (default 3072 B)
+to protect the shared 8 KB settings partition.
+
+On the next WiFi reconnect, `memfault_log_state_restore_on_connect()` is called at the
+start of `on_connect()` — before any upload — while settings is guaranteed to be ready
+(APPLICATION level threads are running). It loads the blob, validates magic/version/size,
+then overwrites the live Memfault ring buffer in-place via `memfault_log_get_state()` live
+pointers. This restores the frozen disconnect-time snapshot into the current-boot ring
+buffer. The blob is deleted from settings immediately after. The subsequent
+`memfault_zephyr_port_post_data()` call uploads the restored log file to Memfault, which
+shows the original wall-clock timestamps (embedded by the Zephyr log formatter at
+capture time). After the upload the SDK clears the `triggered` flag and normal logging
+resumes.
+
+**Why not use `MEMFAULT_LOG_RESTORE_STATE` (SDK boot hook)?** The hook is called from the
+Zephyr log backend `prv_log_init()`, which fires at PRE_KERNEL/POST_KERNEL level — well
+before Zephyr settings is initialized (APPLICATION level ~95). Calling
+`settings_load_subtree()` at that stage fails silently and the restore is skipped. The
+connect-time approach completely bypasses this ordering constraint.
 
 **Design constraint — do NOT call `memfault_log_trigger_collection()` in `on_connect()`:**
 The NCS periodic upload (`CONFIG_MEMFAULT_PERIODIC_UPLOAD_INTERVAL_SECS`) already calls
@@ -63,6 +89,7 @@ only compiled when `CONFIG_NTP_MODULE=y` (nrf54lm20dk board config).
 - Path: src/modules/app_memfault/
 - Files:
   - core/memfault_core.c(.h)
+  - core/memfault_log_state_restore.c(.h) (when `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE=y`)
   - core/memfault_platform_time.c (nrf54lm20dk only — NTP-backed timestamp provider)
   - metrics/wifi_metrics.c(.h), metrics/stack_metrics.c(.h)
   - ota/ota_triggers.c(.h)
@@ -130,6 +157,8 @@ Does not define its own public zbus channel in current implementation.
 | CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM | bool | y (nrf54lm20dk) | Use custom `memfault_platform_time_get_current()` backed by CLOCK_REALTIME (set by NTP module) |
 | CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM | bool | y (nrf54lm20dk) | RRAM-backed coredump storage using DTS `memfault_coredump_partition` |
 | CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM | bool | y (nrf7002dk) | Custom flash coredump backend in `core/memfault_flash_coredump_storage.c` using DTS `memfault_storage` partition; bypasses `PARTITION_MANAGER_ENABLED` dependency in upstream Kconfig |
+| CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE | bool | y (nrf54lm20dk), n (nrf7002dk) | Persist Memfault ring-buffer state to settings on disconnect; restore and upload on next WiFi connect |
+| CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE_MAX_BYTES | int | 3072 | Maximum settings payload bytes for the ring-buffer blob; bounded to protect the 8 KB shared settings partition |
 
 ---
 
@@ -148,6 +177,9 @@ Public headers expose module-specific helpers used within module group component
 | Upload failure (Wi-Fi up, internet down) | `memfault_zephyr_port_post_data()` returns non-zero | `LOG_ERR` with error code; `sync_memfault_failure` metric incremented; periodic timer retries |
 | Wi-Fi deassociation | `WIFI_STA_DISCONNECTED` on WIFI_CHAN | connectivity metric → `ConnectionLost`; `memfault_log_trigger_collection()` freezes log buffer |
 | IP-layer loss (DHCP expiry, addr removal) | `NETWORK_NOT_READY` on NETWORK_CHAN | `memfault_log_trigger_collection()` freezes log buffer; no connectivity metric change (Wi-Fi may still be associated) |
+| Log-state persist failure | `settings_save_one()` returns error | `LOG_WRN`; runtime continues normally without crash |
+| Log-state restore size mismatch | persisted `context_len`/`storage_len` differ from live ring-buffer sizes | discard blob, log warning; firmware update between boots is the typical cause |
+| Log-state restore — no blob found | settings subtree empty or load error | silent no-op; normal upload proceeds |
 | OTA check failure | `memfault_fota_start` result | log error and retain current firmware |
 | CDR upload limit reached | Memfault CDR limit handling | skip until permitted window |
 | Log file rate limit exceeded | Memfault backend silently drops assembled log file (device still receives HTTP 202 for chunks — **no firmware-side warning**) | visible only in Platform UI → Device → Developer Mode → Processing Errors; enable Server-Side Developer Mode for testing; set `MEMFAULT_PERIODIC_UPLOAD_INTERVAL_SECS=3600` for production |
@@ -173,7 +205,9 @@ Public headers expose module-specific helpers used within module group component
 | Wi-Fi disconnect | `WiFi DISCONNECTED` → `Network connectivity lost — freezing Memfault logs` | log buffer frozen; `WIFI_STA_DISCONNECTED` without NETWORK_CHAN log would be a regression |
 | IP-layer loss (DHCP) | `IP address removed from interface` → `Network connectivity lost — freezing Memfault logs` (no `WiFi DISCONNECTED` line) | NETWORK_CHAN listener acting independently of Wi-Fi layer |
 | Upload failure (internet down) | `Memfault upload failed: <errno>` | error visible; `sync_memfault_failure` metric incremented in dashboard |
-| Reconnect after disconnect | frozen logs appear in Memfault Issues/Logs view | disconnect-time log snapshot preserved and uploaded |
+| Reconnect after disconnect (no reboot) | frozen logs appear in Memfault Issues/Logs view | disconnect-time log snapshot preserved and uploaded |
+| Reboot after disconnect → reconnect | `Disconnect-time log state restored` log at connect; Memfault Issues/Logs shows disconnect-time entries with original wall-clock timestamps | ring-buffer state survived power cycle via settings storage; restore+upload succeeds on first connect after reboot |
+| Reboot after disconnect → firmware update → reconnect | no restored logs (size mismatch discards blob); normal upload only | safe discard; no crash; expected after OTA |
 | Memfault event timestamp (post NTP sync) | Memfault log file captured_date matches wall clock ± 2 s | NTP sync must precede the event; `CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM=y` required |
 | Button 1 short | `Button 1 short press: Memfault heartbeat + upload` | heartbeat metric increment + upload triggered in upload thread |
 | Button 2 short | OTA check trigger log | Memfault OTA check invoked |

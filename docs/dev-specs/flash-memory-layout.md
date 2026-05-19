@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-05-14-14-23 |
+| Version | 2026-05-18-15-20 |
 | PRD Version | 2026-05-14-14-13 |
 | Author | GitHub Copilot |
 | NCS Version | v3.3.0 |
@@ -18,6 +18,9 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-05-18-15-20 | Switched restore-path design to compact internal settings storage (no dedicated external restore partition) |
+| 2026-05-18-14-45 | Explored larger external restore storage design (later superseded by compact internal settings-only approach) |
+| 2026-05-18-14-05 | Clarified settings-storage use for disconnect diagnostics restore and noted 8 KB capacity limits for raw log snapshots |
 | 2026-05-15-22-02 | nRF54LM20DK: boot partition 56 KB → 64 KB; nRF7002DK: coredump backend changed from RAM-backed to flash-backed (custom) |
 | 2026-05-14-14-23 | Added detailed flash/partition layout and PM-to-DTS migration compatibility notes |
 
@@ -35,7 +38,7 @@ NCS v3.3+ Migration Note: As of NCS v3.3.0, this project has migrated from the l
 |---------|-----------|------|---------|
 | `0x00000` | `boot_partition` | 40 KB | Bootloader (MCUboot) |
 | `0x0A000` | `slot0_partition` | 920 KB | Primary app image |
-| `0xEE000` | `storage_partition` | 8 KB | WiFi credentials / NVS |
+| `0xEE000` | `storage_partition` | 8 KB | WiFi credentials / NVS; small persistent app state |
 | `0xF0000` | `memfault_storage` | 64 KB | Crash coredumps (flash-backed, `CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y`) |
 
 External flash - MX25R64 (8 MB):
@@ -68,7 +71,7 @@ Internal flash - RRAM (`cpuapp_rram`):
 |---------|-----------|------|---------|
 | `0x000000` | `boot_partition` | 64 KB | Bootloader (MCUboot) |
 | `0x010000` | `slot0_partition` | 1804 KB | Primary app image |
-| `0x1D3000` | `storage_partition` | 8 KB | WiFi credentials / NVS |
+| `0x1D3000` | `storage_partition` | 8 KB | WiFi credentials / NVS; small persistent app state |
 | `0x1D5000` | `memfault_coredump_partition` | 64 KB | Crash coredumps (RRAM-backed, `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM=y`) |
 
 External flash - MX25R6435F (8 MB via spi00):
@@ -112,3 +115,12 @@ Why the pad was removed:
 - DTS fixed-partitions are simpler and more flexible than PM derivation rules.
 
 Important: Firmware compiled under PM (v3.2) cannot be OTA-updated to DTS (v3.3) and vice versa due to address shifts. Devices must be reflashed via hardware or a custom transition strategy.
+
+### Settings Storage Capacity Note
+
+The `storage_partition` / `settings_storage` area is only 8 KB on both boards and is shared by Zephyr settings data.
+
+- It is enough for compact application state such as Wi-Fi credentials and small restore metadata.
+- It is not enough for a full raw disconnect-diagnostics snapshot if the persisted payload is sized to a full 8 KB capture window, because the blob also needs format/header overhead and settings backend space.
+- For the current option-2 design, Memfault log-state restore uses compact settings storage only with a strict size cap (default 3072 bytes payload) to protect shared settings capacity.
+- Board scope: enabled on nRF54LM20DK; disabled on nRF7002DK due flash headroom constraints.

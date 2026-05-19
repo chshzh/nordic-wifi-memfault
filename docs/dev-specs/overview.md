@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-05-14-15-00 |
-| PRD Version | 2026-05-14-15-00 |
+| Version | 2026-05-19-09-07 |
+| PRD Version | 2026-05-19-09-07 |
 | Author | GitHub Copilot |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
@@ -20,6 +20,7 @@
 |---|---|
 | 2026-05-14-14-13 | Reverse-design baseline generated from current implementation in src/modules and migrated to docs/dev-specs |
 | 2026-05-14-15-00 | Added ntp-module.md for FR-006: NTP time synchronization |
+| 2026-05-19-09-07 | Added FR-007 design: connect-time ring-buffer restore for persist-across-reboot disconnect log upload |
 
 ---
 
@@ -77,6 +78,7 @@ Key design decisions:
 | FR-004 Button 2 behavior (OTA check/div-by-zero demo) | button-module.md, app-memfault-module.md | Specified |
 | FR-005 BLE provisioning and optional HTTPS/MQTT clients | app-wifi-prov-ble-module.md, app-https-client-module.md, app-mqtt-client-module.md | Specified |
 | FR-006 NTP time sync for real-world log timestamps | ntp-module.md | Specified |
+| FR-007 Persist disconnect-time log state across reboot; upload to Memfault on next connect | app-memfault-module.md, flash-memory-layout.md | Specified |
 | NFR-001 Resource and stability constraints | architecture.md, heap-monitor-module.md | Specified |
 
 ---
