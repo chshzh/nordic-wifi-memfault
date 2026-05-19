@@ -9,6 +9,7 @@
  */
 
 #include "memfault_core.h"
+#include "memfault_log_state_restore.h"
 #include "../../messages.h"
 #include "../metrics/wifi_metrics.h"
 #include "../metrics/stack_metrics.h"
@@ -51,6 +52,12 @@ static void log_freeze_work_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
 	memfault_log_trigger_collection();
+#if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE
+	int err = memfault_log_state_persist_now();
+	if (err) {
+		LOG_WRN("Memfault log-state persist failed: %d", err);
+	}
+#endif
 }
 
 static K_WORK_DELAYABLE_DEFINE(log_freeze_work, log_freeze_work_fn);
@@ -103,6 +110,14 @@ static void on_connect(void)
 	    memfault_coredump_has_valid_coredump(NULL)) {
 		return;
 	}
+
+#if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE
+	int restore_err = memfault_log_state_restore_on_connect();
+	if (restore_err == 0) {
+		LOG_INF("Disconnect-time log state restored — uploading to Memfault");
+	}
+#endif
+
 	memfault_metrics_heartbeat_debug_trigger();
 	if (!memfault_packetizer_data_available()) {
 		LOG_INF("Memfault: no data queued, skipping upload");
