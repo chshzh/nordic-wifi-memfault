@@ -14,11 +14,12 @@
 
 LOG_MODULE_REGISTER(main, CONFIG_APP_MAIN_LOG_LEVEL);
 
+#define SPECS_VERSION "2026-05-19-09-07"
+
 int main(void)
 {
 	struct net_if *iface = net_if_get_default();
-	struct net_linkaddr *mac_addr =
-		iface ? net_if_get_link_addr(iface) : NULL;
+	struct net_linkaddr *mac_addr = iface ? net_if_get_link_addr(iface) : NULL;
 
 	LOG_INF("==============================================");
 	LOG_INF("Board:   %s", CONFIG_BOARD);
@@ -26,10 +27,10 @@ int main(void)
 	LOG_INF("Version: %s", CONFIG_MEMFAULT_NCS_FW_VERSION);
 #endif
 	LOG_INF("Build:   %s %s", __DATE__, __TIME__);
+	LOG_INF("Specs:   %s", SPECS_VERSION);
 	if (mac_addr && mac_addr->len == 6) {
-		LOG_INF("MAC: %02X:%02X:%02X:%02X:%02X:%02X",
-			mac_addr->addr[0], mac_addr->addr[1], mac_addr->addr[2],
-			mac_addr->addr[3], mac_addr->addr[4], mac_addr->addr[5]);
+		LOG_INF("MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac_addr->addr[0], mac_addr->addr[1],
+			mac_addr->addr[2], mac_addr->addr[3], mac_addr->addr[4], mac_addr->addr[5]);
 	}
 	LOG_INF("----------------------------------------------");
 	LOG_INF("Enabled modules:");
@@ -58,8 +59,8 @@ int main(void)
 	LOG_INF("  [app]    app_memfault");
 #endif
 #if CONFIG_APP_HTTPS_CLIENT_MODULE
-	LOG_INF("  [app]    app_https_client  (host: %s, interval: %ds)",
-		CONFIG_APP_HTTPS_HOSTNAME, CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC);
+	LOG_INF("  [app]    app_https_client  (host: %s, interval: %ds)", CONFIG_APP_HTTPS_HOSTNAME,
+		CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC);
 #endif
 #if CONFIG_APP_MQTT_CLIENT_MODULE
 	LOG_INF("  [app]    app_mqtt_client   (broker: %s, interval: %ds)",
