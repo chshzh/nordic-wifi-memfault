@@ -58,4 +58,26 @@ config MEMFAULT_OTA_THREAD_STACK_SIZE
 	  4096 bytes is sufficient as the Memfault NCS port spawns its own
 	  HTTPS transfer internally.  Override in prj.conf if needed.
 
+config APP_MEMFAULT_LOG_STATE_RESTORE
+	bool "Persist disconnect-time Memfault log state; restore and upload on next WiFi connect"
+	depends on SETTINGS
+	default y
+	help
+	  On connectivity loss, serializes the frozen Memfault ring-buffer state
+	  (context struct + storage bytes) to Zephyr settings-backed non-volatile
+	  storage.  On the next WiFi reconnect, the blob is loaded and the live
+	  ring buffer is overwritten in-place so the disconnect-time snapshot is
+	  uploaded to Memfault cloud.  The blob is deleted after the restore.
+	  Disabled on nRF7002DK due to flash budget constraints.
+
+config APP_MEMFAULT_LOG_STATE_RESTORE_MAX_BYTES
+	int "Max compact restore payload bytes in settings storage"
+	range 512 4096
+	default 3072
+	depends on APP_MEMFAULT_LOG_STATE_RESTORE
+	help
+	  Maximum payload size allowed for the serialized Memfault log state.
+	  This keeps restore data bounded so the shared 8 KB settings partition
+	  remains available for credentials and other keys.
+
 endif # APP_MEMFAULT_MODULE

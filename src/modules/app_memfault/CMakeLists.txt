@@ -5,6 +5,10 @@ target_sources(app PRIVATE
 	metrics/wifi_metrics.c
 	ota/ota_triggers.c
 )
+
+if(CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE)
+	target_sources(app PRIVATE core/memfault_log_state_restore.c)
+endif()
 endif()
 
 # nRF7002DK: DTS-partition flash coredump backend (bypasses PM dependency).
