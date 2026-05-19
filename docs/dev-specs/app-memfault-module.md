@@ -59,11 +59,13 @@ shows the original wall-clock timestamps (embedded by the Zephyr log formatter a
 capture time). After the upload the SDK clears the `triggered` flag and normal logging
 resumes.
 
-**Why not use `MEMFAULT_LOG_RESTORE_STATE` (SDK boot hook)?** The hook is called from the
-Zephyr log backend `prv_log_init()`, which fires at PRE_KERNEL/POST_KERNEL level — well
-before Zephyr settings is initialized (APPLICATION level ~95). Calling
-`settings_load_subtree()` at that stage fails silently and the restore is skipped. The
-connect-time approach completely bypasses this ordering constraint.
+**Why `MEMFAULT_LOG_RESTORE_STATE=1` but no `memfault_log_restore_state()` override?**
+`MEMFAULT_LOG_RESTORE_STATE=1` is required to compile `memfault_log_get_state()`, which
+the connect-time restore path uses to get live ring-buffer pointers. We intentionally do
+NOT override the weak `memfault_log_restore_state()` callback: the SDK default returns
+`false`, so the at-boot call (which fires before Zephyr settings is ready) is a harmless
+no-op. The actual restore is performed in `on_connect()` via
+`memfault_log_state_restore_on_connect()`, where settings is guaranteed initialized.
 
 **Design constraint — do NOT call `memfault_log_trigger_collection()` in `on_connect()`:**
 The NCS periodic upload (`CONFIG_MEMFAULT_PERIODIC_UPLOAD_INTERVAL_SECS`) already calls

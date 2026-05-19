@@ -12,9 +12,15 @@
  * "<NCS folder>/modules/lib/memfault-firmware-sdk/components/include/memfault/default_config.h"
  */
 
-/* Ring-buffer state restore is performed at WiFi connect-time (not at boot) to
- * avoid a Zephyr settings-subsystem ordering issue: the Memfault log backend
- * fires before settings is initialized, so the SDK boot hook cannot call
- * settings_load_subtree().  Restore is done in on_connect() instead.
+/* Enable MEMFAULT_LOG_RESTORE_STATE to compile memfault_log_get_state(), which
+ * is required by memfault_log_state_restore.c at connect-time.
+ * We do NOT override the weak memfault_log_restore_state() callback, so the
+ * SDK default (returns false) fires harmlessly at the early-boot log backend
+ * init — before Zephyr settings is ready.  The actual restore into the live
+ * ring buffer happens in on_connect() via memfault_log_state_restore_on_connect().
  */
+#if defined(CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE) && CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE
+#define MEMFAULT_LOG_RESTORE_STATE 1
+#else
 #define MEMFAULT_LOG_RESTORE_STATE 0
+#endif
