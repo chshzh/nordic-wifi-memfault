@@ -16,8 +16,9 @@
  * is required by memfault_log_state_restore.c at connect-time.
  * We do NOT override the weak memfault_log_restore_state() callback, so the
  * SDK default (returns false) fires harmlessly at the early-boot log backend
- * init — before Zephyr settings is ready.  The actual restore into the live
- * ring buffer happens in on_connect() via memfault_log_state_restore_on_connect().
+ * init — before the external flash driver is ready.  The actual restore into
+ * the live ring buffer happens in on_connect() via
+ * memfault_log_state_restore_on_connect().
  */
 #if defined(CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE) && CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE
 #define MEMFAULT_LOG_RESTORE_STATE 1

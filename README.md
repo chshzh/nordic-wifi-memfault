@@ -241,7 +241,7 @@ Only coredumps are written to non-volatile storage and survive a reset. All othe
 | Coredump (nRF54LM20DK) | `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM=y` | RRAM partition `memfault_coredump_partition` (64 KB at `0x1d5000`) | No — survives power cycle |
 | Coredump (nRF7002DK) | `CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y` | Flash partition `memfault_storage` (64 KB at `0xf0000`) | No — survives power cycle |
 | Heartbeat / trace events | `CONFIG_MEMFAULT_EVENT_STORAGE_SIZE=4096` | RAM ring buffer | Yes — lost on hard reset |
-| Log file | `CONFIG_MEMFAULT_LOGGING_RAM_SIZE=4096` | RAM circular buffer | Yes — lost on hard reset |
+| Log file | `CONFIG_MEMFAULT_LOGGING_RAM_SIZE=4096` | RAM circular buffer; disconnect-time snapshot persisted to external flash (`mflt-log-state`, 8 KB on mx25r64) when `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE=y` | Conditionally no — survives power cycle via external flash restore on next reconnect |
 | CDR (nRF70 FW stats) | `CONFIG_NRF70_FW_STATS_CDR_ENABLED=y` | Static RAM buffer (up to 1 KB) | Yes — lost on reboot before upload |
 
 #### Free-Tier Rate Limits

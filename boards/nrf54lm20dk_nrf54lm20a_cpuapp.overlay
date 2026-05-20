@@ -50,5 +50,11 @@
 			label = "image-1";
 			reg = <0x0 0x0 0x1c3000>;
 		};
+
+		/* 8 KB dedicated partition for Memfault disconnect-time log-state blob */
+		mflt_log_state_partition: partition@1c3000 {
+			label = "mflt-log-state";
+			reg = <0x0 0x1c3000 0x2000>;
+		};
 	};
 };

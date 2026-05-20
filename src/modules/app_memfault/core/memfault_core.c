@@ -48,10 +48,15 @@ static volatile bool wifi_connected;
 /* Delay log freeze after disconnect so post-disconnect logs are captured */
 #define LOG_FREEZE_DELAY_SEC 10
 
+/* Guard: ensures only the first disconnect event schedules the persist work.
+ * Cleared when the work fires or when WiFi reconnects.
+ */
+static bool log_freeze_scheduled;
+
 static void log_freeze_work_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
-	memfault_log_trigger_collection();
+	log_freeze_scheduled = false;
 #if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE
 	int err = memfault_log_state_persist_now();
 	if (err) {
@@ -114,6 +119,11 @@ static void on_connect(void)
 #if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE
 	int restore_err = memfault_log_state_restore_on_connect();
 	if (restore_err == 0) {
+		/* Trigger collection NOW so the restored ring-buffer content
+		 * (which has no saved trigger watermark after a power cycle)
+		 * is included in the next upload.
+		 */
+		memfault_log_trigger_collection();
 		LOG_INF("Disconnect-time log state restored — uploading to Memfault");
 	}
 #endif
@@ -177,9 +187,10 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 	switch (msg->type) {
 	case WIFI_STA_CONNECTED:
 		wifi_connected = true;
+		log_freeze_scheduled = false;
+		k_work_cancel_delayable(&log_freeze_work);
 		memfault_metrics_connectivity_connected_state_change(
 			kMemfaultMetricsConnectivityState_Connected);
-		// k_work_cancel_delayable(&log_freeze_work);
 #if CONFIG_MEMFAULT_NCS_STACK_METRICS
 		mflt_stack_metrics_init();
 		LOG_INF("Stack metrics monitoring initialized");
@@ -190,9 +201,13 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 		wifi_connected = false;
 		memfault_metrics_connectivity_connected_state_change(
 			kMemfaultMetricsConnectivityState_ConnectionLost);
-		LOG_WRN("Network connectivity lost - scheduling Memfault log freeze in %d s",
-			LOG_FREEZE_DELAY_SEC);
-		k_work_reschedule(&log_freeze_work, K_SECONDS(LOG_FREEZE_DELAY_SEC));
+		if (!log_freeze_scheduled) {
+			log_freeze_scheduled = true;
+			k_work_schedule(&log_freeze_work, K_SECONDS(LOG_FREEZE_DELAY_SEC));
+			LOG_WRN("Network connectivity lost - scheduling Memfault log persist in %d "
+				"s",
+				LOG_FREEZE_DELAY_SEC);
+		}
 		break;
 	default:
 		break;
@@ -211,9 +226,13 @@ static void memfault_network_listener(const struct zbus_channel *chan)
 	const struct network_msg *msg = zbus_chan_const_msg(chan);
 
 	if (msg->type == NETWORK_NOT_READY) {
-		LOG_WRN("Network connectivity lost - scheduling Memfault log freeze in %d s",
-			LOG_FREEZE_DELAY_SEC);
-		k_work_reschedule(&log_freeze_work, K_SECONDS(LOG_FREEZE_DELAY_SEC));
+		if (!log_freeze_scheduled) {
+			log_freeze_scheduled = true;
+			k_work_schedule(&log_freeze_work, K_SECONDS(LOG_FREEZE_DELAY_SEC));
+			LOG_WRN("Network connectivity lost - scheduling Memfault log persist in %d "
+				"s",
+				LOG_FREEZE_DELAY_SEC);
+		}
 	}
 }
 
