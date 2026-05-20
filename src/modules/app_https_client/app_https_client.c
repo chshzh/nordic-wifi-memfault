@@ -207,8 +207,7 @@ static void https_record_failed_attempt(const char *reason)
 	MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_total_count, https_req_total);
 	MEMFAULT_METRIC_SET_UNSIGNED(app_https_req_fail_count, https_req_failures);
 	LOG_WRN("%s", reason);
-	LOG_INF("Test Result: %u/%u (success/total)", https_req_total - https_req_failures,
-		https_req_total);
+	LOG_WRN("Test: FAIL, %u/%u", https_req_total - https_req_failures, https_req_total);
 }
 
 static void send_http_request(void)
@@ -341,8 +340,11 @@ clean_up:
 	LOG_DBG("GET %s -> %s  (total=%u, fail=%u)", CONFIG_APP_HTTPS_HOSTNAME,
 		request_failed ? "FAILED" : (status_line[0] ? status_line : "OK"), https_req_total,
 		https_req_failures);
-	LOG_INF("Test Result: %u/%u (success/total)", https_req_total - https_req_failures,
-		https_req_total);
+	if (request_failed) {
+		LOG_WRN("Test: FAIL, %u/%u", https_req_total - https_req_failures, https_req_total);
+	} else {
+		LOG_INF("Test: OK, %u/%u", https_req_total - https_req_failures, https_req_total);
+	}
 
 	if (fd >= 0) {
 		/* Graceful shutdown - notify peer we're done sending */
@@ -452,7 +454,11 @@ static void app_https_client_thread(void *arg1, void *arg2, void *arg3)
 			k_sleep(K_SECONDS(HTTPS_REQUEST_INTERVAL_SEC));
 		}
 
-		LOG_INF("Network disconnected or client stopped");
+		if (has_seen_network_connection) {
+			https_record_failed_attempt("Network disconnected or client stopped");
+		} else {
+			LOG_INF("Network disconnected or client stopped");
+		}
 	}
 
 	LOG_INF("App HTTPS client thread exiting");

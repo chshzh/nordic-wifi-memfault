@@ -22,19 +22,18 @@ int main(void)
 	struct net_linkaddr *mac_addr = iface ? net_if_get_link_addr(iface) : NULL;
 
 	LOG_INF("==============================================");
-	LOG_INF("Board:   %s", CONFIG_BOARD);
 #if defined(CONFIG_MEMFAULT_NCS_FW_VERSION)
 	LOG_INF("Version: %s", CONFIG_MEMFAULT_NCS_FW_VERSION);
 #endif
 	LOG_INF("Build:   %s %s", __DATE__, __TIME__);
 	LOG_INF("Specs:   %s", SPECS_VERSION);
+	LOG_INF("Board:   %s", CONFIG_BOARD);
 	if (mac_addr && mac_addr->len == 6) {
 		LOG_INF("MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac_addr->addr[0], mac_addr->addr[1],
 			mac_addr->addr[2], mac_addr->addr[3], mac_addr->addr[4], mac_addr->addr[5]);
 	}
 	LOG_INF("----------------------------------------------");
 	LOG_INF("Enabled modules:");
-
 	/* Input */
 #if CONFIG_BUTTON_MODULE
 	LOG_INF("  [input]  button");

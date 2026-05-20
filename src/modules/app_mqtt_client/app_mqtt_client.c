@@ -77,8 +77,7 @@ static void mqtt_record_failed_attempt(const char *reason)
 	MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_total_count, mqtt_echo_total);
 	MEMFAULT_METRIC_SET_UNSIGNED(app_mqtt_echo_fail_count, mqtt_echo_failures);
 	LOG_WRN("%s", reason);
-	LOG_INF("Test Result: %u/%u (success/total)", mqtt_echo_total - mqtt_echo_failures,
-		mqtt_echo_total);
+	LOG_WRN("Test: FAIL, %u/%u", mqtt_echo_total - mqtt_echo_failures, mqtt_echo_total);
 }
 
 /* MQTT helper callbacks */
@@ -175,8 +174,7 @@ static void on_mqtt_publish(struct mqtt_helper_buf topic, struct mqtt_helper_buf
 	} else {
 		LOG_DBG("ECHO #%u <- \"%.*s\"  (total=%u, fail=%u)", mqtt_echo_total, payload.size,
 			payload.ptr, mqtt_echo_total, mqtt_echo_failures);
-		LOG_INF("Test Result: %u/%u (success/total)", mqtt_echo_total - mqtt_echo_failures,
-			mqtt_echo_total);
+		LOG_INF("Test: OK, %u/%u", mqtt_echo_total - mqtt_echo_failures, mqtt_echo_total);
 	}
 }
 
@@ -486,7 +484,11 @@ static void app_mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 			}
 		}
 
-		LOG_INF("Network disconnected or client stopped");
+		if (has_seen_network_connection) {
+			mqtt_record_failed_attempt("Network disconnected or client stopped");
+		} else {
+			LOG_INF("Network disconnected or client stopped");
+		}
 	}
 
 	LOG_INF("App MQTT client thread exiting");
