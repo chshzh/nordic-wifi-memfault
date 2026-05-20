@@ -45,12 +45,11 @@ LOG_MODULE_REGISTER(wifi_prov_over_ble, CONFIG_WIFI_PROV_OVER_BLE_LOG_LEVEL);
 #define ADV_DATA_FLAG_CONN_STATUS_BIT BIT(1)
 #define ADV_DATA_RSSI_IDX             (BT_UUID_SIZE_128 + 3)
 
-#define PROV_BT_LE_ADV_PARAM_FAST                                              \
-	BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN, BT_GAP_ADV_FAST_INT_MIN_2,         \
-			BT_GAP_ADV_FAST_INT_MAX_2, NULL)
-#define PROV_BT_LE_ADV_PARAM_SLOW                                              \
-	BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN, BT_GAP_ADV_SLOW_INT_MIN,           \
-			BT_GAP_ADV_SLOW_INT_MAX, NULL)
+#define PROV_BT_LE_ADV_PARAM_FAST                                                                  \
+	BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN, BT_GAP_ADV_FAST_INT_MIN_2, BT_GAP_ADV_FAST_INT_MAX_2,  \
+			NULL)
+#define PROV_BT_LE_ADV_PARAM_SLOW                                                                  \
+	BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN, BT_GAP_ADV_SLOW_INT_MIN, BT_GAP_ADV_SLOW_INT_MAX, NULL)
 
 #define ADV_DAEMON_STACK_SIZE 4096
 #define ADV_DAEMON_PRIORITY   5
@@ -82,8 +81,8 @@ static const struct bt_data sd[] = {
 static struct k_work_delayable update_adv_param_work;
 static struct k_work_delayable update_adv_data_work;
 
-static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb,
-				    uint64_t mgmt_event, struct net_if *iface)
+static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_event,
+				    struct net_if *iface)
 {
 	ARG_UNUSED(iface);
 	if (!wifi_prov_state_get()) {
@@ -91,33 +90,49 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb,
 	}
 	switch (mgmt_event) {
 	case NET_EVENT_WIFI_DISCONNECT_RESULT: {
-		const struct wifi_status *status =
-			(const struct wifi_status *)cb->info;
+		const struct wifi_status *status = (const struct wifi_status *)cb->info;
 		/*
-		 * Skip auto-reconnect for provisioner-initiated disconnects
-		 * (status == 0 means intentional/locally-generated, which is
-		 * what the provisioner does before a WiFi scan).  The
-		 * provisioner library owns reconnect in that case; scheduling
-		 * our own reconnect work races against it and can crash the
-		 * WPA supplicant.
+		 * Only defer to the provisioner when it is actively running
+		 * (e.g. it called NET_REQUEST_WIFI_DISCONNECT before a scan).
+		 *
+		 * status==0 with provisioner NOT active means WPA supplicant
+		 * self-disconnected after beacon loss (AP went away).  Schedule
+		 * reconnect in that case — the same as for non-zero status.
 		 */
-		if (status && status->status == 0) {
+		if (status && status->status == 0 && wifi_prov_state_get()) {
 			LOG_INF("WiFi disconnected (intentional), deferring "
 				"reconnect to provisioner");
 			break;
 		}
 		if (!wifi_reconnect_pending) {
 			wifi_reconnect_pending = true;
-			k_work_reschedule(&wifi_connect_work,
-					  K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
-			LOG_INF("WiFi disconnected, scheduling reconnect");
+			k_work_reschedule(&wifi_connect_work, K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
+			LOG_INF("WiFi disconnected, scheduling reconnect in %d s",
+				WIFI_RECONNECT_DELAY_SEC);
 		}
 		break;
 	}
-	case NET_EVENT_WIFI_CONNECT_RESULT:
-		wifi_reconnect_pending = false;
-		k_work_cancel_delayable(&wifi_connect_work);
+	case NET_EVENT_WIFI_CONNECT_RESULT: {
+		const struct wifi_status *status = (const struct wifi_status *)cb->info;
+		if (status && status->status == 0) {
+			/* Success — clear reconnect state */
+			wifi_reconnect_pending = false;
+			k_work_cancel_delayable(&wifi_connect_work);
+		} else {
+			/* Failed connect (timeout, auth error, etc.).
+			 * WPA supplicant does not fire DISCONNECT_RESULT after a
+			 * failed connect attempt, so schedule retry here.
+			 */
+			if (!wifi_reconnect_pending) {
+				wifi_reconnect_pending = true;
+				k_work_reschedule(&wifi_connect_work,
+						  K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
+				LOG_WRN("WiFi connection failed (err=%d), scheduling retry",
+					status ? status->status : -1);
+			}
+		}
 		break;
+	}
 	default:
 		break;
 	}
@@ -128,13 +143,10 @@ static void wifi_connect_work_handler(struct k_work *work)
 	int err;
 	struct net_if *iface = net_if_get_default();
 	struct wifi_iface_status status = {0};
-	int status_rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status,
-				 sizeof(status));
-	bool wifi_is_connected =
-		(status_rc == 0 && status.state >= WIFI_STATE_ASSOCIATED);
-	bool wifi_is_connecting =
-		(status_rc == 0 && status.state > WIFI_STATE_DISCONNECTED &&
-		 status.state < WIFI_STATE_ASSOCIATED);
+	int status_rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status, sizeof(status));
+	bool wifi_is_connected = (status_rc == 0 && status.state >= WIFI_STATE_ASSOCIATED);
+	bool wifi_is_connecting = (status_rc == 0 && status.state > WIFI_STATE_DISCONNECTED &&
+				   status.state < WIFI_STATE_ASSOCIATED);
 	bool reconnect_cycle_active = wifi_reconnect_pending;
 
 	if (wifi_is_connected) {
@@ -155,8 +167,7 @@ static void wifi_connect_work_handler(struct k_work *work)
 	 */
 	if (wifi_prov_state_get()) {
 		LOG_INF("Provisioner active, deferring connect attempt");
-		k_work_reschedule(&wifi_connect_work,
-				  K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
+		k_work_reschedule(&wifi_connect_work, K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
 		return;
 	}
 	if (wifi_is_connecting) {
@@ -174,8 +185,7 @@ static void wifi_connect_work_handler(struct k_work *work)
 		}
 	}
 	if (reconnect_cycle_active) {
-		k_work_reschedule(&wifi_connect_work,
-				  K_SECONDS(WIFI_RECONNECT_RETRY_SEC));
+		k_work_reschedule(&wifi_connect_work, K_SECONDS(WIFI_RECONNECT_RETRY_SEC));
 		LOG_INF("WiFi still disconnected, retrying in %d seconds",
 			WIFI_RECONNECT_RETRY_SEC);
 	}
@@ -199,23 +209,17 @@ static void update_wifi_status_in_adv(void)
 	last_prov_state = current_prov_state;
 
 	if (!current_prov_state) {
-		prov_svc_data[ADV_DATA_FLAG_IDX] &=
-			~ADV_DATA_FLAG_PROV_STATUS_BIT;
+		prov_svc_data[ADV_DATA_FLAG_IDX] &= ~ADV_DATA_FLAG_PROV_STATUS_BIT;
 	} else {
-		prov_svc_data[ADV_DATA_FLAG_IDX] |=
-			ADV_DATA_FLAG_PROV_STATUS_BIT;
-		if (!connection_requested_after_provisioning &&
-		    !wifi_credentials_is_empty() &&
+		prov_svc_data[ADV_DATA_FLAG_IDX] |= ADV_DATA_FLAG_PROV_STATUS_BIT;
+		if (!connection_requested_after_provisioning && !wifi_credentials_is_empty() &&
 		    !credentials_existed_at_boot) {
-			rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface,
-				      &status, sizeof(status));
-			bool wifi_is_connected =
-				(rc == 0 &&
-				 status.state >= WIFI_STATE_ASSOCIATED);
+			rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status,
+				      sizeof(status));
+			bool wifi_is_connected = (rc == 0 && status.state >= WIFI_STATE_ASSOCIATED);
 			if (!wifi_is_connected) {
 				connection_requested_after_provisioning = true;
-				k_work_reschedule(&wifi_connect_work,
-						  K_SECONDS(2));
+				k_work_reschedule(&wifi_connect_work, K_SECONDS(2));
 				LOG_INF("WiFi credentials provisioned, "
 					"scheduling connection");
 			}
@@ -225,12 +229,10 @@ static void update_wifi_status_in_adv(void)
 	rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status,
 		      sizeof(struct wifi_iface_status));
 	if ((rc != 0) || (status.state < WIFI_STATE_ASSOCIATED)) {
-		prov_svc_data[ADV_DATA_FLAG_IDX] &=
-			~ADV_DATA_FLAG_CONN_STATUS_BIT;
+		prov_svc_data[ADV_DATA_FLAG_IDX] &= ~ADV_DATA_FLAG_CONN_STATUS_BIT;
 		prov_svc_data[ADV_DATA_RSSI_IDX] = INT8_MIN;
 	} else {
-		prov_svc_data[ADV_DATA_FLAG_IDX] |=
-			ADV_DATA_FLAG_CONN_STATUS_BIT;
+		prov_svc_data[ADV_DATA_FLAG_IDX] |= ADV_DATA_FLAG_CONN_STATUS_BIT;
 		prov_svc_data[ADV_DATA_RSSI_IDX] = status.rssi;
 	}
 }
@@ -267,8 +269,7 @@ static void identity_resolved(struct bt_conn *conn, const bt_addr_le_t *rpa,
 	ARG_UNUSED(identity);
 }
 
-static void security_changed(struct bt_conn *conn, bt_security_t level,
-			     enum bt_security_err err)
+static void security_changed(struct bt_conn *conn, bt_security_t level, enum bt_security_err err)
 {
 	ARG_UNUSED(conn);
 	ARG_UNUSED(level);
@@ -315,9 +316,8 @@ static void update_adv_data_task(struct k_work *item)
 	update_wifi_status_in_adv();
 	if (current_conn != NULL) {
 #ifdef CONFIG_WIFI_PROV_ADV_DATA_UPDATE
-		k_work_reschedule_for_queue(
-			&adv_daemon_work_q, &update_adv_data_work,
-			K_SECONDS(ADV_DATA_UPDATE_INTERVAL));
+		k_work_reschedule_for_queue(&adv_daemon_work_q, &update_adv_data_work,
+					    K_SECONDS(ADV_DATA_UPDATE_INTERVAL));
 #endif
 		return;
 	}
@@ -340,8 +340,7 @@ static void update_adv_param_task(struct k_work *item)
 		LOG_ERR("Cannot stop advertisement: err = %d", rc);
 		return;
 	}
-	rc = bt_le_adv_start(prov_svc_data[ADV_DATA_FLAG_IDX] &
-					     ADV_DATA_FLAG_PROV_STATUS_BIT
+	rc = bt_le_adv_start(prov_svc_data[ADV_DATA_FLAG_IDX] & ADV_DATA_FLAG_PROV_STATUS_BIT
 				     ? PROV_BT_LE_ADV_PARAM_SLOW
 				     : PROV_BT_LE_ADV_PARAM_FAST,
 			     ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
@@ -369,8 +368,7 @@ int wifi_prov_over_ble_init(void)
 {
 	int rc;
 	struct net_if *iface = net_if_get_default();
-	struct net_linkaddr *mac_addr =
-		iface ? net_if_get_link_addr(iface) : NULL;
+	struct net_linkaddr *mac_addr = iface ? net_if_get_link_addr(iface) : NULL;
 	char device_name_str[sizeof(device_name) + 1];
 
 	credentials_existed_at_boot = !wifi_credentials_is_empty();
@@ -383,8 +381,7 @@ int wifi_prov_over_ble_init(void)
 
 	k_work_queue_init(&adv_daemon_work_q);
 	k_work_queue_start(&adv_daemon_work_q, adv_daemon_stack_area,
-			   K_THREAD_STACK_SIZEOF(adv_daemon_stack_area),
-			   ADV_DAEMON_PRIORITY,
+			   K_THREAD_STACK_SIZEOF(adv_daemon_stack_area), ADV_DAEMON_PRIORITY,
 			   &(const struct k_work_queue_config){.name = "ble_adv_daemon_wq"});
 	k_work_init_delayable(&wifi_connect_work, wifi_connect_work_handler);
 	k_work_init_delayable(&update_adv_param_work, update_adv_param_task);
@@ -417,8 +414,7 @@ int wifi_prov_over_ble_init(void)
 
 	update_wifi_status_in_adv();
 
-	rc = bt_le_adv_start(prov_svc_data[ADV_DATA_FLAG_IDX] &
-					     ADV_DATA_FLAG_PROV_STATUS_BIT
+	rc = bt_le_adv_start(prov_svc_data[ADV_DATA_FLAG_IDX] & ADV_DATA_FLAG_PROV_STATUS_BIT
 				     ? PROV_BT_LE_ADV_PARAM_SLOW
 				     : PROV_BT_LE_ADV_PARAM_FAST,
 			     ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
@@ -451,8 +447,7 @@ void wifi_prov_over_ble_update_wifi_status(bool connected)
 		wifi_connect_requested = false;
 		wifi_reconnect_pending = false;
 	}
-	k_work_reschedule_for_queue(&adv_daemon_work_q, &update_adv_data_work,
-				    K_NO_WAIT);
+	k_work_reschedule_for_queue(&adv_daemon_work_q, &update_adv_data_work, K_NO_WAIT);
 }
 
 /* Zbus: update BLE advertisement when WiFi connect/disconnect (from wifi
@@ -472,8 +467,7 @@ static void wifi_prov_over_ble_listener(const struct zbus_channel *chan)
 	}
 }
 
-ZBUS_LISTENER_DEFINE(wifi_prov_over_ble_listener_def,
-		     wifi_prov_over_ble_listener);
+ZBUS_LISTENER_DEFINE(wifi_prov_over_ble_listener_def, wifi_prov_over_ble_listener);
 ZBUS_CHAN_ADD_OBS(WIFI_CHAN, wifi_prov_over_ble_listener_def, 0);
 
 /* Initialize BLE provisioning after network event module init (default 90). */
