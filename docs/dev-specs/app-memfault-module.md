@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Module | app_memfault |
-| Version | 2026-05-19-09-07 |
-| PRD Version | 2026-05-19-09-07 |
+| Version | 2026-05-21-10-01 |
+| PRD Version | 2026-05-21-10-01 |
 | Status | Draft |
 
 ---
@@ -23,6 +23,7 @@
 | 2026-05-16-17-00 | OTA check interval increased to 60 min (24/day) |
 | 2026-05-19-09-07 | FR-007: connect-time ring-buffer restore; removed boot-time MEMFAULT_LOG_RESTORE_STATE hook (settings ordering issue); persist on disconnect, restore+upload on next WiFi connect |
 | 2026-05-20-14-00 | Remove RAM-only freeze (trigger_collection on disconnect); persist-once guard (log_freeze_scheduled flag + k_work_schedule); trigger_collection moved to on_connect() after flash restore; visual log-restore boundary separator; WiFi CONNECT_RESULT failure triggers retry; both boards enabled for log-state restore |
+| 2026-05-21-10-01 | FR-008: CDR flash persist on disconnect; CDR blob restore on next WiFi connect; new `mflt_cdr_state_partition` external flash partition (8 KB); `CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE` Kconfig; persist/restore functions added to nrf70_fw_stats_cdr.c; memfault_core.c integrated in log_freeze_work_fn() and on_connect() |
 
 ---
 
@@ -66,7 +67,28 @@ by the Zephyr log formatter at capture time). A visual separator log line
 is written to the ring buffer after restore so the boundary is visible in the
 Memfault cloud log view.
 
-**Why `MEMFAULT_LOG_RESTORE_STATE=1` but no `memfault_log_restore_state()` override?**
+**CDR persist on connectivity loss (FR-008, `CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`):**
+When the `log_freeze_work` fires (10 s after connectivity loss), `mflt_nrf70_fw_stats_cdr_persist_to_flash()`
+is called immediately after the log-state persist. It collects a fresh snapshot of nRF70 firmware
+statistics (PHY/LMAC/UMAC) via the same FMAC API used by the button-triggered path, then writes a
+16-byte header (`CDRS` magic, version 1, blob size) followed by the raw blob to the dedicated 8 KB
+`mflt-cdr-state` partition on the external SPI/QSPI NOR flash. Payload-then-header write ordering
+ensures that a partial write leaves the partition without a valid header, so restore safely returns
+`-ENOENT` on next boot. If the nRF70 driver is unavailable at collect time (e.g. device is being
+reset), the function returns `-ENODEV` and a warning is logged; no flash write is performed.
+
+**CDR restore and upload on next connect (FR-008, `CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`):**
+In `on_connect()`, after log-state restore, `mflt_nrf70_fw_stats_cdr_restore_from_flash()` reads the
+header and blob from the `mflt-cdr-state` partition. On a valid header, it copies the blob into the
+CDR module's internal `s_nrf70_fw_stats_blob` buffer, sets `s_nrf70_fw_stats_blob_size`, and marks
+`s_cdr_data_ready = true`. The partition is erased immediately after restore (one-shot). The CDR
+source is already registered at APPLICATION init (`mflt_nrf70_fw_stats_cdr_init()`), so `has_cdr_cb`
+returns `true` on the next `memfault_packetizer_data_available()` poll, and the subsequent
+`memfault_zephyr_port_post_data()` call uploads the CDR file. `mark_cdr_read_cb()` then clears the
+ready flag. If the stored blob size exceeds `NRF70_FW_STATS_BLOB_MAX_SIZE`, it is discarded with a
+warning. Enabled on both boards (nRF54LM20DK and nRF7002DK).
+
+
 `MEMFAULT_LOG_RESTORE_STATE=1` is required to compile `memfault_log_get_state()`, which
 the connect-time restore path uses to get live ring-buffer pointers. We intentionally do
 NOT override the weak `memfault_log_restore_state()` callback: the SDK default returns
@@ -102,7 +124,7 @@ only compiled when `CONFIG_NTP_MODULE=y` (nrf54lm20dk board config).
   - core/memfault_platform_time.c (nrf54lm20dk only — NTP-backed timestamp provider)
   - metrics/wifi_metrics.c(.h), metrics/stack_metrics.c(.h)
   - ota/ota_triggers.c(.h)
-  - cdr/nrf70_fw_stats_cdr.c(.h)
+  - cdr/nrf70_fw_stats_cdr.c(.h) (includes flash persist/restore when `CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE=y`)
   - config/memfault_metrics_heartbeat_config.def
   - Kconfig.app_memfault, Kconfig.defaults, CMakeLists.txt
 
@@ -164,7 +186,8 @@ Does not define its own public zbus channel in current implementation.
 | CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM | bool | y (nrf54lm20dk) | Use custom `memfault_platform_time_get_current()` backed by CLOCK_REALTIME (set by NTP module) |
 | CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM | bool | y (nrf54lm20dk) | RRAM-backed coredump storage using DTS `memfault_coredump_partition` |
 | CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM | bool | y (nrf7002dk) | Custom flash coredump backend in `core/memfault_flash_coredump_storage.c` using DTS `memfault_storage` partition; bypasses `PARTITION_MANAGER_ENABLED` dependency in upstream Kconfig |
-| CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE | bool | y (nrf54lm20dk), n (nrf7002dk) | Persist Memfault ring-buffer state to settings on disconnect; restore and upload on next WiFi connect |
+| CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE | bool | y (both boards) | Persist Memfault ring-buffer state to settings on disconnect; restore and upload on next WiFi connect |
+| CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE | bool | y (both boards) | Persist disconnect-time nRF70 CDR (WiFi fw stats) blob to external flash; restore and upload on next WiFi connect. Depends on `CONFIG_NRF70_FW_STATS_CDR_ENABLED`. |
 | CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE_MAX_BYTES | int | 3072 | Maximum settings payload bytes for the ring-buffer blob; bounded to protect the 8 KB shared settings partition |
 
 ---
@@ -214,6 +237,10 @@ Public headers expose module-specific helpers used within module group component
 | Upload failure (internet down) | `Memfault upload failed: <errno>` | error visible; `sync_memfault_failure` metric incremented in dashboard |
 | Reconnect after disconnect (no reboot) | logs appear in Memfault Issues/Logs view | disconnect-time log snapshot preserved and uploaded |
 | Reboot after disconnect → reconnect | `=== [LOG RESTORE] pre-disconnect logs above \| live session below ===` in Memfault cloud log; `Disconnect-time log state restored` on UART; Memfault Issues/Logs shows disconnect-time entries with original wall-clock timestamps | ring-buffer state survived power cycle via external flash; restore+upload succeeds on first connect after reboot |
+| Wi-Fi disconnect CDR persist | `Collecting nRF70 CDR data for disconnect-time persist...` → `Disconnect CDR state persisted to flash (N bytes)` on UART | CDR blob saved to `mflt-cdr-state` partition; N matches nRF70 fw stats size |
+| Reconnect after CDR persist (no reboot) | `Disconnect-time CDR state restored — uploading to Memfault` on UART; CDR file visible in Memfault Platform → Issues → CDR | CDR blob restored from flash, uploaded on first connect |
+| Reboot after CDR persist → reconnect | same UART log + CDR visible in Memfault Platform | CDR blob survived power cycle via external flash |
+| CDR collect failure (driver unavailable) | `nRF70 CDR collect failed for flash persist: -N` UART warning | graceful skip; no flash write; no crash |
 | Reboot after disconnect → firmware update → reconnect | no restored logs (size mismatch discards blob); normal upload only | safe discard; no crash; expected after OTA |
 | Memfault event timestamp (post NTP sync) | Memfault log file captured_date matches wall clock ± 2 s | NTP sync must precede the event; `CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM=y` required |
 | Button 1 short | `Button 1 short press: Memfault heartbeat + upload` | heartbeat metric increment + upload triggered in upload thread |

@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-05-18-15-20 |
+| Version | 2026-05-21-10-01 |
 | PRD Version | 2026-05-14-14-13 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
@@ -18,6 +18,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-05-18-15-20 | Switched restore-path design to compact internal settings storage (no dedicated external restore partition) |
+| 2026-05-21-10-01 | Added `mflt_cdr_state_partition` (8 KB) to external flash on both boards for FR-008 CDR flash persist/restore |
 | 2026-05-18-14-45 | Explored larger external restore storage design (later superseded by compact internal settings-only approach) |
 | 2026-05-18-14-05 | Clarified settings-storage use for disconnect diagnostics restore and noted 8 KB capacity limits for raw log snapshots |
 | 2026-05-15-22-02 | nRF54LM20DK: boot partition 56 KB → 64 KB; nRF7002DK: coredump backend changed from RAM-backed to flash-backed (custom) |
@@ -45,6 +46,8 @@ External flash - MX25R64 (8 MB):
 | Address | Partition | Size | Purpose |
 |---------|-----------|------|---------|
 | `0x000000` | `slot1_partition` | 920 KB | Secondary OTA slot |
+| `0x0E4000` | `mflt_log_state_partition` | 8 KB | Memfault disconnect-time log-state blob (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) |
+| `0x0E6000` | `mflt_cdr_state_partition` | 8 KB | Memfault disconnect-time CDR blob (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`) |
 
 #### Legacy Layout (Partition Manager, NCS 3.2 and earlier)
 
@@ -78,6 +81,8 @@ External flash - MX25R6435F (8 MB via spi00):
 | Address | Partition | Size | Purpose |
 |---------|-----------|------|---------|
 | `0x000000` | `slot1_partition` | 1804 KB | Secondary OTA slot |
+| `0x1C3000` | `mflt_log_state_partition` | 8 KB | Memfault disconnect-time log-state blob (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) |
+| `0x1C5000` | `mflt_cdr_state_partition` | 8 KB | Memfault disconnect-time CDR blob (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`) |
 
 #### Legacy Layout (Partition Manager, NCS 3.2 and earlier)
 

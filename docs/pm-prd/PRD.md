@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault |
-| Version | 2026-05-19-09-07 |
+| Version | 2026-05-21-10-01 |
 | Previous Version | 1.1 (legacy pm/PRD.md) |
 | Status | Draft |
 | Product Manager | Reverse update from implementation baseline |
@@ -25,6 +25,7 @@
 || 2026-05-16-17-00 | Memfault OTA check interval increased to 60 min (24/day); HTTPS request and MQTT publish intervals changed from 300 s to 900 s |
 || 2026-05-19-09-07 | Added FR-007: persist disconnect-time log state to flash and restore it on next WiFi reconnect for Memfault cloud upload |
 || 2026-05-20-14-00 | FR-007 revised: removed RAM-freeze (trigger_collection on disconnect); storage migrated to external flash partition; persist-once guard; both boards enabled; visual restore boundary in cloud logs |
+|| 2026-05-21-10-01 | Added FR-008: persist disconnect-time nRF70 CDR (WiFi firmware statistics) to external flash on disconnect; restore and upload to Memfault on next WiFi reconnect |
 
 ---
 
@@ -124,6 +125,7 @@ bring-up time.
 | FR-005 | developer | enable optional BLE/HTTPS/MQTT support paths | I can validate broader connectivity behavior | Optional modules start and react to WIFI_CHAN connectivity state | [app-wifi-prov-ble-module.md](../dev-specs/app-wifi-prov-ble-module.md), [app-https-client-module.md](../dev-specs/app-https-client-module.md), [app-mqtt-client-module.md](../dev-specs/app-mqtt-client-module.md) |
 | FR-006 | developer | have the device synchronize its clock from an NTP server after connecting to the network | debug log lines show real-world wall-clock timestamps instead of uptime-relative milliseconds, and Memfault events carry accurate timestamps on the dashboard | After network ready event, device queries pool.ntp.org; subsequent log lines display ISO date/time; Memfault events captured after first sync show wall-clock captured_date on the dashboard (nrf54lm20dk only); events before sync are marked unknown rather than epoch-0; device re-syncs periodically every CONFIG_NTP_RESYNC_INTERVAL_SEC seconds (default 21600 = 6 h) to compensate for crystal drift (40 ppm, max 0.86 s error per interval); feature is Kconfig-gated and off by default | [ntp-module.md](../dev-specs/ntp-module.md), [app-memfault-module.md](../dev-specs/app-memfault-module.md) |
 | FR-007 | developer | have disconnect-time log diagnostics survive a power cycle and appear in the Memfault platform after the device reconnects | I can root-cause connectivity failures that happen in the field without physical access to the device | On WIFI_STA_DISCONNECTED or NETWORK_NOT_READY: firmware saves the full Memfault ring-buffer state to a dedicated 8 KB partition on the external SPI/QSPI NOR flash exactly once per disconnect event (persist-once guard prevents duplicate persists when multiple network layers fire simultaneously); on next WiFi reconnect the persisted state is restored directly into the live Memfault ring buffer, `memfault_log_trigger_collection()` marks it for upload, and the data is uploaded to Memfault cloud; persisted blob is erased from external flash after restore; if restore payload size does not match the live ring-buffer size (firmware update between disconnect and reconnect), the blob is silently discarded with no crash; the restored log file contains original wall-clock timestamps; a visual separator line `=== [LOG RESTORE] pre-disconnect logs above \| live session below ===` appears in the Memfault cloud log view at the boundary between restored and live content; feature is Kconfig-gated (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`); enabled on both nRF54LM20DK and nRF7002DK | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [flash-memory-layout.md](../dev-specs/flash-memory-layout.md) |
+| FR-008 | developer | have disconnect-time nRF70 WiFi firmware statistics (CDR) survive a power cycle and be uploaded to the Memfault platform after the device reconnects | I can diagnose WiFi radio and LMAC/UMAC state at the moment of disconnection without physical access to the device | When the log-persist work fires 10 seconds after WIFI_STA_DISCONNECTED or NETWORK_NOT_READY: firmware collects fresh nRF70 firmware statistics (PHY/LMAC/UMAC) and saves the raw CDR blob to a dedicated 8 KB partition on the external SPI/QSPI NOR flash (`mflt-cdr-state`); on next WiFi reconnect the blob is restored into the CDR source buffer so that the existing `has_cdr_cb` returns true and the next `memfault_zephyr_port_post_data()` call uploads the CDR file to Memfault cloud; the partition is erased after restore; if the blob size exceeds `NRF70_FW_STATS_BLOB_MAX_SIZE` it is discarded with a warning; feature is Kconfig-gated (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`), depends on `CONFIG_NRF70_FW_STATS_CDR_ENABLED`; enabled on both nRF54LM20DK and nRF7002DK | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [flash-memory-layout.md](../dev-specs/flash-memory-layout.md) |
 
 ---
 

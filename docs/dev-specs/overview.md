@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-05-19-09-07 |
-| PRD Version | 2026-05-19-09-07 |
+| Version | 2026-05-21-10-01 |
+| PRD Version | 2026-05-21-10-01 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
 | Status | Draft |
@@ -20,6 +20,7 @@
 | 2026-05-14-14-13 | Reverse-design baseline generated from current implementation in src/modules and migrated to docs/dev-specs |
 | 2026-05-14-15-00 | Added ntp-module.md for FR-006: NTP time synchronization |
 | 2026-05-19-09-07 | Added FR-007 design: connect-time ring-buffer restore for persist-across-reboot disconnect log upload |
+| 2026-05-21-10-01 | Added FR-008 design: CDR flash persist/restore for disconnect-time nRF70 WiFi stats; new `mflt-cdr-state` external flash partition; `CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE` Kconfig |
 
 ---
 
