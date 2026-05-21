@@ -12,7 +12,7 @@
 CONFIG_MEMFAULT_NCS_PROJECT_KEY="your project key here"
 CONFIG_MEMFAULT_NCS_FW_VERSION="0.0.0"
 
-# --- Memfault CLI credentials ---
+# --- Memfault CLI credentials (NOT used by firmware, used by chsh-sk-memfault skill, fill but keep them commented out) ---
 # CLI: MEMFAULT_ORG_TOKEN=
 # CLI: MEMFAULT_ORG=
 # CLI: MEMFAULT_PROJECT=

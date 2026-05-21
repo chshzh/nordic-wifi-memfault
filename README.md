@@ -226,7 +226,7 @@ west flash -d build_nrf54lm20dk
 #### General
 
 - Board-specific Kconfig overrides are in `boards/*.conf` (both nRF54LM20DK and nRF7002DK).
-- Coredump and partition behavior follows DTS fixed-partitions for NCS v3.3.0.
+- Partition Manager (PM) is deprecated in NCS v3.3.0 and will be removed by end of 2026. This project was migrated to DTS-based partitioning: flash layouts are defined in `boards/<board>.overlay`, MCUboot shares the same map via `sysbuild/mcuboot/boards/<board>.overlay` (which `#include`s the app overlay), and PM is disabled with `SB_CONFIG_PARTITION_MANAGER=n` in `sysbuild.conf`. If DFU is active in the field from a PM-era firmware, the new DTS partition addresses **must** match the old `pm_static.yml` addresses exactly — address mismatch prevents MCUboot from validating the upgrade image.
 - nRF7002DK uses a custom flash coredump backend (`CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y`) in `src/modules/app_memfault/core/memfault_flash_coredump_storage.c` to bypass the upstream `PARTITION_MANAGER_ENABLED` dependency in `CONFIG_MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP`.
 
 #### Storage Architecture
