@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-05-14-00-00 |
+| Version | 2026-05-21-17-32 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK (nRF5340), nRF54LM20DK + nRF7002EB2 |
 | Method | Thread Analyzer (`CONFIG_THREAD_ANALYZER_AUTO`) + heap_monitor, steady-state after Wi-Fi STA connect, Memfault heartbeat, MQTT publish, and HTTPS GET cycle |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-05-21-17-32 | Second measurement pass (nRF54LM20DK log: WiFi timeout + reconnect + Memfault upload cycle); sysworkq overflow root-caused and fixed; WiFi thread oversizing corrected; ~52 KB RAM saved |
 | 2026-05-14-00-00 | Initial measurement and stack/heap sizing applied to prj.conf |
 
 ---
@@ -97,6 +98,47 @@ The system heap was peaking at **89 %** of its configured ceiling — within a s
 ---
 
 ## ISR Stack
+
+---
+
+## Measurement Update — 2026-05-21
+
+**Source:** `ncs_nrf54_latest.log` (nRF54LM20DK, LOG_MODE_IMMEDIATE enabled, T=33–125 s covering WiFi timeout, reconnect, and first Memfault upload). nRF7002DK data was early-boot only (T=1.6 s) and not used for sizing.
+
+**Root cause resolved:** `sysworkq` was overflowing at 2728 B during the WiFi reconnect path (`wpa_cli_cmd`[1024] + `_wpa_ctrl_command`[512] + `zvfs_poll_internal`[400] = ~4488 B actual peak). This caused silent `RESETREAS=0x40` reboots. The WiFi thread stacks (`hostap_*`, `nrf70_*`, `conn_mgr_monitor`) had been inflated defensively during overflow investigation; they are now correctly sized after the sysworkq fix.
+
+### Thread Stack Measurements (2026-05-21)
+
+| Thread name | Kconfig | nRF54LM20DK new | Old max | New max | New size | Old size | Δ | Note |
+|-------------|---------|----------------|---------|---------|----------|----------|---|------|
+| `sysworkq` | `SYSTEM_WORKQUEUE_STACK_SIZE` | 4488 / 6144 (73 %) | 2456 | **4488** | **4988** | 2728 | +2260 | WiFi reconnect path overflow (root cause fix) |
+| `main` | `MAIN_STACK_SIZE` | 1496 / 2048 (73 %) | 1448 | **1496** | **1662** | 2048 | −386 | |
+| `hostap_handler` | `WIFI_NM_WPA_SUPPLICANT_THREAD_STACK_SIZE` | 2832 / 20352 (13 %) | 5392 | **5392** ¹ | **5991** | 20240 | −14249 | ¹ 5392 from 2026-05-14 steady-state; new log is reconnect-only |
+| `hostap_iface_wq` | `WIFI_NM_WPA_SUPPLICANT_WQ_STACK_SIZE` | 3896 / 20480 (19 %) | 3856 | **3896** | **4328** | 20480 | −16152 | |
+| `conn_mgr_monitor` | `NET_CONNECTION_MANAGER_MONITOR_STACK_SIZE` | 4432 / 16384 (27 %) | 4424 | **4432** | **4924** | 16384 | −11460 | |
+| `nrf70_bh_wq` | `NRF70_BH_WQ_STACK_SIZE` | 1088 / 4096 (26 %) | — | **1088** | **1208** | 4096 | −2888 | First measurement; WiFi reconnect |
+| `nrf70_intr_wq` | `NRF70_IRQ_WQ_STACK_SIZE` | 792 / 4096 (19 %) | — | **792** | **880** | 4096 | −3216 | First measurement; WiFi reconnect |
+| `net_mgmt` | `NET_MGMT_EVENT_STACK_SIZE` | 1336 / 8192 (16 %) | 2940 | 2940 ² | **3266** | 8192 | −4926 | ² New log early-boot; retained prior peak 2940 |
+| `thread_analyzer` | `THREAD_ANALYZER_AUTO_STACK_SIZE` | 1216 / 4096 (29 %) ³ | 568 | **568** | **631** | 2048 | −1417 | ³ Measured with IMMEDIATE mode; DEFERRED peak is 568 |
+
+Heap unchanged: no heap stats available from current logs; 2026-05-14 measurements remain the reference.
+
+### Summary of Changes Applied — 2026-05-21
+
+| Kconfig | Old | New | Δ B | Reason |
+|---------|-----|-----|-----|--------|
+| `CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE` | 2728 | **4988** | +2260 | Overflow in WiFi reconnect path (wpa_cli_cmd stack depth) |
+| `CONFIG_WIFI_NM_WPA_SUPPLICANT_THREAD_STACK_SIZE` | 20240 | **5991** | −14249 | Root cause fixed; resize to measured steady-state max |
+| `CONFIG_WIFI_NM_WPA_SUPPLICANT_WQ_STACK_SIZE` | 20480 | **4328** | −16152 | Root cause fixed; 3896 peak confirmed |
+| `CONFIG_NET_CONNECTION_MANAGER_MONITOR_STACK_SIZE` | 16384 | **4924** | −11460 | Root cause fixed; 4432 peak confirmed |
+| `CONFIG_NRF70_BH_WQ_STACK_SIZE` | 4096 | **1208** | −2888 | Root cause fixed; first measurement 1088 |
+| `CONFIG_NRF70_IRQ_WQ_STACK_SIZE` | 4096 | **880** | −3216 | Root cause fixed; first measurement 792 |
+| `CONFIG_NET_MGMT_EVENT_STACK_SIZE` | 8192 | **3266** | −4926 | Correctly sized per existing measurement (2940) |
+| `CONFIG_MAIN_STACK_SIZE` | 2048 | **1662** | −386 | New peak 1496 > prior max 1448 |
+| `CONFIG_THREAD_ANALYZER_AUTO_STACK_SIZE` | 2048 | **631** | −1417 | DEFERRED mode; was left at 2048 after debug session |
+
+**Net stack RAM change (2026-05-21):** −52 434 B (∲52 KB saved)
+
 
 | Board | ISR0 usage | Allocated | Utilization |
 |-------|-----------|-----------|-------------|
