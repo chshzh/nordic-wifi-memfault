@@ -71,4 +71,18 @@ config APP_MEMFAULT_LOG_STATE_RESTORE
 	  The partition is erased after the restore.
 	  Enabled on all boards that define the mflt_log_state_partition DTS node.
 
+config APP_MEMFAULT_CDR_STATE_RESTORE
+	bool "Persist disconnect-time nRF70 CDR (WiFi stats) to flash; restore and upload on reconnect"
+	depends on FLASH_MAP
+	depends on NRF70_FW_STATS_CDR_ENABLED
+	default y
+	help
+	  When the log-persist work fires 10 s after connectivity loss, collects
+	  fresh nRF70 firmware statistics (PHY/LMAC/UMAC) and writes the raw CDR
+	  blob to a dedicated 8 KB partition on the external SPI/QSPI NOR flash
+	  ("mflt-cdr-state", mx25r64).  On the next WiFi reconnect the blob is
+	  restored into the CDR source buffer and uploaded to Memfault cloud.
+	  The partition is erased after restore.
+	  Enabled on all boards that define the mflt_cdr_state_partition DTS node.
+
 endif # APP_MEMFAULT_MODULE

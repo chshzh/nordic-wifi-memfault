@@ -14,6 +14,10 @@
 #include "../metrics/wifi_metrics.h"
 #include "../metrics/stack_metrics.h"
 
+#if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+#include "../cdr/nrf70_fw_stats_cdr.h"
+#endif
+
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
@@ -61,6 +65,12 @@ static void log_freeze_work_fn(struct k_work *work)
 	int err = memfault_log_state_persist_now();
 	if (err) {
 		LOG_WRN("Memfault log-state persist failed: %d", err);
+	}
+#endif
+#if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+	int cdr_err = mflt_nrf70_fw_stats_cdr_persist_to_flash();
+	if (cdr_err) {
+		LOG_WRN("Memfault CDR state persist failed: %d", cdr_err);
 	}
 #endif
 }
@@ -125,6 +135,13 @@ static void on_connect(void)
 		 */
 		memfault_log_trigger_collection();
 		LOG_INF("Disconnect-time log state restored — uploading to Memfault");
+	}
+#endif
+
+#if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+	int cdr_restore_err = mflt_nrf70_fw_stats_cdr_restore_from_flash();
+	if (cdr_restore_err == 0) {
+		LOG_INF("Disconnect-time CDR state restored — uploading to Memfault");
 	}
 #endif
 

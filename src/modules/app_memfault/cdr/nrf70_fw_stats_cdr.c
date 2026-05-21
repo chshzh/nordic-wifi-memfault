@@ -24,6 +24,10 @@
 #include "memfault/components.h"
 #include "memfault/core/data_packetizer.h"
 
+#if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+#include <zephyr/storage/flash_map.h>
+#endif
+
 extern struct nrf_wifi_drv_priv_zep rpu_drv_priv_zep;
 
 LOG_MODULE_REGISTER(nrf70_fw_stats_cdr, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
@@ -173,6 +177,139 @@ size_t mflt_nrf70_fw_stats_cdr_get_size(void)
 {
 	return s_nrf70_fw_stats_blob_size;
 }
+
+#if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+
+#define CDR_STATE_MAGIC  0x43445253u /* 'CDRS' */
+#define CDR_STATE_VER    1u
+#define CDR_STATE_FA_ID  FIXED_PARTITION_ID(mflt_cdr_state_partition)
+
+struct cdr_state_hdr {
+	uint32_t magic;
+	uint16_t version;
+	uint16_t reserved;
+	uint32_t blob_size;
+	uint32_t reserved2;
+};
+
+BUILD_ASSERT(sizeof(struct cdr_state_hdr) == 16, "cdr_state_hdr size changed");
+
+int mflt_nrf70_fw_stats_cdr_persist_to_flash(void)
+{
+	const struct flash_area *fa;
+	struct cdr_state_hdr hdr;
+	int err;
+
+	LOG_INF("Collecting nRF70 CDR data for disconnect-time persist...");
+
+	s_cdr_data_ready = false;
+	s_nrf70_fw_stats_blob_size = 0;
+	s_read_offset = 0;
+
+	err = collect_nrf70_fw_stats();
+	if (err) {
+		LOG_WRN("nRF70 CDR collect failed for flash persist: %d", err);
+		return err;
+	}
+	if (s_nrf70_fw_stats_blob_size == 0) {
+		return -ENODATA;
+	}
+	s_cdr_data_ready = true;
+
+	err = flash_area_open(CDR_STATE_FA_ID, &fa);
+	if (err) {
+		LOG_ERR("CDR state flash open failed: %d", err);
+		return err;
+	}
+
+	size_t total_len = sizeof(hdr) + s_nrf70_fw_stats_blob_size;
+
+	if (total_len > fa->fa_size) {
+		LOG_WRN("CDR state too large for flash partition (%zu > %zu B)", total_len,
+			(size_t)fa->fa_size);
+		flash_area_close(fa);
+		return -ENOSPC;
+	}
+
+	err = flash_area_erase(fa, 0, fa->fa_size);
+	if (err) {
+		LOG_ERR("CDR state flash erase failed: %d", err);
+		flash_area_close(fa);
+		return err;
+	}
+
+	/* Write payload first, header last — standard NOR atomic-commit pattern. */
+	err = flash_area_write(fa, sizeof(hdr), s_nrf70_fw_stats_blob, s_nrf70_fw_stats_blob_size);
+	if (err != 0) {
+		flash_area_close(fa);
+		LOG_ERR("CDR state flash write failed: %d", err);
+		return err;
+	}
+
+	hdr.magic = CDR_STATE_MAGIC;
+	hdr.version = CDR_STATE_VER;
+	hdr.reserved = 0u;
+	hdr.blob_size = (uint32_t)s_nrf70_fw_stats_blob_size;
+	hdr.reserved2 = 0u;
+
+	err = flash_area_write(fa, 0, &hdr, sizeof(hdr));
+	flash_area_close(fa);
+
+	if (err) {
+		LOG_ERR("CDR state flash header write failed: %d", err);
+		return err;
+	}
+
+	LOG_INF("Disconnect CDR state persisted to flash (%u bytes)",
+		(unsigned int)s_nrf70_fw_stats_blob_size);
+	return 0;
+}
+
+int mflt_nrf70_fw_stats_cdr_restore_from_flash(void)
+{
+	const struct flash_area *fa;
+	struct cdr_state_hdr hdr;
+	int err;
+
+	err = flash_area_open(CDR_STATE_FA_ID, &fa);
+	if (err) {
+		return -ENOENT;
+	}
+
+	err = flash_area_read(fa, 0, &hdr, sizeof(hdr));
+	if (err) {
+		flash_area_close(fa);
+		return -ENOENT;
+	}
+
+	if ((hdr.magic != CDR_STATE_MAGIC) || (hdr.version != CDR_STATE_VER) ||
+	    (hdr.blob_size == 0u) || (hdr.blob_size > NRF70_FW_STATS_BLOB_MAX_SIZE)) {
+		/* Partition empty or invalid header */
+		flash_area_close(fa);
+		return -ENOENT;
+	}
+
+	err = flash_area_read(fa, sizeof(hdr), s_nrf70_fw_stats_blob, hdr.blob_size);
+
+	/* One-shot: erase partition whether restore succeeded or not */
+	(void)flash_area_erase(fa, 0, fa->fa_size);
+	flash_area_close(fa);
+
+	if (err) {
+		LOG_ERR("CDR state flash read failed: %d", err);
+		return err;
+	}
+
+	s_nrf70_fw_stats_blob_size = hdr.blob_size;
+	s_nrf70_fw_stats_metadata.data_size_bytes = s_nrf70_fw_stats_blob_size;
+	s_cdr_data_ready = true;
+	s_read_offset = 0;
+
+	LOG_INF("Disconnect CDR state restored from flash (%u bytes)", (unsigned int)hdr.blob_size);
+	return 0;
+}
+
+#endif /* CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE */
 
 #if CONFIG_NRF70_FW_STATS_CDR_ENABLED
 /* Zbus: Button 1 short press -> collect nRF70 FW stats (memfault_core will post_data) */

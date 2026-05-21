@@ -56,5 +56,11 @@
 			label = "mflt-log-state";
 			reg = <0x0 0x1c3000 0x2000>;
 		};
+
+		/* 8 KB dedicated partition for Memfault disconnect-time CDR (WiFi stats) blob */
+		mflt_cdr_state_partition: partition@1c5000 {
+			label = "mflt-cdr-state";
+			reg = <0x0 0x1c5000 0x2000>;
+		};
 	};
 };
