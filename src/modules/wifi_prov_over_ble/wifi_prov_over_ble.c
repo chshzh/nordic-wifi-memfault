@@ -158,18 +158,6 @@ static void wifi_connect_work_handler(struct k_work *work)
 		wifi_reconnect_pending = false;
 		return;
 	}
-	/*
-	 * If the provisioner just set credentials and is driving its own
-	 * internal reconnect (wifi_prov_state_get() == true), don't race it
-	 * with a second NET_REQUEST_WIFI_CONNECT_STORED call.  Reschedule as
-	 * a fallback; the provisioner's NET_EVENT_WIFI_CONNECT_RESULT handler
-	 * will cancel this work if reconnect succeeds first.
-	 */
-	if (wifi_prov_state_get()) {
-		LOG_INF("Provisioner active, deferring connect attempt");
-		k_work_reschedule(&wifi_connect_work, K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
-		return;
-	}
 	if (wifi_is_connecting) {
 		LOG_DBG("WiFi connection in progress (state %d)", status.state);
 	} else {
