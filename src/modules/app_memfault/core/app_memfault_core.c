@@ -8,14 +8,14 @@
  * demos).
  */
 
-#include "memfault_core.h"
-#include "memfault_log_state_restore.h"
+#include "app_memfault_core.h"
+#include "app_memfault_log_state_restore.h"
 #include "../../messages.h"
-#include "../metrics/wifi_metrics.h"
-#include "../metrics/stack_metrics.h"
+#include "../metrics/app_memfault_wifi_metrics.h"
+#include "../metrics/app_memfault_stack_metrics.h"
 
 #if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
-#include "../cdr/nrf70_fw_stats_cdr.h"
+#include "../cdr/app_memfault_nrf70_fw_stats_cdr.h"
 #endif
 
 #include <zephyr/kernel.h>

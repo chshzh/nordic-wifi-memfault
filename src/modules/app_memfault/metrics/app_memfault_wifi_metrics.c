@@ -6,7 +6,7 @@
  * Wi-Fi metrics helpers for Memfault heartbeat collection.
  */
 
-#include "wifi_metrics.h"
+#include "app_memfault_wifi_metrics.h"
 
 #include <memfault/metrics/metrics.h>
 #include <stdio.h>

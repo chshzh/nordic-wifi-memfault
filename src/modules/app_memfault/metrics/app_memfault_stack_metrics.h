@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#ifndef STACK_METRICS_H
-#define STACK_METRICS_H
+#ifndef APP_MEMFAULT_STACK_METRICS_H
+#define APP_MEMFAULT_STACK_METRICS_H
 
 void mflt_stack_metrics_init(void);
 
-#endif /* STACK_METRICS_H */
+#endif /* APP_MEMFAULT_STACK_METRICS_H */

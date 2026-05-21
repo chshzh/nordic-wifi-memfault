@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#ifndef MEMFAULT_LOG_STATE_RESTORE_H
-#define MEMFAULT_LOG_STATE_RESTORE_H
+#ifndef APP_MEMFAULT_LOG_STATE_RESTORE_H
+#define APP_MEMFAULT_LOG_STATE_RESTORE_H
 
 /**
  * Persist the current Memfault ring-buffer state to Zephyr settings storage.
@@ -31,4 +31,4 @@ int memfault_log_state_persist_now(void);
  */
 int memfault_log_state_restore_on_connect(void);
 
-#endif /* MEMFAULT_LOG_STATE_RESTORE_H */
+#endif /* APP_MEMFAULT_LOG_STATE_RESTORE_H */

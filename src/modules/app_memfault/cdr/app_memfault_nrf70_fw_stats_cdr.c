@@ -7,7 +7,7 @@
  * Uses direct FMAC API for ON-DEMAND stats collection.
  */
 
-#include "nrf70_fw_stats_cdr.h"
+#include "app_memfault_nrf70_fw_stats_cdr.h"
 #include "../../messages.h"
 
 #include <zephyr/kernel.h>
@@ -180,9 +180,9 @@ size_t mflt_nrf70_fw_stats_cdr_get_size(void)
 
 #if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
 
-#define CDR_STATE_MAGIC  0x43445253u /* 'CDRS' */
-#define CDR_STATE_VER    1u
-#define CDR_STATE_FA_ID  FIXED_PARTITION_ID(mflt_cdr_state_partition)
+#define CDR_STATE_MAGIC 0x43445253u /* 'CDRS' */
+#define CDR_STATE_VER   1u
+#define CDR_STATE_FA_ID FIXED_PARTITION_ID(mflt_cdr_state_partition)
 
 struct cdr_state_hdr {
 	uint32_t magic;
@@ -329,7 +329,8 @@ static void cdr_button_listener(const struct zbus_channel *chan)
 	if (err) {
 		LOG_WRN("nRF70 FW stats CDR collection failed: %d", err);
 	} else {
-		LOG_INF("nRF70 FW stats CDR collected (%zu bytes)", mflt_nrf70_fw_stats_cdr_get_size());
+		LOG_INF("nRF70 FW stats CDR collected (%zu bytes)",
+			mflt_nrf70_fw_stats_cdr_get_size());
 	}
 }
 

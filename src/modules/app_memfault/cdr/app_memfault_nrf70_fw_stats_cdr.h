@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#ifndef NRF70_FW_STATS_CDR_H
-#define NRF70_FW_STATS_CDR_H
+#ifndef APP_MEMFAULT_NRF70_FW_STATS_CDR_H
+#define APP_MEMFAULT_NRF70_FW_STATS_CDR_H
 
 #include <stddef.h>
 
@@ -33,4 +33,4 @@ int mflt_nrf70_fw_stats_cdr_persist_to_flash(void);
 int mflt_nrf70_fw_stats_cdr_restore_from_flash(void);
 #endif /* CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE */
 
-#endif /* NRF70_FW_STATS_CDR_H */
+#endif /* APP_MEMFAULT_NRF70_FW_STATS_CDR_H */

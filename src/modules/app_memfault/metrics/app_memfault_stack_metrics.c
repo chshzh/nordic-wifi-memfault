@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include "stack_metrics.h"
+#include "app_memfault_stack_metrics.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>

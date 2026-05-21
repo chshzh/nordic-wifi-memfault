@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include "ota_triggers.h"
+#include "app_memfault_ota_triggers.h"
 #include "../../messages.h"
 
 #include <zephyr/kernel.h>

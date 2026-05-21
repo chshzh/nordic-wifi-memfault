@@ -25,7 +25,7 @@
  * is guaranteed initialized.
  */
 
-#include "memfault_log_state_restore.h"
+#include "app_memfault_log_state_restore.h"
 
 #include <errno.h>
 #include <string.h>

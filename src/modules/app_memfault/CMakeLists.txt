@@ -1,13 +1,13 @@
 # Memfault module group: core, metrics, ota, cdr
 if(CONFIG_MEMFAULT)
 target_sources(app PRIVATE
-	core/memfault_core.c
-	metrics/wifi_metrics.c
-	ota/ota_triggers.c
+	core/app_memfault_core.c
+	metrics/app_memfault_wifi_metrics.c
+	ota/app_memfault_ota_triggers.c
 )
 
 if(CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE)
-	target_sources(app PRIVATE core/memfault_log_state_restore.c)
+	target_sources(app PRIVATE core/app_memfault_log_state_restore.c)
 endif()
 endif()
 
@@ -15,22 +15,22 @@ endif()
 # Upstream Kconfig requires PARTITION_MANAGER_ENABLED even though the
 # implementation only uses FIXED_PARTITION_* DTS macros.
 if(CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM AND CONFIG_BOARD_NRF7002DK_NRF5340_CPUAPP)
-	target_sources(app PRIVATE core/memfault_flash_coredump_storage.c)
+	target_sources(app PRIVATE core/app_memfault_flash_coredump_storage.c)
 endif()
 
 # NTP module is only enabled on nrf54lm20dk; provide a CLOCK_REALTIME-backed
 # memfault_platform_time_get_current() so Memfault events get wall-clock timestamps.
 if(CONFIG_NTP_MODULE)
-	target_sources(app PRIVATE core/memfault_platform_time.c)
+	target_sources(app PRIVATE core/app_memfault_platform_time.c)
 endif()
 
 if(CONFIG_MEMFAULT_NCS_STACK_METRICS)
-	target_sources(app PRIVATE metrics/stack_metrics.c)
+	target_sources(app PRIVATE metrics/app_memfault_stack_metrics.c)
 	target_include_directories(app PRIVATE ${ZEPHYR_NRF_MODULE_DIR}/modules/memfault-firmware-sdk/include)
 endif()
 
 if(CONFIG_NRF70_FW_STATS_CDR_ENABLED)
-	target_sources(app PRIVATE cdr/nrf70_fw_stats_cdr.c)
+	target_sources(app PRIVATE cdr/app_memfault_nrf70_fw_stats_cdr.c)
 	set(NRF_WIFI_DIR ${ZEPHYR_BASE}/../modules/lib/nrf_wifi)
 	target_include_directories(app PRIVATE
 		${ZEPHYR_BASE}/drivers/wifi/nrf_wifi/inc
