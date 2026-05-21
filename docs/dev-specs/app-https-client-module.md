@@ -7,7 +7,6 @@
 | Module | app_https_client |
 | Version | 2026-05-16-13-00 |
 | PRD Version | 2026-05-14-14-13 |
-| Author | GitHub Copilot |
 | Status | Draft |
 
 ---

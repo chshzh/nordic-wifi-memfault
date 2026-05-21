@@ -7,7 +7,6 @@
 | Project | nordic-wifi-memfault |
 | Version | 2026-05-19-09-07 |
 | PRD Version | 2026-05-19-09-07 |
-| Author | GitHub Copilot |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
 | Status | Draft |
@@ -96,7 +95,21 @@ For detailed channels and structs, see [architecture.md](architecture.md).
 
 ---
 
-## 6. Open Issues
+## 6. Conventions
+
+**`SPECS_VERSION` — spec/code sync marker**
+
+`src/main.c` defines:
+```c
+#define SPECS_VERSION "<latest overview.md changelog timestamp>"
+```
+and prints it at boot. After any spec or PRD change that affects behavior, update
+`SPECS_VERSION` to match the new changelog timestamp and append a changelog row
+to each affected spec and to PRD.md.
+
+---
+
+## 7. Open Issues
 
 | # | Description | Owner | Target |
 |---|-------------|-------|--------|

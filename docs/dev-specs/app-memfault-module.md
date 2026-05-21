@@ -7,7 +7,6 @@
 | Module | app_memfault |
 | Version | 2026-05-19-09-07 |
 | PRD Version | 2026-05-19-09-07 |
-| Author | GitHub Copilot |
 | Status | Draft |
 
 ---

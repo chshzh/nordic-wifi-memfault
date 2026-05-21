@@ -1,9 +1,23 @@
 # Memory Optimization Report — nordic-wifi-memfault
 
-**Date:** 2026-05-14  
-**NCS version:** v3.3.0  
-**Boards measured:** nRF7002DK (nRF5340) · nRF54LM20DK + nRF7002EB2  
-**Method:** Thread Analyzer (`CONFIG_THREAD_ANALYZER_AUTO`) + heap_monitor, both at steady-state after Wi-Fi STA connect, Memfault heartbeat, MQTT publish, and HTTPS GET cycle.
+## Document Information
+
+| Field | Value |
+|-------|-------|
+| Project | nordic-wifi-memfault |
+| Version | 2026-05-14-00-00 |
+| NCS Version | v3.3.0 |
+| Target Board(s) | nRF7002DK (nRF5340), nRF54LM20DK + nRF7002EB2 |
+| Method | Thread Analyzer (`CONFIG_THREAD_ANALYZER_AUTO`) + heap_monitor, steady-state after Wi-Fi STA connect, Memfault heartbeat, MQTT publish, and HTTPS GET cycle |
+| Status | Applied |
+
+---
+
+## Changelog
+
+| Version | Summary of changes |
+|---|---|
+| 2026-05-14-00-00 | Initial measurement and stack/heap sizing applied to prj.conf |
 
 ---
 
@@ -93,9 +107,11 @@ ISR stack (`CONFIG_ISR_STACK_SIZE`) is at default (2048 B) and comfortably withi
 
 ---
 
-## Action Items
+## Open Issues
 
-- [ ] **Rebuild and flash both boards** after this change to confirm no regression.
-- [ ] **Re-run thread analyzer** after a full OTA download cycle to capture `DOWNLOADER_STACK_SIZE` high-water mark.
-- [ ] **Monitor system heap** — with the new 72 410 B ceiling the peak is 80 %. If future features push it higher, consider raising to 80 000 B.
-- [ ] **BT RX WQ** is grossly oversized (248 B used of 21 248 B, 1 %). `CONFIG_BT_RX_STACK_SIZE` cannot easily be reduced because Zephyr enforces a minimum tied to the maximum HCI event size. Leave as-is.
+| # | Description | Owner | Target |
+|---|-------------|-------|--------|
+| 1 | Rebuild and flash both boards after these changes to confirm no regression | Team | Next build cycle |
+| 2 | Re-run thread analyzer after a full OTA download cycle to capture `DOWNLOADER_STACK_SIZE` high-water mark | Team | Next OTA test |
+| 3 | Monitor system heap — with the new 72 410 B ceiling the peak is 80 %; raise to 80 000 B if future features push it higher | Team | Ongoing |
+| 4 | `BT RX WQ` is grossly oversized (248 B used of 21 248 B, 1 %); `CONFIG_BT_RX_STACK_SIZE` cannot easily be reduced due to Zephyr minimum tied to max HCI event size — leave as-is | — | — |

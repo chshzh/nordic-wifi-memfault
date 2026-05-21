@@ -7,7 +7,6 @@
 | Module | network |
 | Version | 2026-05-14-14-13 |
 | PRD Version | 2026-05-14-14-13 |
-| Author | GitHub Copilot |
 | Status | Draft |
 
 ---

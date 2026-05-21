@@ -29,16 +29,16 @@ or subscribe through zbus channels.
 - BLE Wi-Fi credential provisioning (nRF Wi-Fi Provisioner)
 - Memfault heartbeat, metrics, coredump reporting, and OTA checks
 - Button-driven validation paths (heartbeat/CDR, OTA check, crash demos)
-- Optional HTTPS periodic check module
-- Optional MQTT periodic publish/echo module
-- Optional NTP time synchronization — syncs system clock from `pool.ntp.org` after network ready; log timestamps show real-world UTC time (e.g. `[2026-05-14 19:34:52.299,000]`)
+- NTP time synchronization — syncs system clock from `pool.ntp.org` after network ready; log timestamps show real-world UTC time (e.g. `[2026-05-14 19:34:52.299,000]`)
+- Optional HTTPS periodic test module
+- Optional MQTT periodic pub/sub echo test module
 - Heap monitoring for system and mbedTLS heaps
 - Modular architecture based on SYS_INIT + zbus
 
 ### Target Users
 
-- **Evaluator** - flash release firmware and validate logs/events quickly
-- **Developer** - build from source and modify modules/config
+- **Evaluator** - flash release firmware and validate logs/events quickly, follow the [Evaluator Quick Start](#evaluator-quick-start) guide.
+- **Developer** - build from source and modify modules/config, see [Developer Info](#developer-info) for build setup and [Documentation](#documentation) for product requirements, architecture, and per-module specs.
 
 ---
 
@@ -46,7 +46,7 @@ or subscribe through zbus channels.
 
 ### Step 1 - Flash the firmware
 
-Download pre-built firmware from the [Releases](https://github.com/chshzh/nordic-wifi-memfault/releases/latest) page and flash your board.
+Download pre-built firmware from the [Latest release](https://github.com/chshzh/nordic-wifi-memfault/releases/latest) page and flash your board.
 
 Pre-built firmware is only available for approved custom Memfault projects because
 project keys are project-specific. If your project is not listed below, it is not
@@ -54,23 +54,20 @@ currently supported for evaluator pre-built access.
 
 | Supported project | Release artifact prefix | Status |
 |-------------------|-------------------------|--------|
-| nord_project | `nord_project_*` | Supported |
-| terr_project | `terr_project_*` | Supported |
+| nordic-test | `nord_project_*` | Supported |
+| terrfaforma | `terr_project_*` | Supported |
 
 For evaluation access to additional projects, contact charlie.shao@nordicsemi.no
 or local Nordic Sales team. Alternatively, follow the Developer path and configure
-your own project key.
+your own memfault project key to build the firmware.
 
-### Step 2 - Provision Wi-Fi via BLE
+### Step 2 - Provision Wi-Fi over Bluetooth LE
 
 Provision Wi-Fi credentials with [nRF Wi-Fi Provisioner app](https://www.nordicsemi.com/Products/Development-tools/nRF-Wi-Fi-Provisioner).
 
 ### Step 3 - Verify runtime behavior
 
-Explore your device behavior in [Memfault Cloud](https://app.memfault.com/) after
-the device connects and begins uploading data.
-
-Monitor via UART:
+Monitor logs via UART:
 
 | Board | Port | Baud |
 |-------|------|------|
@@ -81,6 +78,10 @@ Use serial terminal at `115200` and verify:
 - boot banner and enabled module list,
 - Wi-Fi connect/network-ready logs,
 - Memfault upload or heartbeat trigger logs.
+
+Explore your device behavior in [Memfault Cloud](https://app.memfault.com/) after
+the device connects and begins uploading data.
+
 
 ---
 
@@ -185,6 +186,7 @@ west update
 See the Nordic guide on [Workspace Application Setup](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/dev_model_and_contributions/adding_code.html#workflow_4_workspace_application_repository_recommended) for details.
 
 ### Build
+Fill `overlay-app-memfault-project-info.conf` with your memfault project key and fw version.
 
 ```bash
 # nRF7002DK
@@ -219,15 +221,10 @@ west flash -d build_nrf7002dk
 west flash -d build_nrf54lm20dk
 ```
 
-### Serial Monitor
-
-Connect at `115200` baud and observe module/init and connectivity logs.
-
 ### Developer Notes
 
 #### General
 
-- Keep `overlay-app-memfault-project-info.conf` out of git history.
 - Board-specific Kconfig overrides are in `boards/*.conf` (both nRF54LM20DK and nRF7002DK).
 - Coredump and partition behavior follows DTS fixed-partitions for NCS v3.3.0.
 - nRF7002DK uses a custom flash coredump backend (`CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y`) in `src/modules/app_memfault/core/memfault_flash_coredump_storage.c` to bypass the upstream `PARTITION_MANAGER_ENABLED` dependency in `CONFIG_MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP`.

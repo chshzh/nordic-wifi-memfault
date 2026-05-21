@@ -7,7 +7,6 @@
 | Module | ntp |
 | Version | 2026-05-16-13-00 |
 | PRD Version | 2026-05-14-15-00 |
-| Author | GitHub Copilot |
 | Status | Draft |
 
 ---

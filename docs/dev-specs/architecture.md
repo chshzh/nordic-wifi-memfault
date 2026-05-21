@@ -7,7 +7,6 @@
 | Project | nordic-wifi-memfault |
 | Version | 2026-05-14-14-13 |
 | PRD Version | 2026-05-14-14-13 |
-| Author | GitHub Copilot |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
 | Status | Draft |
