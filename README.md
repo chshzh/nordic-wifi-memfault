@@ -87,13 +87,16 @@ the device connects and begins uploading data.
 
 ## Buttons
 
-| Board | Button |  Press | Action |
-|-------|--------|--------|--------|
-| nRF7002DK | Button 1 | short(<3s) | Trigger heartbeat and optional nRF70 CDR path |
-| nRF7002DK | Button 1 | long(>=3s) | Stack overflow demo crash path |
-| nRF54LM20DK + nRF7002EBII | BUTTON0 | short(<3s) | Trigger OTA check path |
-| nRF54LM20DK + nRF7002EBII | BUTTON1 | long(>=3s) | Division-by-zero demo crash path |
-
+| Board | Button | Press | Action |
+|-------|--------|-------|--------|
+| nRF7002DK | Button 1 | short(<3s) | Trigger heartbeat and optional nRF70 CDR |
+| nRF7002DK | Button 1 | long(>=3s) | Stack overflow demo crash |
+| nRF7002DK | Button 2 | short(<3s) | Trigger OTA check |
+| nRF7002DK | Button 2 | long(>=3s) | Division-by-zero demo crash |
+| nRF54LM20DK + nRF7002EB2 | BUTTON0 | short(<3s) | Trigger heartbeat and optional nRF70 CDR |
+| nRF54LM20DK + nRF7002EB2 | BUTTON0 | long(>=3s) | Stack overflow demo crash |
+| nRF54LM20DK + nRF7002EB2 | BUTTON1 | short(<3s) | Trigger OTA check |
+| nRF54LM20DK + nRF7002EB2 | BUTTON1 | long(>=3s) | Division-by-zero demo crash |
 ---
 
 ## Developer Info
