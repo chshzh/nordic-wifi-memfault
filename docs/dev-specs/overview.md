@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-05-21-10-01 |
-| PRD Version | 2026-05-21-10-01 |
+| Version | 2026-05-22-10-00 |
+| PRD Version | 2026-05-22-10-00 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
 | Status | Draft |
@@ -21,6 +21,7 @@
 | 2026-05-14-15-00 | Added ntp-module.md for FR-006: NTP time synchronization |
 | 2026-05-19-09-07 | Added FR-007 design: connect-time ring-buffer restore for persist-across-reboot disconnect log upload |
 | 2026-05-21-10-01 | Added FR-008 design: CDR flash persist/restore for disconnect-time nRF70 WiFi stats; new `mflt-cdr-state` external flash partition; `CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE` Kconfig |
+| 2026-05-22-10-00 | Fixed multi-AP credential rotation in wifi_prov_over_ble: retry loop now cycles through all stored networks using `cred_rotate_idx`; retry schedule with provisioner reminder logged at retry loop start |
 
 ---
 

@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault |
-| Version | 2026-05-21-10-01 |
+| Version | 2026-05-22-10-00 |
 | Previous Version | 1.1 (legacy pm/PRD.md) |
 | Status | Draft |
 | Product Manager | Reverse update from implementation baseline |
@@ -26,6 +26,8 @@
 || 2026-05-19-09-07 | Added FR-007: persist disconnect-time log state to flash and restore it on next WiFi reconnect for Memfault cloud upload |
 || 2026-05-20-14-00 | FR-007 revised: removed RAM-freeze (trigger_collection on disconnect); storage migrated to external flash partition; persist-once guard; both boards enabled; visual restore boundary in cloud logs |
 || 2026-05-21-10-01 | Added FR-008: persist disconnect-time nRF70 CDR (WiFi firmware statistics) to external flash on disconnect; restore and upload to Memfault on next WiFi reconnect |
+|| 2026-05-22-10-00 | FR-001 behavior clarification: when the first stored AP is unavailable, the retry loop cycles through all stored credentials in sequence (round-robin) until one connects; retry plan with schedule and provisioner reminder is logged at loop start |
+|| 2026-05-22-10-00 | FR-001 behavior clarification: when the first stored AP is unavailable, the retry loop cycles through all stored credentials in sequence (round-robin) until one connects; retry plan with schedule and provisioner reminder is logged at loop start |
 
 ---
 
@@ -113,7 +115,7 @@ bring-up time.
 
 | ID | As a... | I want to... | So that... | Acceptance Criteria | Engineering Spec |
 |---|---|---|---|---|---|
-| FR-001 | user | power on and connect device to Wi-Fi using stored/provisioned credentials | cloud features can run | Device reaches connected state and logs network-ready flow | [network-module.md](../dev-specs/network-module.md), [app-wifi-prov-ble-module.md](../dev-specs/app-wifi-prov-ble-module.md) |
+| FR-001 | user | power on and connect device to Wi-Fi using stored/provisioned credentials | cloud features can run | Device reaches connected state and logs network-ready flow; if the first stored AP times out, the retry loop cycles through all stored credentials in sequence (round-robin) until one connects; retry plan is logged at loop start with per-SSID scheduled times and a provisioner tip | [network-module.md](../dev-specs/network-module.md), [app-wifi-prov-ble-module.md](../dev-specs/app-wifi-prov-ble-module.md) |
 | FR-002 | user | have telemetry uploaded after connectivity is ready | I can monitor device health remotely | Connect event triggers Memfault upload/heartbeat path | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [network-module.md](../dev-specs/network-module.md), [heap-monitor-module.md](../dev-specs/heap-monitor-module.md) |
 | FR-003 | developer | use button 1 actions for validation | I can test heartbeat and crash reporting quickly | Short press triggers heartbeat path; long press triggers demo crash path | [button-module.md](../dev-specs/button-module.md), [app-memfault-module.md](../dev-specs/app-memfault-module.md) |
 | FR-004 | developer | use button 2 actions for OTA/fault validation | I can validate update and fault handling flows | Short press triggers OTA check; long press triggers demo crash path | [button-module.md](../dev-specs/button-module.md), [app-memfault-module.md](../dev-specs/app-memfault-module.md) |

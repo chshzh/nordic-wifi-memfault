@@ -62,6 +62,10 @@ static struct net_mgmt_event_callback wifi_mgmt_cb;
 static bool connection_requested_after_provisioning = false;
 static bool credentials_existed_at_boot = false;
 static bool last_prov_state = false;
+/* Index of the next stored credential to try; advances after each failed attempt
+ * so that all stored networks are cycled through during the reconnect loop.
+ */
+static int cred_rotate_idx;
 
 K_THREAD_STACK_DEFINE(adv_daemon_stack_area, ADV_DAEMON_STACK_SIZE);
 static struct k_work_q adv_daemon_work_q;
@@ -80,6 +84,9 @@ static const struct bt_data sd[] = {
 
 static struct k_work_delayable update_adv_param_work;
 static struct k_work_delayable update_adv_data_work;
+
+/* forward declaration — defined in the credential rotation helpers section below */
+static void log_retry_plan(void);
 
 static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_event,
 				    struct net_if *iface)
@@ -109,6 +116,7 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint64_t
 			k_work_reschedule(&wifi_connect_work, K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
 			LOG_INF("WiFi disconnected, scheduling reconnect in %d s",
 				WIFI_RECONNECT_DELAY_SEC);
+			log_retry_plan();
 		}
 		break;
 	}
@@ -129,6 +137,7 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint64_t
 						  K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
 				LOG_WRN("WiFi connection failed (err=%d), scheduling retry",
 					status ? status->status : -1);
+				log_retry_plan();
 			}
 		}
 		break;
@@ -137,6 +146,139 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint64_t
 		break;
 	}
 }
+
+/* --------------- credential rotation helpers --------------- */
+
+static void count_stored_creds(void *cb_arg, const char *ssid, size_t ssid_len)
+{
+	ARG_UNUSED(ssid);
+	ARG_UNUSED(ssid_len);
+	(*(int *)cb_arg)++;
+}
+
+struct connect_nth_arg {
+	struct net_if *iface;
+	int target;
+	int current;
+	bool sent;
+};
+
+static void connect_nth_cred(void *cb_arg, const char *ssid, size_t ssid_len)
+{
+	struct connect_nth_arg *arg = cb_arg;
+
+	if (arg->sent || arg->current++ < arg->target) {
+		return;
+	}
+
+	struct wifi_credentials_personal creds = {0};
+	uint8_t ssid_buf[WIFI_SSID_MAX_LEN + 1] = {0};
+	uint8_t psk_buf[WIFI_PSK_MAX_LEN + 1] = {0};
+
+	if (wifi_credentials_get_by_ssid_personal_struct(ssid, ssid_len, &creds) != 0) {
+		LOG_ERR("Failed to load credential for SSID [%.*s]", ssid_len, ssid);
+		return;
+	}
+
+	memcpy(ssid_buf, creds.header.ssid, creds.header.ssid_len);
+	if (creds.password_len > 0 && creds.password_len <= WIFI_PSK_MAX_LEN) {
+		memcpy(psk_buf, creds.password, creds.password_len);
+	}
+
+	const uint8_t flags = creds.header.flags;
+	struct wifi_connect_req_params params = {
+		.ssid        = ssid_buf,
+		.ssid_length = creds.header.ssid_len,
+		.psk         = psk_buf,
+		.psk_length  = (creds.password_len <= WIFI_PSK_MAX_LEN) ? creds.password_len : 0,
+		.security    = creds.header.type,
+		.channel     = creds.header.channel ? creds.header.channel : WIFI_CHANNEL_ANY,
+		.timeout     = CONFIG_WIFI_CREDENTIALS_CONNECT_STORED_CONNECTION_TIMEOUT,
+		.band        = (flags & WIFI_CREDENTIALS_FLAG_5GHz)   ? WIFI_FREQ_BAND_5_GHZ
+		             : (flags & WIFI_CREDENTIALS_FLAG_2_4GHz) ? WIFI_FREQ_BAND_2_4_GHZ
+		             : WIFI_FREQ_BAND_UNKNOWN,
+		.mfp         = (flags & WIFI_CREDENTIALS_FLAG_MFP_DISABLED) ? WIFI_MFP_DISABLE
+		             : (flags & WIFI_CREDENTIALS_FLAG_MFP_REQUIRED) ? WIFI_MFP_REQUIRED
+		             : WIFI_MFP_OPTIONAL,
+	};
+
+	int err = net_mgmt(NET_REQUEST_WIFI_CONNECT, arg->iface, &params,
+			   sizeof(struct wifi_connect_req_params));
+	if (err == 0) {
+		LOG_INF("Connection request sent for SSID [%.*s]", ssid_len, ssid);
+		arg->sent = true;
+	} else {
+		LOG_WRN("Connection request failed for SSID [%.*s]: %d", ssid_len, ssid, err);
+	}
+}
+
+static int connect_stored_rotating(struct net_if *iface)
+{
+	int count = 0;
+
+	wifi_credentials_for_each_ssid(count_stored_creds, &count);
+	if (count == 0) {
+		return -ENOENT;
+	}
+
+	struct connect_nth_arg arg = {
+		.iface   = iface,
+		.target  = cred_rotate_idx % count,
+		.current = 0,
+		.sent    = false,
+	};
+
+	wifi_credentials_for_each_ssid(connect_nth_cred, &arg);
+
+	if (arg.sent) {
+		/* Advance to the next credential for the following retry */
+		cred_rotate_idx = (arg.target + 1) % count;
+		return 0;
+	}
+
+	return -ENOEXEC;
+}
+
+struct log_ssid_arg {
+	int rotate_idx; /* index of the first credential to be tried */
+	int count;
+	int pos;        /* current position in the iteration */
+};
+
+static void log_ssid_with_retry_time(void *cb_arg, const char *ssid, size_t ssid_len)
+{
+	struct log_ssid_arg *arg = cb_arg;
+	/* how many retry slots until this credential is tried */
+	int slots = (arg->pos - arg->rotate_idx + arg->count) % arg->count;
+	int t_sec  = WIFI_RECONNECT_DELAY_SEC + slots * WIFI_RECONNECT_RETRY_SEC;
+
+	LOG_INF("  T+%ds [%d] %.*s", t_sec, arg->pos, ssid_len, ssid);
+	arg->pos++;
+}
+
+static void log_retry_plan(void)
+{
+	int count = 0;
+
+	wifi_credentials_for_each_ssid(count_stored_creds, &count);
+
+	if (count == 0) {
+		LOG_WRN("No stored WiFi credentials.");
+		LOG_WRN(">>> Open 'nRF Wi-Fi Provisioner' BLE app to provision a reachable AP <<<");
+		return;
+	}
+
+	LOG_INF("--- Retry schedule (%d stored network(s)) ---", count);
+	struct log_ssid_arg arg = {
+		.rotate_idx = cred_rotate_idx % count,
+		.count      = count,
+		.pos        = 0,
+	};
+	wifi_credentials_for_each_ssid(log_ssid_with_retry_time, &arg);
+	LOG_INF(">>> Tip: Open 'nRF Wi-Fi Provisioner' BLE app to provision a reachable AP <<<");
+}
+
+/* ----------------------------------------------------------- */
 
 static void wifi_connect_work_handler(struct k_work *work)
 {
@@ -162,14 +304,12 @@ static void wifi_connect_work_handler(struct k_work *work)
 		LOG_DBG("WiFi connection in progress (state %d)", status.state);
 	} else {
 		LOG_INF("WiFi credentials detected, attempting to connect");
-		err = net_mgmt(NET_REQUEST_WIFI_CONNECT_STORED, iface, NULL, 0);
+		err = connect_stored_rotating(iface);
 		if (err) {
 			LOG_WRN("WiFi connection request failed: %d", err);
 			if (!reconnect_cycle_active) {
 				connection_requested_after_provisioning = false;
 			}
-		} else {
-			LOG_INF("WiFi connection request sent");
 		}
 	}
 	if (reconnect_cycle_active) {

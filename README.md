@@ -25,7 +25,7 @@ or subscribe through zbus channels.
 
 ### Features
 
-- Wi-Fi STA connection lifecycle with reconnect handling
+- Wi-Fi STA connection lifecycle with reconnect handling and multi-AP credential rotation (retries cycle through all stored networks when the first AP is unavailable)
 - BLE Wi-Fi credential provisioning (nRF Wi-Fi Provisioner)
 - Memfault heartbeat, metrics, coredump reporting, and OTA checks
 - Button-driven validation paths (heartbeat/CDR, OTA check, crash demos)
