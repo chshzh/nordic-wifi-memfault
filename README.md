@@ -46,7 +46,37 @@ or subscribe through zbus channels.
 
 ### Step 1 - Flash the firmware
 
-Download pre-built firmware from the [Latest release](https://github.com/chshzh/nordic-wifi-memfault/releases/latest) page and flash your board.
+Download pre-built firmware from the [Latest release](https://github.com/chshzh/nordic-wifi-memfault/releases/latest) page.
+
+Each release provides three artifacts per board and Memfault project:
+
+| Artifact | Purpose |
+|----------|---------|
+| `*.hex` | Full board image (MCUboot + app) — for initial or recovery flash |
+| `*.signed.bin` | MCUboot-signed OTA payload — for over-the-air update via Memfault |
+| `*.elf` | Symbol file — upload to Memfault for coredump and crash decoding |
+
+**Option A — Direct flash (initial provisioning or recovery)**
+
+Flash the `.hex` using [nRF Connect for Desktop Programmer](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop) or via CLI:
+
+```sh
+nrfutil device program --firmware <*.hex> --verify
+```
+
+**Option B — OTA via Memfault**
+
+Upload the `.signed.bin` to your Memfault project as a new software version, create an OTA release, and deploy it to your device cohort. The device downloads and applies the update automatically on the next OTA check (periodic or button-triggered).
+
+See [Creating a Release and Deploying OTA](https://docs.memfault.com/docs/platform/ota/).
+
+**Symbol file upload**
+
+Upload the `.elf` to your Memfault project to enable coredump decoding and crash analysis.
+
+See [Uploading Symbol Files](https://docs.memfault.com/docs/mcu/symbol-file-build-ids/).
+
+---
 
 Pre-built firmware is only available for approved custom Memfault projects because
 project keys are project-specific. If your project is not listed below, it is not
