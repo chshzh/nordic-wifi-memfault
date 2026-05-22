@@ -184,6 +184,8 @@ West workspace is driven by [west.yml](west.yml). Which contains the ncs version
       remote: ncs
 ```
 
+Release versions follow the NCS version with a build counter suffix: `<ncs-version>.<build>` (e.g. `3.3.0.1`, `3.3.0.2`). The major/minor/patch components always match the NCS version the firmware is based on, making it easy to identify which SDK a given release targets.
+
 Use nRF Connect for VS Code or a shell initialized with the NCS toolchain.
 
 #### Method 1 (Preferred) — Add to an existing NCS installation

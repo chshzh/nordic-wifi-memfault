@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, dev/refactoring ]
     tags:
-      - '[0-9]*'
+      - '[0-9]*'  # Release tags follow <ncs-version>.<build>, e.g. 3.3.0.1, 3.3.0.2
   pull_request:
     branches: [ main, dev/refactoring ]
 
@@ -532,7 +532,7 @@ jobs:
           cat > /tmp/release-body.txt <<EOF
           ## Nordic Wi-Fi Memfault Release ${VER}
 
-          > Built with NCS ${{ needs.set-version.outputs.NCS_VERSION }}
+          > Built with NCS ${{ needs.set-version.outputs.NCS_VERSION }} — version format is \`<ncs-version>.<build>\` (e.g. \`3.3.0.1\`), where the major/minor/patch matches the NCS version this firmware is based on.
 
           ### 📦 Firmware Files
 
