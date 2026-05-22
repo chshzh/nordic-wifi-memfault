@@ -28,6 +28,7 @@ or subscribe through zbus channels.
 - Wi-Fi STA connection lifecycle with reconnect handling and multi-AP credential rotation (retries cycle through all stored networks when the first AP is unavailable)
 - BLE Wi-Fi credential provisioning (nRF Wi-Fi Provisioner)
 - Memfault heartbeat, metrics, coredump reporting, and OTA checks
+- Disconnect-time debug capture — Memfault log ring-buffer and nRF70 CDR firmware statistics are persisted to external flash on connectivity loss, then restored and uploaded on the next reconnect; pre-disconnect logs retain original wall-clock timestamps and a visual separator marks the boundary in the Memfault cloud log view
 - Button-driven validation paths (heartbeat/CDR, OTA check, crash demos)
 - NTP time synchronization — syncs system clock from `pool.ntp.org` after network ready; log timestamps show real-world UTC time (e.g. `[2026-05-14 19:34:52.299,000]`)
 - Optional HTTPS periodic test module
