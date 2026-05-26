@@ -1,7 +1,6 @@
 # Nordic Wi-Fi Memfault
 
 [![Build](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml/badge.svg)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml)
-[![Latest Release](https://img.shields.io/github/v/release/chshzh/nordic-wifi-memfault?label=Release&color=skyblue)](https://github.com/chshzh/nordic-wifi-memfault/releases/latest)
 
 ---
 
