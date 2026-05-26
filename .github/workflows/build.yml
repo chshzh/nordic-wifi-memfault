@@ -176,8 +176,8 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────
   # Release jobs: only on version tags (e.g. 3.3.0)
-  # Builds firmware twice — once per Memfault project — for both
-  # hardware targets, then publishes a GitHub Release.
+  # Builds firmware for both hardware targets, then publishes a
+  # GitHub Release with nord-project artifacts.
   # ─────────────────────────────────────────────────────────────
   build-release:
     needs: set-version
@@ -189,7 +189,6 @@ jobs:
         shell: bash
     env:
       NORD_KEY: ${{ secrets.NORD_PROJECT_KEY }}
-      TERR_KEY: ${{ secrets.TERR_PROJECT_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -356,106 +355,6 @@ jobs:
              release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.signed.bin
           cp build_nrf54lm20dk_wifi/merged.hex \
              release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex
-
-      # ── terr_project build ──────────────────────────────────
-      - name: Create overlay — terr_project
-        working-directory: app-workspace/memfault-nrf7002dk
-        env:
-          VER: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${TERR_KEY}\"" > overlay-release-key.conf
-          echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
-
-      - name: Build nRF7002DK — terr_project
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
-            -DEXTRA_CONF_FILE="overlay-release-key.conf"
-
-      - name: Resolve merged hex — nRF7002DK (terr_project)
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          BUILD_DIR="build_nrf7002dk"
-          MERGED="${BUILD_DIR}/merged.hex"
-          if [ -f "${MERGED}" ]; then
-            echo "merged.hex already exists"
-          elif [ -f "${BUILD_DIR}/merged_domains.hex" ]; then
-            cp "${BUILD_DIR}/merged_domains.hex" "${MERGED}"
-          else
-            MCUBOOT="${BUILD_DIR}/mcuboot/zephyr/zephyr.hex"
-            APP_S="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.signed.hex"
-            APP_P="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.hex"
-            CPUNET="${BUILD_DIR}/hci_ipc/zephyr/zephyr.hex"
-            PARTS=""
-            [ -f "${MCUBOOT}" ] && PARTS="${PARTS} ${MCUBOOT}"
-            if [ -f "${APP_S}" ]; then PARTS="${PARTS} ${APP_S}"
-            elif [ -f "${APP_P}" ]; then PARTS="${PARTS} ${APP_P}"
-            fi
-            [ -f "${CPUNET}" ]  && PARTS="${PARTS} ${CPUNET}"
-            {
-              echo 'import sys'
-              echo 'from intelhex import IntelHex'
-              echo 'out = IntelHex()'
-              echo 'for f in sys.argv[1:-1]:'
-              echo '  ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap="replace")'
-              echo 'out.write_hex_file(sys.argv[-1])'
-              echo 'print("merged.hex created from: " + " ".join(sys.argv[1:-1]))'
-            } | python3 - ${PARTS} "${MERGED}"
-          fi
-
-      - name: Build nRF54LM20DK — terr_project
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi -- \
-            -DSHIELD=nrf7002eb2 -DEXTRA_CONF_FILE="overlay-release-key.conf"
-
-      - name: Resolve merged hex — nRF54LM20DK (terr_project)
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          BUILD_DIR="build_nrf54lm20dk_wifi"
-          MERGED="${BUILD_DIR}/merged.hex"
-          if [ -f "${MERGED}" ]; then
-            echo "merged.hex already exists"
-          elif [ -f "${BUILD_DIR}/merged_domains.hex" ]; then
-            cp "${BUILD_DIR}/merged_domains.hex" "${MERGED}"
-          else
-            MCUBOOT="${BUILD_DIR}/mcuboot/zephyr/zephyr.hex"
-            APP_S="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.signed.hex"
-            APP_P="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.hex"
-            PARTS=""
-            [ -f "${MCUBOOT}" ] && PARTS="${PARTS} ${MCUBOOT}"
-            if [ -f "${APP_S}" ]; then PARTS="${PARTS} ${APP_S}"
-            elif [ -f "${APP_P}" ]; then PARTS="${PARTS} ${APP_P}"
-            fi
-            {
-              echo 'import sys'
-              echo 'from intelhex import IntelHex'
-              echo 'out = IntelHex()'
-              echo 'for f in sys.argv[1:-1]:'
-              echo '  ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap="replace")'
-              echo 'out.write_hex_file(sys.argv[-1])'
-              echo 'print("merged.hex created from: " + " ".join(sys.argv[1:-1]))'
-            } | python3 - ${PARTS} "${MERGED}"
-          fi
-
-      - name: Stage terr_project artifacts
-        working-directory: app-workspace/memfault-nrf7002dk
-        env:
-          VER: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
-             release/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.elf
-          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
-             release/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.signed.bin
-          cp build_nrf7002dk/merged.hex \
-             release/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.hex
-          cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf \
-             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.elf
-          cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
-             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.signed.bin
-          cp build_nrf54lm20dk_wifi/merged.hex \
-             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.hex
-          # Include memory summaries so create-release can read them
           cp release-usage-nrf7002dk.txt release/
           cp release-usage-nrf54lm20dk.txt release/
 
@@ -536,21 +435,12 @@ jobs:
 
           ### 📦 Firmware Files
 
-          Each Memfault project (\`nord-project\`, \`terr-project\`) ships **6 files** across two hardware targets.
-
-          #### \`nord-project\` — Nord Memfault project
+          Each release ships **6 files** across two hardware targets.
 
           | Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
           |-------|-------------|-----------|-------------|-----------|-----------|
           | nRF7002DK | [nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
           | nRF54LM20DK + nRF7002EBII | [nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
-
-          #### \`terr-project\` — Terr Memfault project
-
-          | Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
-          |-------|-------------|-----------|-------------|-----------|-----------|
-          | nRF7002DK | [nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-terr-project-${VER}.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
-          | nRF54LM20DK + nRF7002EBII | [nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-terr-project-${VER}.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
 
           **File types:**
           - \`.hex\` — Full board image for initial provisioning via \`nrfutil device program\`

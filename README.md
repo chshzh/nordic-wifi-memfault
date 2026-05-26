@@ -85,7 +85,6 @@ currently supported for evaluator pre-built access.
 | Supported project | Release artifact prefix | Status |
 |-------------------|-------------------------|--------|
 | nordic-test | `nord_project_*` | Supported |
-| terrfaforma | `terr_project_*` | Supported |
 
 For evaluation access to additional projects, contact charlie.shao@nordicsemi.no
 or local Nordic Sales team. Alternatively, follow the Developer path and configure
