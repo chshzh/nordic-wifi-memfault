@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Module | app_memfault |
-| Version | 2026-05-21-10-01 |
+| Version | 2026-05-26-15-21 |
 | PRD Version | 2026-05-21-10-01 |
 | Status | Draft |
 
@@ -24,6 +24,7 @@
 | 2026-05-19-09-07 | FR-007: connect-time ring-buffer restore; removed boot-time MEMFAULT_LOG_RESTORE_STATE hook (settings ordering issue); persist on disconnect, restore+upload on next WiFi connect |
 | 2026-05-20-14-00 | Remove RAM-only freeze (trigger_collection on disconnect); persist-once guard (log_freeze_scheduled flag + k_work_schedule); trigger_collection moved to on_connect() after flash restore; visual log-restore boundary separator; WiFi CONNECT_RESULT failure triggers retry; both boards enabled for log-state restore |
 | 2026-05-21-10-01 | FR-008: CDR flash persist on disconnect; CDR blob restore on next WiFi connect; new `mflt_cdr_state_partition` external flash partition (8 KB); `CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE` Kconfig; persist/restore functions added to nrf70_fw_stats_cdr.c; memfault_core.c integrated in log_freeze_work_fn() and on_connect() |
+| 2026-05-26-15-21 | Add Metrics Reference section: metric types, naming conventions, runtime API, and category table; add disconnect reason layer note cross-referenced from network-module.md |
 
 ---
 
@@ -189,6 +190,79 @@ Does not define its own public zbus channel in current implementation.
 | CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE | bool | y (both boards) | Persist Memfault ring-buffer state to settings on disconnect; restore and upload on next WiFi connect |
 | CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE | bool | y (both boards) | Persist disconnect-time nRF70 CDR (WiFi fw stats) blob to external flash; restore and upload on next WiFi connect. Depends on `CONFIG_NRF70_FW_STATS_CDR_ENABLED`. |
 | CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE_MAX_BYTES | int | 3072 | Maximum settings payload bytes for the ring-buffer blob; bounded to protect the 8 KB shared settings partition |
+
+---
+
+## Metrics Reference
+
+### Heartbeat metric definition file
+
+Custom metrics are declared in `config/memfault_metrics_heartbeat_config.def`. Each entry
+calls one of two macros:
+
+```c
+/* Always-present metric */
+MEMFAULT_METRICS_KEY_DEFINE(key_name, type)
+
+/* Conditionally compiled metric */
+#if CONFIG_SOME_MODULE
+MEMFAULT_METRICS_KEY_DEFINE(app_my_counter, kMemfaultMetricType_Unsigned)
+#endif
+```
+
+### Metric types
+
+| Type constant | Use case |
+|---------------|----------|
+| `kMemfaultMetricType_Unsigned` | Monotonic counters, sizes, stack watermarks |
+| `kMemfaultMetricType_Signed` | Values that may be negative (e.g. RSSI delta) |
+| `kMemfaultMetricType_Timer` | Time-in-state within a heartbeat window |
+| `kMemfaultMetricType_String` | Board ID, firmware variant (max 64 bytes) |
+
+The SDK resets all accumulators and timers at each heartbeat boundary
+(`CONFIG_MEMFAULT_METRICS_HEARTBEAT_INTERVAL_SECS`, default 3600 s).
+
+### Naming conventions
+
+| Prefix | Category | Example |
+|--------|----------|---------|
+| `ncs_` | NCS/Zephyr infrastructure (heap, stack watermarks) | `ncs_system_heap_used` |
+| `ncs_wifi_` | Wi-Fi stack driver threads | `ncs_wifi_hostap_iface_unused_stack` |
+| `ncs_mflt_` / `memfault_` | Memfault infrastructure threads | `memfault_upload_unused_stack` |
+| `app_` | Application-level protocol counters | `app_https_req_fail_count` |
+
+New application metrics should use the `app_` prefix. New NCS infrastructure metrics should
+use the appropriate `ncs_` sub-prefix.
+
+### Runtime API
+
+```c
+#include <memfault/metrics/metrics.h>
+
+/* Increment an unsigned counter */
+MEMFAULT_METRIC_ADD(app_my_counter, 1);
+
+/* Set to an absolute value */
+MEMFAULT_METRIC_SET_UNSIGNED(app_my_counter, value);
+
+/* Timer: measure time-in-state within the heartbeat window */
+MEMFAULT_METRIC_TIMER_START(app_wifi_connected_time);
+MEMFAULT_METRIC_TIMER_STOP(app_wifi_connected_time);
+```
+
+### Current metric categories
+
+| Category | Keys | Active condition |
+|----------|------|-----------------|
+| Application demo | `switch_1_toggle_count` | always |
+| System heap | `ncs_system_heap_{total,used,peak}` | `CONFIG_HEAPS_MONITOR && CONFIG_HEAP_MEM_POOL_SIZE > 0` |
+| mbedTLS heap | `ncs_mbedtls_heap_{total,used,peak}` | `CONFIG_HEAPS_MONITOR && CONFIG_MBEDTLS_ENABLE_HEAP` |
+| Wi-Fi stack threads | `ncs_wifi_{hostap_iface,hostap_handler,intr,bh}_unused_stack` | always |
+| Network threads | `ncs_{mflt_http,mqtt_helper,conn_mgr_monitor,net_socket_service,rx_q0,tx_q0,net_mgmt,tcp_work}_unused_stack` | always |
+| System threads | `ncs_{shell_uart,logging,main}_unused_stack` | always |
+| Memfault threads | `{memfault_upload,mflt_ota_triggers}_unused_stack` | always |
+| App HTTPS | `app_https_client_unused_stack`, `app_https_req_{total,fail}_count` | `CONFIG_APP_HTTPS_CLIENT_MODULE` |
+| App MQTT | `app_mqtt_client_unused_stack`, `app_mqtt_echo_{total,fail}_count` | `CONFIG_APP_MQTT_CLIENT_MODULE` |
 
 ---
 
