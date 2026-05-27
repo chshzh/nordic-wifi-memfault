@@ -86,14 +86,8 @@ jobs:
       - name: Create Memfault project key overlay
         working-directory: app-workspace/memfault-nrf7002dk
         run: |
-          # Use the GitHub secret if available; fall back to a dummy key (satisfies BUILD_ASSERT)
-          if [ -n "${{ secrets.MEMFAULT_PROJECT_KEY }}" ]; then
-            echo 'CONFIG_MEMFAULT_NCS_PROJECT_KEY="${{ secrets.MEMFAULT_PROJECT_KEY }}"' > overlay-ci-key.conf
-            echo "Using MEMFAULT_PROJECT_KEY from GitHub secrets"
-          else
-            echo 'CONFIG_MEMFAULT_NCS_PROJECT_KEY="ci-build-dummy-key"' > overlay-ci-key.conf
-            echo "No MEMFAULT_PROJECT_KEY secret configured; using dummy key"
-          fi
+          # CI only verifies the build compiles; a non-empty dummy key satisfies BUILD_ASSERT
+          echo 'CONFIG_MEMFAULT_NCS_PROJECT_KEY="ci-build-dummy-key"' > overlay-ci-key.conf
 
       - name: Build ${{ matrix.config.name }}
         working-directory: app-workspace/memfault-nrf7002dk
