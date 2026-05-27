@@ -1,6 +1,7 @@
 # Nordic Wi-Fi Memfault
 
-[![Build](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml/badge.svg)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml)
+[![CI](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml)
+[![Release](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/release.yml/badge.svg)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/release.yml)
 
 ---
 
