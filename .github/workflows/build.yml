@@ -488,7 +488,11 @@ jobs:
             https://api.github.com/repos/chshzh/nordic-wifi-memfault-terraforma/dispatches \
             -d "{\"event_type\":\"public-release\",\"client_payload\":{\"tag\":\"${{ steps.ver.outputs.VERSION }}\"}}") 
           echo "Dispatch HTTP status: ${HTTP}"
-          [ "${HTTP}" = "204" ] && echo "Terraforma build triggered for ${{ steps.ver.outputs.VERSION }}" || exit 1
+          if [ "${HTTP}" = "204" ]; then
+            echo "Terraforma build triggered for ${{ steps.ver.outputs.VERSION }}"
+          else
+            echo "##[warning]Terraforma dispatch failed (HTTP ${HTTP}) — check TERRAFORMA_DISPATCH_TOKEN permissions (needs Actions: Write on the private repo)"
+          fi
 
   static-analysis:
     needs: set-version
