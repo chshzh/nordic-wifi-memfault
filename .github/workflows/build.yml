@@ -175,7 +175,7 @@ jobs:
           path: app-workspace/memfault-nrf7002dk/artifact-staging-${{ matrix.config.build_dir }}/
 
   # ─────────────────────────────────────────────────────────────
-  # Release jobs: only on version tags (e.g. 3.3.0)
+  # Release jobs: only on version tags (e.g. v3.3.0.1)
   # Builds firmware for both hardware targets, then publishes a
   # GitHub Release with nord-project artifacts.
   # ─────────────────────────────────────────────────────────────
@@ -431,7 +431,7 @@ jobs:
           cat > /tmp/release-body.txt <<EOF
           ## Nordic Wi-Fi Memfault Release ${VER}
 
-          > Built with NCS ${{ needs.set-version.outputs.NCS_VERSION }} — version format is \`<ncs-version>.<build>\` (e.g. \`3.3.0.1\`), where the major/minor/patch matches the NCS version this firmware is based on.
+          > Built with NCS ${{ needs.set-version.outputs.NCS_VERSION }} — version format is \`v<ncs-version>.<build>\` (e.g. \`v3.3.0.1\`), where the major/minor/patch matches the NCS version this firmware is based on.
 
           ### 📦 Firmware Files
 
