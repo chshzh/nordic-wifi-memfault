@@ -3,6 +3,15 @@
 [![CI](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml)
 [![Release](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/release.yml/badge.svg)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/release.yml)
 
+## What's New since v3.3.0.0
+
+- **NCS v3.3.0 base with Device Tree partitioning** — the application now targets Nordic SDK v3.3.0 and has been migrated from the deprecated Partition Manager to Device Tree-based flash partitioning, aligning with Nordic's current and future toolchain direction.
+- **nRF54LM20DK + nRF7002EB2 formally supported** — the nRF54LM20A SoC provides 1984 KB RRAM and 511 KB RAM compared to 1024 KB flash and 448 KB RAM on the nRF5340 (nRF7002DK), offering approximately twice the code storage headroom for future feature growth.
+- **BLE provisioning: 2M PHY removed** — the Wi-Fi provisioning over BLE module now operates in 1M PHY mode only; 2M mode has been removed to avoid potential compatibility issues with mobile devices that have inconsistent Bluetooth LE 2M PHY support.
+- **Enhanced disconnect diagnostics** — three independent recording layers (Wi-Fi driver, network stack, and Memfault) capture each disconnection event; the Memfault log snapshot and nRF70 firmware statistics (CDR data) are persisted to two new dedicated external flash partitions and automatically uploaded to Memfault on the next successful reconnect.
+- **NTP time synchronization** — the device syncs its clock from `pool.ntp.org` after gaining network access; log lines and heartbeat metrics in the Memfault cloud now show the real UTC time the event was captured, not the time the data was uploaded.
+- **Full reflash required to upgrade to v3.3.0** — the migration from Partition Manager to Device Tree-based partitioning removes the `mcuboot_pad` region and adds two new external flash partitions, shifting the application start address; OTA from a 3.2 PM-era firmware is not supported. Flash the full `v3.3.0.0` image directly to the device first, then apply subsequent updates (e.g. `v3.3.0.1`) via Memfault OTA as normal.
+
 ---
 
 ## Project Overview
