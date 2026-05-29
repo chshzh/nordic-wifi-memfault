@@ -119,7 +119,10 @@ Use serial terminal at `115200` and verify:
 - Memfault upload or heartbeat trigger logs.
 
 Explore your device behavior in [Memfault Cloud](https://app.memfault.com/) after
-the device connects and begins uploading data.
+the device connects and begins uploading data. Check the device logs and heartbeat
+metrics from its timeline to monitor connectivity, reboot reasons, and sensor health.
+
+![Device Timeline](docs/picture/device_timeline.png)
 
 
 ---
