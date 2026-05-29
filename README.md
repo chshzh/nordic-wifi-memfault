@@ -48,7 +48,7 @@ or subscribe through zbus channels.
 ### Target Users
 
 - **Evaluator** - flash release firmware and validate logs/events quickly, follow the [Evaluator Quick Start](#evaluator-quick-start) guide.
-- **Developer** - build from source and modify modules/config, see [Developer Info](#developer-info) for build setup and [Documentation](#documentation) for product requirements, architecture, and per-module specs.
+- **Developer** - build from source and modify modules/config, see [Developer Guide](#developer-guide) for build setup and [Documentation](#documentation) for product requirements, architecture, and per-module specs.
 
 ---
 
@@ -141,7 +141,7 @@ metrics from its timeline to monitor connectivity, reboot reasons, and sensor he
 | nRF54LM20DK + nRF7002EB2 | BUTTON1 | long(>=3s) | Division-by-zero demo crash |
 ---
 
-## Developer Info
+## Developer Guide
 
 ### Project Structure
 
