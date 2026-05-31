@@ -6,6 +6,7 @@
 
 #include "app_memfault_ota_triggers.h"
 #include "../../messages.h"
+#include "button.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -129,19 +130,17 @@ void mflt_ota_triggers_notify_connected(void)
 	}
 }
 
-/* Zbus: Button 2 short press -> OTA check; WIFI_STA_CONNECTED -> OTA on connect
- */
-extern const struct zbus_channel BUTTON_CHAN;
+/* Zbus: Button 2 / BUTTON1 short press -> OTA check; WIFI_STA_CONNECTED -> OTA on connect */
 extern const struct zbus_channel WIFI_CHAN;
 
 static void ota_button_listener(const struct zbus_channel *chan)
 {
 	const struct button_msg *msg = zbus_chan_const_msg(chan);
 
-	if (msg->type != BUTTON_RELEASED || msg->button_number != 2) {
+	if (msg->type != BUTTON_RELEASED || msg->button_number != 1) {
 		return;
 	}
-	if (msg->duration_ms >= BUTTON_LONG_PRESS_THRESHOLD_MS) {
+	if (msg->duration_ms >= CONFIG_APP_BUTTON_LONG_PRESS_MS) {
 		return;
 	}
 	mflt_ota_triggers_notify_button();

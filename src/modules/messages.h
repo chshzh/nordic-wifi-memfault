@@ -18,27 +18,6 @@
 #include <zephyr/sys/util.h>
 
 /* ============================================================================
- * BUTTON MESSAGES
- * ============================================================================
- */
-
-enum button_msg_type {
-	BUTTON_PRESSED,
-	BUTTON_RELEASED,
-};
-
-struct button_msg {
-	enum button_msg_type type;
-	uint8_t button_number;
-	uint32_t duration_ms;
-	uint32_t press_count;
-	uint32_t timestamp;
-};
-
-/* Long-press threshold (ms) - driven by CONFIG_BUTTON_LONG_PRESS_MS (Kconfig.button) */
-#define BUTTON_LONG_PRESS_THRESHOLD_MS CONFIG_BUTTON_LONG_PRESS_MS
-
-/* ============================================================================
  * WIFI MESSAGES (STA mode)
  * ============================================================================
  */

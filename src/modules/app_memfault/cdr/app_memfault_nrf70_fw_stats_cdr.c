@@ -9,6 +9,7 @@
 
 #include "app_memfault_nrf70_fw_stats_cdr.h"
 #include "../../messages.h"
+#include "button.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -312,17 +313,16 @@ int mflt_nrf70_fw_stats_cdr_restore_from_flash(void)
 #endif /* CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE */
 
 #if CONFIG_NRF70_FW_STATS_CDR_ENABLED
-/* Zbus: Button 1 short press -> collect nRF70 FW stats (memfault_core will post_data) */
-extern const struct zbus_channel BUTTON_CHAN;
+/* Zbus: Button 1 / BUTTON0 short press -> collect nRF70 FW stats */
 
 static void cdr_button_listener(const struct zbus_channel *chan)
 {
 	const struct button_msg *msg = zbus_chan_const_msg(chan);
 
-	if (msg->type != BUTTON_RELEASED || msg->button_number != 1) {
+	if (msg->type != BUTTON_RELEASED || msg->button_number != 0) {
 		return;
 	}
-	if (msg->duration_ms >= BUTTON_LONG_PRESS_THRESHOLD_MS) {
+	if (msg->duration_ms >= CONFIG_APP_BUTTON_LONG_PRESS_MS) {
 		return;
 	}
 	int err = mflt_nrf70_fw_stats_cdr_collect();

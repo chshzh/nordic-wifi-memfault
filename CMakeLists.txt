@@ -6,6 +6,10 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
+# Register zego button module — provides CONFIG_ZEGO_BUTTON Kconfig and BUTTON_CHAN.
+get_filename_component(ZEGO_BUTTON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/button REALPATH)
+list(APPEND EXTRA_ZEPHYR_MODULES ${ZEGO_BUTTON_DIR})
+
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(memfault-nrf7002dk)
 
@@ -27,9 +31,7 @@ zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/modules/app_memfault/
 target_sources(app PRIVATE src/main.c)
 
 # Module subdirectories (SMF+zbus modular architecture)
-if(CONFIG_BUTTON_MODULE)
-    add_subdirectory(src/modules/button)
-endif()
+# button module now provided by zego/button (EXTRA_ZEPHYR_MODULES above)
 if(CONFIG_WIFI_MODULE)
     add_subdirectory(src/modules/network)
 endif()
