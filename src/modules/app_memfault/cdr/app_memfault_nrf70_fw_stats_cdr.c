@@ -319,13 +319,11 @@ static void cdr_button_listener(const struct zbus_channel *chan)
 {
 	const struct button_msg *msg = zbus_chan_const_msg(chan);
 
-	if (msg->type != BUTTON_RELEASED || msg->button_number != 0) {
-		return;
-	}
-	if (msg->duration_ms >= CONFIG_APP_BUTTON_LONG_PRESS_MS) {
+	if (msg->type != BUTTON_SINGLE_CLICK || msg->button_number != 0) {
 		return;
 	}
 	int err = mflt_nrf70_fw_stats_cdr_collect();
+
 	if (err) {
 		LOG_WRN("nRF70 FW stats CDR collection failed: %d", err);
 	} else {

@@ -262,20 +262,13 @@ ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, memfault_network_listener_def, 0);
 static void memfault_button_listener(const struct zbus_channel *chan)
 {
 	const struct button_msg *msg = zbus_chan_const_msg(chan);
-
-	if (msg->type != BUTTON_RELEASED) {
-		return;
-	}
-
 	uint8_t btn = msg->button_number;
-	uint32_t duration_ms = msg->duration_ms;
-	bool long_press = (duration_ms >= CONFIG_APP_BUTTON_LONG_PRESS_MS);
 
 	if (btn == 0) {
-		if (long_press) {
+		if (msg->type == BUTTON_LONG_PRESS) {
 			LOG_WRN("Stack overflow will now be triggered");
 			fib(10000);
-		} else {
+		} else if (msg->type == BUTTON_SINGLE_CLICK) {
 			LOG_INF("Button 1 short press: Memfault heartbeat + upload");
 			if (wifi_connected) {
 				memfault_metrics_heartbeat_debug_trigger();
@@ -289,7 +282,7 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 	}
 
 	if (btn == 1) {
-		if (long_press) {
+		if (msg->type == BUTTON_LONG_PRESS) {
 			volatile uint32_t i;
 			LOG_WRN("Division by zero will now be triggered");
 #pragma GCC diagnostic push
@@ -298,12 +291,13 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 #pragma GCC diagnostic pop
 			ARG_UNUSED(i);
 		}
-		/* Button 2 / BUTTON1 short: OTA check handled by ota_triggers module */
+		/* Button 2 / BUTTON1 single click: OTA check handled by ota_triggers module */
 		return;
 	}
 
-	if (btn == 2) {
+	if (btn == 2 && msg->type == BUTTON_SINGLE_CLICK) {
 		int err = MEMFAULT_METRIC_ADD(switch_1_toggle_count, 1);
+
 		if (err) {
 			LOG_ERR("Failed to increment switch_1_toggle_count");
 		} else {
@@ -312,7 +306,7 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 		return;
 	}
 
-	if (btn == 3) {
+	if (btn == 3 && msg->type == BUTTON_SINGLE_CLICK) {
 		MEMFAULT_TRACE_EVENT_WITH_LOG(switch_2_toggled, "Switch state: 1");
 		LOG_INF("switch_2_toggled event traced");
 	}

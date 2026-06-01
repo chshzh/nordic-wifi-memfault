@@ -12,12 +12,6 @@ source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
 
 rsource "src/modules/network/Kconfig"
 
-config APP_BUTTON_LONG_PRESS_MS
-	int "Long-press threshold in milliseconds"
-	default 3000
-	help
-	  Press duration (ms) that distinguishes a long press from a short press.
-	  Used by the app_memfault module to select crash-demo vs heartbeat actions.
 rsource "src/modules/heap_monitor/Kconfig.heap_monitor"
 rsource "src/modules/wifi_prov_over_ble/Kconfig.wifi_prov_over_ble"
 rsource "src/modules/app_memfault/Kconfig.app_memfault"

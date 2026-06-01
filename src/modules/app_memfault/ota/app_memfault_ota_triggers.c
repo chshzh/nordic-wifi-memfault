@@ -137,10 +137,7 @@ static void ota_button_listener(const struct zbus_channel *chan)
 {
 	const struct button_msg *msg = zbus_chan_const_msg(chan);
 
-	if (msg->type != BUTTON_RELEASED || msg->button_number != 1) {
-		return;
-	}
-	if (msg->duration_ms >= CONFIG_APP_BUTTON_LONG_PRESS_MS) {
+	if (msg->type != BUTTON_SINGLE_CLICK || msg->button_number != 1) {
 		return;
 	}
 	mflt_ota_triggers_notify_button();
