@@ -38,7 +38,7 @@ or subscribe through zbus channels.
 - BLE Wi-Fi credential provisioning (nRF Wi-Fi Provisioner)
 - Memfault heartbeat, metrics, coredump reporting, and OTA checks
 - Disconnect-time debug capture — Memfault log ring-buffer and nRF70 CDR firmware statistics are persisted to external flash on connectivity loss, then restored and uploaded on the next reconnect; pre-disconnect logs retain original wall-clock timestamps and a visual separator marks the boundary in the Memfault cloud log view
-- Button-driven validation paths (heartbeat/CDR, OTA check, crash demos)
+- Button-driven validation paths (heartbeat/CDR, OTA check, crash demos); button input provided by standalone **[zego/button](../zego/button)** module
 - NTP time synchronization — syncs system clock from `pool.ntp.org` after network ready; log timestamps show real-world UTC time (e.g. `[2026-05-14 19:34:52.299,000]`)
 - Optional HTTPS periodic test module
 - Optional MQTT periodic pub/sub echo test module
@@ -147,10 +147,11 @@ metrics from its timeline to monitor connectivity, reboot reasons, and sensor he
 
 ```text
 nordic-wifi-memfault/
-├── CMakeLists.txt
+├── CMakeLists.txt          ← registers zego/button via EXTRA_ZEPHYR_MODULES
 ├── Kconfig
 ├── prj.conf
 ├── west.yml
+├── boards/                 ← per-board Kconfig fragments (button count)
 ├── docs/
 │   ├── pm-prd/
 │   │   └── PRD.md
@@ -158,7 +159,6 @@ nordic-wifi-memfault/
 │   │   ├── overview.md
 │   │   ├── architecture.md
 │   │   ├── flash-memory-layout.md
-│   │   ├── button-module.md
 │   │   ├── network-module.md
 │   │   ├── app-wifi-prov-ble-module.md
 │   │   ├── heap-monitor-module.md
@@ -167,21 +167,22 @@ nordic-wifi-memfault/
 │   │   └── app-mqtt-client-module.md
 │   └── qa-test/
 │       └── QA-*.md
-├── boards/
 ├── src/
 │   ├── main.c
 │   └── modules/
-│       ├── button/
 │       ├── network/
 │       ├── heap_monitor/
 │       ├── wifi_prov_over_ble/
 │       ├── app_memfault/
 │       ├── app_https_client/
 │       ├── app_mqtt_client/
-│       ├── ntp/│       
+│       ├── ntp/
 │       └── messages.h
 ├── overlay-app-memfault-project-info.conf.template
 └── .github/workflows/build.yml
+
+# External Zephyr modules (sibling repo — ../zego/)
+../zego/button/             ← gesture detection, BUTTON_CHAN; registered via EXTRA_ZEPHYR_MODULES
 ```
 
 ### Workspace Setup
@@ -322,7 +323,7 @@ Start with [docs/dev-specs/overview.md](docs/dev-specs/overview.md).
 | [docs/dev-specs/overview.md](docs/dev-specs/overview.md) | Spec index and PRD-to-spec mapping |
 | [docs/dev-specs/architecture.md](docs/dev-specs/architecture.md) | System architecture and channel flow |
 | [docs/dev-specs/flash-memory-layout.md](docs/dev-specs/flash-memory-layout.md) | Flash/partition layouts, PM-to-DTS migration rationale, OTA compatibility limits |
-| [docs/dev-specs/button-module.md](docs/dev-specs/button-module.md) | Button module behavior |
+| [zego/button — button-spec.md](https://github.com/chshzh/zego/blob/main/button/docs/button-spec.md) | Button module — gesture detection (click, double-click, long press), Zbus `BUTTON_CHAN`; provided by **zego/button** |
 | [docs/dev-specs/network-module.md](docs/dev-specs/network-module.md) | Wi-Fi/network event lifecycle |
 | [docs/dev-specs/app-wifi-prov-ble-module.md](docs/dev-specs/app-wifi-prov-ble-module.md) | BLE provisioning wrapper |
 | [docs/dev-specs/heap-monitor-module.md](docs/dev-specs/heap-monitor-module.md) | Heap monitoring behavior |
