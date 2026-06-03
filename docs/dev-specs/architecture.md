@@ -42,7 +42,6 @@ src/
 ├── main.c
 └── modules/
     ├── messages.h
-    ├── button/
     ├── network/
     ├── heap_monitor/
     ├── wifi_prov_over_ble/
@@ -55,6 +54,9 @@ src/
     ├── app_https_client/
     ├── app_mqtt_client/
     └── ntp/
+
+# External modules (registered via EXTRA_ZEPHYR_MODULES in CMakeLists.txt):
+#   ../zego/button/  — publishes BUTTON_CHAN (gesture events)
 ```
 
 ---
@@ -63,14 +65,20 @@ src/
 
 | Channel | Message Type | Publisher | Subscribers | Direction |
 |---------|-------------|-----------|-------------|-----------|
-| BUTTON_CHAN | struct button_msg | button module | app_memfault core, app_memfault ota, app_memfault cdr | runtime |
+| BUTTON_CHAN | struct button_msg | zego/button (external) | app_memfault core, app_memfault ota, app_memfault cdr | runtime |
 | WIFI_CHAN | struct wifi_msg | network module | app_memfault core, app_memfault ota, wifi_prov_over_ble, app_https_client, app_mqtt_client | runtime |
 | NETWORK_CHAN | struct network_msg | network module | app_memfault core, ntp (optional) | runtime |
 
 ### Message Definitions
 
 ```c
-enum button_msg_type { BUTTON_PRESSED, BUTTON_RELEASED };
+enum button_msg_type {
+    BUTTON_PRESSED,       /* raw press — duration_ms = 0 */
+    BUTTON_RELEASED,      /* raw release — duration_ms = hold time in ms */
+    BUTTON_SINGLE_CLICK,  /* confirmed single press (after double-click window) */
+    BUTTON_DOUBLE_CLICK,  /* two presses within DOUBLE_CLICK_WINDOW_MS */
+    BUTTON_LONG_PRESS,    /* held >= LONG_PRESS_MS (published while still held) */
+};
 struct button_msg {
     enum button_msg_type type;
     uint8_t button_number;
@@ -115,7 +123,7 @@ struct network_msg {
 | Priority | Module | SYS_INIT call | UART marker |
 |----------|--------|---------------|-------------|
 | 90 (default) | network | init_network_events | [wifi] WiFi module initialized |
-| default app init prio | button | button_module_init | [button] initialized |
+| default app init prio | zego/button (external) | `zego_button_init` (SYS_INIT) | [button] initialized |
 | default kernel init prio | heap_monitor | heap_monitor_init | [heap_monitor] enabled |
 | default app init prio | app_memfault core | memfault_core_init | [app_memfault] initialized |
 | 2 | app_https_client | app_https_client_module_init | [app_https_client] initialized |
@@ -145,7 +153,7 @@ struct network_msg {
 | Coredump storage | Board-specific partition in DTS overlays |
 
 For full partition maps, PM-to-DTS migration rationale, and OTA compatibility
-constraints, see [flash-memory-layout.md](flash-memory-layout.md).
+constraints, see [partition-layout.md](partition-layout.md).
 
 ---
 

@@ -40,14 +40,13 @@ For product requirements driving this design, see [../pm-prd/PRD.md](../pm-prd/P
 | Spec file | Covers | PRD sections |
 |-----------|--------|--------------|
 | [architecture.md](architecture.md) | System architecture, module map, zbus channels, boot/init and thread budget | All |
-| [button-module.md](button-module.md) | Button events, short/long press behavior, BUTTON_CHAN publishing | FR-003, FR-004 |
 | [network-module.md](network-module.md) | Wi-Fi/network event management, WIFI_CHAN and NETWORK_CHAN publishing | FR-001, FR-002 |
 | [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) | BLE Wi-Fi provisioning wrapper and credential flow | FR-005 |
 | [heap-monitor-module.md](heap-monitor-module.md) | Heap telemetry and Memfault metric feed | FR-002, NFR-001 |
 | [app-memfault-module.md](app-memfault-module.md) | Memfault core, metrics, OTA triggers, CDR integration | FR-002, FR-003, FR-004 |
 | [app-https-client-module.md](app-https-client-module.md) | HTTPS periodic health requests and metrics | FR-005 |
 | [app-mqtt-client-module.md](app-mqtt-client-module.md) | MQTT echo client and connectivity metrics | FR-005 |
-| [flash-memory-layout.md](flash-memory-layout.md) | Detailed PM-to-DTS partition migration, board layouts, OTA compatibility constraints | NFR-001 |
+| [partition-layout.md](partition-layout.md) | Detailed PM-to-DTS partition migration, board layouts, OTA compatibility constraints | NFR-001 |
 | [ntp-module.md](ntp-module.md) | NTP time synchronization — SNTP client, system clock set, log real-time timestamps | FR-006 |
 
 ---
@@ -75,11 +74,11 @@ Key design decisions:
 |----------------|-----------|--------|
 | FR-001 Device connects to Wi-Fi with stored/provisioned credentials | network-module.md, app-wifi-prov-ble-module.md | Specified |
 | FR-002 Upload Memfault data after connectivity ready | app-memfault-module.md, network-module.md, heap-monitor-module.md | Specified |
-| FR-003 Button 1 behavior (heartbeat/CDR/stack-overflow demo) | button-module.md, app-memfault-module.md | Specified |
-| FR-004 Button 2 behavior (OTA check/div-by-zero demo) | button-module.md, app-memfault-module.md | Specified |
+| FR-003 Button 1 behavior (heartbeat/CDR/stack-overflow demo) | [app-memfault-module.md](app-memfault-module.md) (button events via zego/button) | Specified |
+| FR-004 Button 2 behavior (OTA check/div-by-zero demo) | [app-memfault-module.md](app-memfault-module.md) (button events via zego/button) | Specified |
 | FR-005 BLE provisioning and optional HTTPS/MQTT clients | app-wifi-prov-ble-module.md, app-https-client-module.md, app-mqtt-client-module.md | Specified |
 | FR-006 NTP time sync for real-world log timestamps | ntp-module.md | Specified |
-| FR-007 Persist disconnect-time log state across reboot; upload to Memfault on next connect | app-memfault-module.md, flash-memory-layout.md | Specified |
+| FR-007 Persist disconnect-time log state across reboot; upload to Memfault on next connect | app-memfault-module.md, partition-layout.md | Specified |
 | NFR-001 Resource and stability constraints | architecture.md, heap-monitor-module.md | Specified |
 
 ---
@@ -87,7 +86,7 @@ Key design decisions:
 ## 5. Module Dependency Map
 
 ```
-button ---------------------> BUTTON_CHAN ------------------> app_memfault(core/ota/cdr)
+zego/button (external) ------> BUTTON_CHAN ------------------> app_memfault(core/ota/cdr)
 network --------------------> WIFI_CHAN --------------------> app_memfault, wifi_prov_over_ble, app_https_client, app_mqtt_client
 network --------------------> NETWORK_CHAN -----------------> reserved for future consumers
 heap_monitor -----------------------------------------------> Memfault metrics (if app_memfault enabled)
