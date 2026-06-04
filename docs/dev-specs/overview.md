@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-05-22-10-00 |
+| Version | 2026-06-04-23-00 |
 | PRD Version | 2026-05-22-10-00 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
@@ -22,6 +22,7 @@
 | 2026-05-19-09-07 | Added FR-007 design: connect-time ring-buffer restore for persist-across-reboot disconnect log upload |
 | 2026-05-21-10-01 | Added FR-008 design: CDR flash persist/restore for disconnect-time nRF70 WiFi stats; new `mflt-cdr-state` external flash partition; `CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE` Kconfig |
 | 2026-05-22-10-00 | Fixed multi-AP credential rotation in wifi_prov_over_ble: retry loop now cycles through all stored networks using `cred_rotate_idx`; retry schedule with provisioner reminder logged at retry loop start |
+| 2026-06-04-23-00 | Added zego/led + LED UX module: `zego/led` registered as EXTRA_ZEPHYR_MODULE; `src/modules/ux/ux.c` drives LED 0 from `APP_WIFI_STATE_CHAN`; `net_event_app.c` now publishes `APP_WIFI_STATE_CHAN` alongside `NETWORK_CHAN`; button-module.md updated to zego redirect; new `ux.md` spec |
 
 ---
 
@@ -37,10 +38,13 @@ For product requirements driving this design, see [../pm-prd/PRD.md](../pm-prd/P
 
 ## 2. Spec Index
 
+### App-owned specs
+
 | Spec file | Covers | PRD sections |
 |-----------|--------|--------------|
 | [architecture.md](architecture.md) | System architecture, module map, zbus channels, boot/init and thread budget | All |
-| [network-module.md](network-module.md) | Wi-Fi/network event management, WIFI_CHAN and NETWORK_CHAN publishing | FR-001, FR-002 |
+| [network-module.md](network-module.md) | Wi-Fi/network event management, `WIFI_CHAN`, `NETWORK_CHAN`, `APP_WIFI_STATE_CHAN` publishing | FR-001, FR-002 |
+| [ux.md](ux.md) | LED Wi-Fi state feedback (MARQUEE/ON/BLINK via `zego/led`) | FR-002 |
 | [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) | BLE Wi-Fi provisioning wrapper and credential flow | FR-005 |
 | [heap-monitor-module.md](heap-monitor-module.md) | Heap telemetry and Memfault metric feed | FR-002, NFR-001 |
 | [app-memfault-module.md](app-memfault-module.md) | Memfault core, metrics, OTA triggers, CDR integration | FR-002, FR-003, FR-004 |
@@ -48,6 +52,13 @@ For product requirements driving this design, see [../pm-prd/PRD.md](../pm-prd/P
 | [app-mqtt-client-module.md](app-mqtt-client-module.md) | MQTT echo client and connectivity metrics | FR-005 |
 | [partition-layout.md](partition-layout.md) | Detailed PM-to-DTS partition migration, board layouts, OTA compatibility constraints | NFR-001 |
 | [ntp-module.md](ntp-module.md) | NTP time synchronization — SNTP client, system clock set, log real-time timestamps | FR-006 |
+
+### Zego library module references (no local src/)
+
+| Module | Provided by | Local doc |
+|--------|-------------|-----------|
+| Button | `zego/modules/button` | [button-module.md](button-module.md) |
+| LED | `zego/modules/led` | (see `zego/modules/led/docs/led-spec.md`) |
 
 ---
 
@@ -87,8 +98,10 @@ Key design decisions:
 
 ```
 zego/button (external) ------> BUTTON_CHAN ------------------> app_memfault(core/ota/cdr)
+zego/led    (external) <------ LED_CMD_CHAN <---------------- app_ux
 network --------------------> WIFI_CHAN --------------------> app_memfault, wifi_prov_over_ble, app_https_client, app_mqtt_client
-network --------------------> NETWORK_CHAN -----------------> reserved for future consumers
+network --------------------> NETWORK_CHAN -----------------> app_memfault(core)
+network --------------------> APP_WIFI_STATE_CHAN ----------> app_ux
 heap_monitor -----------------------------------------------> Memfault metrics (if app_memfault enabled)
 ```
 

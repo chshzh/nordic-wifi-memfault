@@ -1,110 +1,22 @@
-# Button Module Specification
+# Button Module
 
-## Document Information
+> **Provided by zego library.**
+>
+> The button module is provided by `zego/modules/button` (registered via
+> `EXTRA_ZEPHYR_MODULES` in `CMakeLists.txt`). There is no local
+> `src/modules/button/` in this project.
+>
+> See the canonical spec:
+> [`zego/modules/button/docs/button-spec.md`](../../../../zego/modules/button/docs/button-spec.md)
 
-| Field | Value |
-|-------|-------|
-| Module | button |
-| Version | 2026-05-14-14-13 |
-| PRD Version | 2026-05-14-14-13 |
-| Status | Draft |
+## Integration in this project
 
----
-
-## Changelog
-
-| Version | Summary of changes |
-|---|---|
-| 2026-05-14-14-13 | Reverse-design spec created from src/modules/button implementation |
-
----
-
-## Overview
-
-The button module converts DK button interactions into normalized event messages
-on BUTTON_CHAN. It is the user input source for heartbeat/OTA triggers and crash
-demo paths handled by app_memfault listeners.
-
----
-
-## Location
-
-- Path: src/modules/button/
-- Files: button.c, button.h, Kconfig.button, CMakeLists.txt
-
----
-
-## Module Type
-
-- Application module
-
----
-
-## Zbus Integration
-
-Publishes to BUTTON_CHAN with struct button_msg.
-
-```c
-struct button_msg {
-    enum button_msg_type type;
-    uint8_t button_number;
-    uint32_t duration_ms;
-    uint32_t press_count;
-    uint32_t timestamp;
-};
-```
-
-No channel subscriptions.
-
----
-
-## State Machine
-
-The module behavior is event-driven from button callbacks, with logical states:
-Idle -> Pressed -> Released for each button event stream.
-
----
-
-## Kconfig Flags
-
-| Symbol | Type | Default | Description |
-|--------|------|---------|-------------|
-| CONFIG_BUTTON_MODULE | bool | y | Enable button module |
-| CONFIG_BUTTON_LONG_PRESS_MS | int | 3000 | Long-press threshold in milliseconds |
-
----
-
-## API / Public Interface
-
-Public APIs are defined in button.h and consumed via module init and zbus events.
-There is no required direct cross-module API for normal operation.
-
----
-
-## Error Handling
-
-| Error Condition | Detection | Response |
-|----------------|-----------|----------|
-| zbus publish failure | return code from zbus_chan_pub | warning log and continue |
-| Invalid button index | callback input validation | ignore event |
-
----
-
-## Memory Estimate
-
-| Resource | Value | Notes |
-|----------|-------|-------|
-| Flash | small | GPIO handling and event mapping |
-| RAM (static) | small | counters and state |
-| Stack | callback context | no dedicated thread |
-
----
-
-## Test Points
-
-| Scenario | UART log expected | Pass condition |
-|----------|-------------------|----------------|
-| Module init | [button] initialized | appears on boot |
-| Short press button 1 | button release event log | app_memfault heartbeat trigger path runs |
-| Short press button 2 | button release event log | OTA trigger path runs |
-| Long press threshold | duration_ms >= CONFIG_BUTTON_LONG_PRESS_MS | crash demo action invoked by subscriber |
+| Item | Value |
+|------|-------|
+| Source | `zego/modules/button/` |
+| Registered as | `EXTRA_ZEPHYR_MODULES` in `CMakeLists.txt` |
+| Enable | `CONFIG_ZEGO_BUTTON=y` |
+| Board: nRF7002DK | `CONFIG_ZEGO_BUTTON_NUM_BUTTONS=2` |
+| Board: nRF54LM20DK | `CONFIG_ZEGO_BUTTON_NUM_BUTTONS=3` |
+| Channel published | `BUTTON_CHAN` (`struct button_msg`) |
+| Consumer | `src/modules/app_memfault/core/app_memfault_core.c` (Button 1 → heartbeat/CDR, Button 2 → OTA/crash demo) |

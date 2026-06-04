@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-05-14-14-13 |
-| PRD Version | 2026-05-14-14-13 |
+| Version | 2026-06-04-23-00 |
+| PRD Version | 2026-05-22-10-00 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
 | Status | Draft |
@@ -19,6 +19,7 @@
 |---|---|
 | 2026-05-14-14-13 | Reverse-design architecture baseline generated from implementation |
 | 2026-05-15-10-31 | Add app_memfault core as NETWORK_CHAN subscriber |
+| 2026-06-04-23-00 | Add zego/led + ux module; update module map to show all zego external modules; add APP_WIFI_STATE_CHAN |
 
 ---
 
@@ -38,25 +39,29 @@ own internal threads.
 ## Module Map
 
 ```
+# App-owned modules (src/modules/)
 src/
 ├── main.c
 └── modules/
-    ├── messages.h
-    ├── network/
-    ├── heap_monitor/
-    ├── wifi_prov_over_ble/
-    ├── app_memfault/
-    │   ├── core/
-    │   ├── metrics/
-    │   ├── ota/
-    │   ├── cdr/
-    │   └── config/
-    ├── app_https_client/
-    ├── app_mqtt_client/
-    └── ntp/
+    ├── messages.h          ← app-local Zbus types (network_msg, app_wifi_state_msg)
+    ├── network/            ← net_event_app.c: NETWORK_CHAN + APP_WIFI_STATE_CHAN + WIFI_CHAN
+    ├── ux/                 ← LED Wi-Fi state feedback (APP_WIFI_STATE_CHAN → LED_CMD_CHAN)
+    ├── heap_monitor/       ← heap telemetry → Memfault metrics
+    ├── app_memfault/       ← Memfault core, metrics, OTA triggers, CDR
+    ├── app_https_client/   ← HTTPS health-check client (nRF54LM20DK only)
+    ├── app_mqtt_client/    ← MQTT echo client
+    └── ntp/                ← SNTP time synchronization
 
-# External modules (registered via EXTRA_ZEPHYR_MODULES in CMakeLists.txt):
-#   ../zego/button/  — publishes BUTTON_CHAN (gesture events)
+# External zego modules (registered via EXTRA_ZEPHYR_MODULES in CMakeLists.txt)
+../zego/modules/
+    ├── button/             ← publishes BUTTON_CHAN (CONFIG_ZEGO_BUTTON=y)
+    ├── led/                ← consumes LED_CMD_CHAN (CONFIG_ZEGO_LED=y)
+    ├── wifi/               ← mode selector, startup banner
+    ├── network/            ← Wi-Fi event backbone (zego_network_on_* weak hooks)
+    └── wifi_ble_prov/      ← BLE Wi-Fi provisioning (CONFIG_ZEGO_WIFI_BLE_PROV=y)
+
+Note: src/modules/wifi_prov_over_ble/ is a legacy stale directory; it is not compiled
+      (no add_subdirectory in CMakeLists.txt). BLE provisioning is handled by zego/wifi_ble_prov.
 ```
 
 ---
