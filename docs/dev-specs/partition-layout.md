@@ -5,11 +5,11 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-05-21-10-01 |
-| PRD Version | 2026-05-14-14-13 |
+| Version | 2026-06-04-23-33 |
+| PRD Version | 2026-06-04-23-04 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
-| Status | Draft |
+| Status | Implemented |
 
 ---
 
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-04-23-33 | Version and PRD Version updated to track latest PRD (2026-06-04-23-04). |
 | 2026-05-18-15-20 | Switched restore-path design to compact internal settings storage (no dedicated external restore partition) |
 | 2026-05-21-10-01 | Added `mflt_cdr_state_partition` (8 KB) to external flash on both boards for FR-008 CDR flash persist/restore |
 | 2026-05-18-14-45 | Explored larger external restore storage design (later superseded by compact internal settings-only approach) |

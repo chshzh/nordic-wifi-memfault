@@ -4,10 +4,12 @@
 
 | Field | Value |
 |-------|-------|
-| Module | app_memfault |
-| Version | 2026-05-26-15-21 |
-| PRD Version | 2026-05-21-10-01 |
-| Status | Draft |
+| Project | nordic-wifi-memfault |
+| Version | 2026-06-04-23-33 |
+| PRD Version | 2026-06-04-23-04 |
+| NCS Version | v3.3.0 |
+| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
+| Status | Implemented |
 
 ---
 
@@ -15,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-04-23-33 | Formatted Document Information: `Module` → `Project`; added `NCS Version` and `Target Board(s)`. PRD Version updated to 2026-06-04-23-04. |
 | 2026-05-14-14-13 | Reverse-design spec created from src/modules/app_memfault implementation |
 | 2026-05-15-10-31 | Add NETWORK_CHAN subscription; log-freeze-on-disconnect behaviour; sync success metrics |
 | 2026-05-15-15-00 | Add NTP-backed Memfault timestamp provider; clarify on_connect() must NOT call log_trigger_collection(); add rate-limit constraint |

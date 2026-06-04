@@ -5,11 +5,11 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-04-23-00 |
-| PRD Version | 2026-05-22-10-00 |
+| Version | 2026-06-04-23-33 |
+| PRD Version | 2026-06-04-23-04 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
-| Status | Draft |
+| Status | Implemented |
 
 ---
 
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-04-23-33 | Version and PRD Version updated to track latest PRD (2026-06-04-23-04). |
 | 2026-05-14-14-13 | Reverse-design architecture baseline generated from implementation |
 | 2026-05-15-10-31 | Add app_memfault core as NETWORK_CHAN subscriber |
 | 2026-06-04-23-00 | Add zego/led + ux module; update module map to show all zego external modules; add APP_WIFI_STATE_CHAN |
