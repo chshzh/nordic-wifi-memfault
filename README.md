@@ -39,6 +39,7 @@ or subscribe through zbus channels.
 - Memfault heartbeat, metrics, coredump reporting, and OTA checks
 - Disconnect-time debug capture — Memfault log ring-buffer and nRF70 CDR firmware statistics are persisted to external flash on connectivity loss, then restored and uploaded on the next reconnect; pre-disconnect logs retain original wall-clock timestamps and a visual separator marks the boundary in the Memfault cloud log view
 - Button-driven validation paths (heartbeat/CDR, OTA check, crash demos); button input provided by standalone **[zego/button](../zego/button)** module
+- LED Wi-Fi state feedback on LED 0: MARQUEE while connecting, solid ON when connected, fast BLINK on error; provided by **[zego/led](../zego/led)** + local UX module
 - NTP time synchronization — syncs system clock from `pool.ntp.org` after network ready; log timestamps show real-world UTC time (e.g. `[2026-05-14 19:34:52.299,000]`)
 - Optional HTTPS periodic test module
 - Optional MQTT periodic pub/sub echo test module
@@ -147,11 +148,11 @@ metrics from its timeline to monitor connectivity, reboot reasons, and sensor he
 
 ```text
 nordic-wifi-memfault/
-├── CMakeLists.txt          ← registers zego/button via EXTRA_ZEPHYR_MODULES
+├── CMakeLists.txt          ← registers zego/button + zego/led via EXTRA_ZEPHYR_MODULES
 ├── Kconfig
 ├── prj.conf
 ├── west.yml
-├── boards/                 ← per-board Kconfig fragments (button count)
+├── boards/                 ← per-board Kconfig fragments (button count, LED count)
 ├── docs/
 │   ├── pm-prd/
 │   │   └── PRD.md
@@ -183,6 +184,7 @@ nordic-wifi-memfault/
 
 # External Zephyr modules (sibling repo — ../zego/)
 ../zego/button/             ← gesture detection, BUTTON_CHAN; registered via EXTRA_ZEPHYR_MODULES
+../zego/led/                ← LED control, LED_CMD_CHAN; registered via EXTRA_ZEPHYR_MODULES
 ```
 
 ### Workspace Setup

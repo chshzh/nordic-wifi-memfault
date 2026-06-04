@@ -1,0 +1,27 @@
+# Copyright (c) 2026 Nordic Semiconductor ASA
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+
+config APP_UX_MODULE
+	bool "Application UX module (LED Wi-Fi state feedback)"
+	depends on ZEGO_LED
+	default n
+	help
+	  Drives LED 0 based on Wi-Fi connectivity state published on
+	  APP_WIFI_STATE_CHAN:
+	    CONNECTING  →  MARQUEE (boot animation)
+	    CONNECTED   →  Solid ON
+	    ERROR       →  Fast BLINK (100 ms half-period)
+
+	  This is a LED-only module.  Button gestures are handled separately
+	  by the app_memfault module (BUTTON_CHAN subscriber).
+
+if APP_UX_MODULE
+
+config APP_UX_INIT_PRIORITY
+	int "UX module SYS_INIT priority"
+	default 95
+	help
+	  Must be higher (later) than ZEGO_LED_INIT_PRIORITY (91) so the LED
+	  module is fully initialised before the UX module starts MARQUEE.
+
+endif # APP_UX_MODULE
