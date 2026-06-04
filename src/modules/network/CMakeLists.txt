@@ -1,13 +1,5 @@
-#
-# Copyright (c) 2025 Nordic Semiconductor ASA
-#
-# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
-#
-
-# Add network event management
+# App-specific network shim: defines WIFI_CHAN / NETWORK_CHAN and overrides
+# the __weak callbacks from zego/network/src/net_event_mgmt.c.
 target_sources(app PRIVATE
-                     ${CMAKE_CURRENT_SOURCE_DIR}/net_event_mgmt.c
-                     ${CMAKE_CURRENT_SOURCE_DIR}/wifi_utils.c)
-
-target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(app PUBLIC ${ZEPHYR_BASE}/subsys/net/ip)
+	${CMAKE_CURRENT_SOURCE_DIR}/net_event_app.c
+)

@@ -6,9 +6,13 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
-# Register zego button module — provides CONFIG_ZEGO_BUTTON Kconfig and BUTTON_CHAN.
-get_filename_component(ZEGO_BUTTON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/button REALPATH)
-list(APPEND EXTRA_ZEPHYR_MODULES ${ZEGO_BUTTON_DIR})
+# Register zego modules: button, led, wifi, network, wifi_ble_prov.
+get_filename_component(ZEGO_BUTTON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/modules/button REALPATH)
+get_filename_component(ZEGO_LED_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/modules/led REALPATH)
+get_filename_component(ZEGO_WIFI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/modules/wifi REALPATH)
+get_filename_component(ZEGO_NETWORK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/modules/network REALPATH)
+get_filename_component(ZEGO_WIFI_BLE_PROV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/modules/wifi_ble_prov REALPATH)
+list(APPEND EXTRA_ZEPHYR_MODULES ${ZEGO_BUTTON_DIR} ${ZEGO_LED_DIR} ${ZEGO_WIFI_DIR} ${ZEGO_NETWORK_DIR} ${ZEGO_WIFI_BLE_PROV_DIR})
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(memfault-nrf7002dk)
@@ -28,18 +32,18 @@ endif()
 zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/modules/app_memfault/config)
 
+# APP_VERSION_STRING, PRD_VERSION, SPECS_VERSION set by zego/wifi/CMakeLists.txt
 target_sources(app PRIVATE src/main.c)
 
 # Module subdirectories (SMF+zbus modular architecture)
 # button module now provided by zego/button (EXTRA_ZEPHYR_MODULES above)
-if(CONFIG_WIFI_MODULE)
+# Shared network module provided by zego/network (EXTRA_ZEPHYR_MODULES above);
+# app shim (net_event_app.c) defines NETWORK_CHAN, declares WIFI_CHAN, overrides weak callbacks.
+if(CONFIG_ZEGO_NETWORK)
     add_subdirectory(src/modules/network)
 endif()
 if(CONFIG_HEAPS_MONITOR)
     add_subdirectory(src/modules/heap_monitor)
-endif()
-if(CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED)
-    add_subdirectory(src/modules/wifi_prov_over_ble)
 endif()
 if(CONFIG_APP_MEMFAULT_MODULE)
     add_subdirectory(src/modules/app_memfault)
@@ -53,9 +57,9 @@ endif()
 if(CONFIG_NTP_MODULE)
     add_subdirectory(src/modules/ntp)
 endif()
-
-# Add BLE provisioning library when enabled
-if(CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED)
-    zephyr_library_include_directories($<TARGET_PROPERTY:wifi_prov_core,BINARY_DIR>)
-    target_link_libraries(app PRIVATE wifi_prov_ble)
+if(CONFIG_APP_UX_MODULE)
+    add_subdirectory(src/modules/ux)
 endif()
+
+# zego/wifi_ble_prov handles BLE provisioning as an EXTRA_ZEPHYR_MODULE (no extra target_link_libraries needed).
+# zego/led is registered above and provides LED_CMD_CHAN; consumed by src/modules/ux.

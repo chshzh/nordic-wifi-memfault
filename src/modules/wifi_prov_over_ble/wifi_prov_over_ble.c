@@ -550,13 +550,7 @@ int wifi_prov_over_ble_init(void)
 		LOG_ERR("BT Advertising failed to start (err %d)", rc);
 		return rc;
 	}
-	LOG_INF("BT Advertising started");
-	LOG_INF("********************************************");
-	LOG_INF("* BLE PROVISIONING READY");
-	LOG_INF("* Device Name: %s", device_name_str);
-	LOG_INF("* Open 'nRF Wi-Fi Provisioner' app to");
-	LOG_INF("* connect and provision WiFi credentials");
-	LOG_INF("********************************************");
+	LOG_INF("BT Advertising started (device name: %s)", device_name_str);
 
 	net_mgmt_init_event_callback(&wifi_mgmt_cb, wifi_mgmt_event_handler,
 				     NET_EVENT_WIFI_DISCONNECT_RESULT |

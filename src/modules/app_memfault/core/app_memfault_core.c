@@ -11,7 +11,9 @@
 #include "app_memfault_core.h"
 #include "app_memfault_log_state_restore.h"
 #include "../../messages.h"
+#ifdef CONFIG_ZEGO_BUTTON
 #include "button.h"
+#endif
 #include "../metrics/app_memfault_wifi_metrics.h"
 #include "../metrics/app_memfault_stack_metrics.h"
 
@@ -258,7 +260,7 @@ ZBUS_LISTENER_DEFINE(memfault_network_listener_def, memfault_network_listener);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, memfault_network_listener_def, 0);
 
 /* BUTTON_CHAN listener: heartbeat, crash demos, metric, trace */
-
+#ifdef CONFIG_ZEGO_BUTTON
 static void memfault_button_listener(const struct zbus_channel *chan)
 {
 	const struct button_msg *msg = zbus_chan_const_msg(chan);
@@ -314,6 +316,7 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 
 ZBUS_LISTENER_DEFINE(memfault_button_listener_def, memfault_button_listener);
 ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, memfault_button_listener_def, 0);
+#endif /* CONFIG_ZEGO_BUTTON */
 
 static int memfault_core_init(void)
 {

@@ -6,7 +6,9 @@
 
 #include "app_memfault_ota_triggers.h"
 #include "../../messages.h"
+#ifdef CONFIG_ZEGO_BUTTON
 #include "button.h"
+#endif
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -21,7 +23,9 @@ LOG_MODULE_REGISTER(ota_triggers, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 #define MFLT_OTA_TRIGGERS_THREAD_STACK_SIZE CONFIG_MEMFAULT_OTA_THREAD_STACK_SIZE
 #define MFLT_OTA_TRIGGERS_THREAD_PRIORITY   K_LOWEST_APPLICATION_THREAD_PRIO
 
-#define MFLT_OTA_TRIGGERS_BUTTON_FLAG  BIT(0)
+#ifdef CONFIG_ZEGO_BUTTON
+#define MFLT_OTA_TRIGGERS_BUTTON_FLAG BIT(0)
+#endif
 #define MFLT_OTA_TRIGGERS_CONNECT_FLAG BIT(1)
 
 static K_SEM_DEFINE(mflt_ota_triggers_sem, 0, 1);
@@ -34,12 +38,14 @@ static const char *consume_trigger_context(void)
 	if (flags == 0) {
 		return "manual";
 	}
+#ifdef CONFIG_ZEGO_BUTTON
 	if ((flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG) && (flags & MFLT_OTA_TRIGGERS_CONNECT_FLAG)) {
 		return "button+connect";
 	}
 	if (flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG) {
 		return "button";
 	}
+#endif
 	if (flags & MFLT_OTA_TRIGGERS_CONNECT_FLAG) {
 		return "connect";
 	}
@@ -84,7 +90,11 @@ static void mflt_ota_triggers_thread(void *p1, void *p2, void *p3)
 		if (ret == 0) {
 			atomic_val_t flags = atomic_get(&mflt_ota_triggers_flags);
 			bool connect_only = (flags & MFLT_OTA_TRIGGERS_CONNECT_FLAG) &&
+#ifdef CONFIG_ZEGO_BUTTON
 					    !(flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG);
+#else
+					    true;
+#endif
 
 			if (connect_only) {
 				LOG_INF("Memfault OTA check after network connect, "
@@ -106,6 +116,7 @@ K_THREAD_DEFINE(mflt_ota_triggers_tid, MFLT_OTA_TRIGGERS_THREAD_STACK_SIZE,
 		mflt_ota_triggers_thread, NULL, NULL, NULL, MFLT_OTA_TRIGGERS_THREAD_PRIORITY, 0,
 		0);
 
+#ifdef CONFIG_ZEGO_BUTTON
 void mflt_ota_triggers_notify_button(void)
 {
 	atomic_or(&mflt_ota_triggers_flags, MFLT_OTA_TRIGGERS_BUTTON_FLAG);
@@ -117,6 +128,7 @@ void mflt_ota_triggers_notify_button(void)
 		LOG_DBG("Memfault OTA check already pending");
 	}
 }
+#endif /* CONFIG_ZEGO_BUTTON */
 
 void mflt_ota_triggers_notify_connected(void)
 {
@@ -133,6 +145,7 @@ void mflt_ota_triggers_notify_connected(void)
 /* Zbus: Button 2 / BUTTON1 short press -> OTA check; WIFI_STA_CONNECTED -> OTA on connect */
 extern const struct zbus_channel WIFI_CHAN;
 
+#ifdef CONFIG_ZEGO_BUTTON
 static void ota_button_listener(const struct zbus_channel *chan)
 {
 	const struct button_msg *msg = zbus_chan_const_msg(chan);
@@ -142,6 +155,7 @@ static void ota_button_listener(const struct zbus_channel *chan)
 	}
 	mflt_ota_triggers_notify_button();
 }
+#endif /* CONFIG_ZEGO_BUTTON */
 
 static void ota_wifi_listener(const struct zbus_channel *chan)
 {
@@ -152,8 +166,10 @@ static void ota_wifi_listener(const struct zbus_channel *chan)
 	}
 }
 
-ZBUS_LISTENER_DEFINE(ota_button_listener_def, ota_button_listener);
 ZBUS_LISTENER_DEFINE(ota_wifi_listener_def, ota_wifi_listener);
 
+#ifdef CONFIG_ZEGO_BUTTON
+ZBUS_LISTENER_DEFINE(ota_button_listener_def, ota_button_listener);
 ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, ota_button_listener_def, 0);
+#endif
 ZBUS_CHAN_ADD_OBS(WIFI_CHAN, ota_wifi_listener_def, 0);

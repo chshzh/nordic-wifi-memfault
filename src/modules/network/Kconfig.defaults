@@ -12,65 +12,65 @@
 # WiFi driver (nRF70)
 # ---------------------------------------------------------------------------
 config WIFI
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 config WIFI_NRF70
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 # ---------------------------------------------------------------------------
 # WPA supplicant
 # ---------------------------------------------------------------------------
 config WIFI_NM_WPA_SUPPLICANT
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 config WIFI_NM_WPA_SUPPLICANT_THREAD_STACK_SIZE
-	default 8192 if WIFI_MODULE
+	default 8192 if ZEGO_NETWORK
 
 config WIFI_NM_WPA_SUPPLICANT_WQ_STACK_SIZE
-	default 5632 if WIFI_MODULE
+	default 5632 if ZEGO_NETWORK
 
 # ---------------------------------------------------------------------------
 # nRF70 driver settings
 # ---------------------------------------------------------------------------
 config NRF_WIFI_SCAN_MAX_BSS_CNT
-	default 20 if WIFI_MODULE
+	default 20 if ZEGO_NETWORK
 
 config NRF_WIFI_CTRL_HEAP_SIZE
-	default 20000 if WIFI_MODULE
+	default 20000 if ZEGO_NETWORK
 
 config NRF_WIFI_DATA_HEAP_SIZE
-	default 54856 if WIFI_MODULE
+	default 54856 if ZEGO_NETWORK
 
 config NRF70_RX_NUM_BUFS
-	default 16 if WIFI_MODULE
+	default 16 if ZEGO_NETWORK
 
 config NRF70_MAX_TX_AGGREGATION
-	default 4 if WIFI_MODULE
+	default 4 if ZEGO_NETWORK
 
 # ---------------------------------------------------------------------------
 # WiFi / BLE coexistence
 # ---------------------------------------------------------------------------
 config NRF70_SR_COEX
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 config NRF70_SR_COEX_RF_SWITCH
-	default y if WIFI_MODULE && NRF70_SR_COEX
+	default y if ZEGO_NETWORK && NRF70_SR_COEX
 
 # ---------------------------------------------------------------------------
 # L2 WiFi connectivity (connection manager)
 # ---------------------------------------------------------------------------
 config NET_CONNECTION_MANAGER
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
-# HWM 4572 B (88% of 5168!) × 1.5 = 6858 → 7168 — INCREASED for safety
+# HWM 4572 B (88% of 5168!) x 1.5 = 6858 -> 7168 -- INCREASED for safety
 config NET_CONNECTION_MANAGER_MONITOR_STACK_SIZE
-	default 7168 if WIFI_MODULE
+	default 7168 if ZEGO_NETWORK
 
 config L2_WIFI_CONNECTIVITY
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 config L2_WIFI_CONNECTIVITY_AUTO_CONNECT
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 config L2_WIFI_CONNECTIVITY_AUTO_DOWN
 	default n
@@ -79,100 +79,102 @@ config L2_WIFI_CONNECTIVITY_AUTO_DOWN
 # WiFi credentials (persistent storage via ZMS)
 # ---------------------------------------------------------------------------
 config WIFI_CREDENTIALS
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 # WIFI_CREDENTIALS_BACKEND_SETTINGS is a choice symbol - set in prj.conf.
 
 # ---------------------------------------------------------------------------
 # Network stack
+# (CONFIG_NETWORKING must be set in prj.conf -- it cannot appear here because
+# ZEGO_WIFI depends on NETWORKING, which would create a Kconfig
+# circular dependency: NETWORKING -> ZEGO_NETWORK -> ZEGO_WIFI -> NETWORKING.)
 # ---------------------------------------------------------------------------
-config NETWORKING
-	default y if WIFI_MODULE
+# config NETWORKING -- set CONFIG_NETWORKING=y in prj.conf instead
 
 config NET_IPV4
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 config NET_IPV6
 	default n
 
 config NET_UDP
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 config NET_TCP
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 config NET_TCP_TIME_WAIT_DELAY
-	default 1000 if WIFI_MODULE
+	default 1000 if ZEGO_NETWORK
 
 config NET_DHCPV4
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 # ---------------------------------------------------------------------------
 # Network buffers
 # ---------------------------------------------------------------------------
 config NET_PKT_RX_COUNT
-	default 8 if WIFI_MODULE
+	default 8 if ZEGO_NETWORK
 
 config NET_PKT_TX_COUNT
-	default 8 if WIFI_MODULE
+	default 8 if ZEGO_NETWORK
 
 config NET_BUF_RX_COUNT
-	default 16 if WIFI_MODULE
+	default 16 if ZEGO_NETWORK
 
 config NET_BUF_TX_COUNT
-	default 64 if WIFI_MODULE
+	default 64 if ZEGO_NETWORK
 
 # NET_BUF_FIXED_DATA_SIZE is a choice symbol - set in prj.conf.
 
 config NET_BUF_DATA_SIZE
-	default 128 if WIFI_MODULE
+	default 128 if ZEGO_NETWORK
 
 config NET_TC_TX_COUNT
-	default 1 if WIFI_MODULE
+	default 1 if ZEGO_NETWORK
 
 # ---------------------------------------------------------------------------
 # Network interface
 # ---------------------------------------------------------------------------
 config NET_IF_UNICAST_IPV4_ADDR_COUNT
-	default 1 if WIFI_MODULE
+	default 1 if ZEGO_NETWORK
 
 config NET_MAX_CONTEXTS
-	default 10 if WIFI_MODULE
+	default 10 if ZEGO_NETWORK
 
 config NET_MAX_CONN
-	default 10 if WIFI_MODULE
+	default 10 if ZEGO_NETWORK
 
 # ---------------------------------------------------------------------------
 # Sockets
 # ---------------------------------------------------------------------------
 config NET_SOCKETS
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 config NET_SOCKETS_POLL_MAX
-	default 20 if WIFI_MODULE
+	default 20 if ZEGO_NETWORK
 
 # ---------------------------------------------------------------------------
 # DNS resolution
 # Allow concurrent lookups from app_https_client, app_mqtt_client, app_memfault.
 # ---------------------------------------------------------------------------
 config DNS_RESOLVER
-	default y if WIFI_MODULE
+	default y if ZEGO_NETWORK
 
 config DNS_RESOLVER_ADDITIONAL_BUF_CTR
-	default 2 if WIFI_MODULE
+	default 2 if ZEGO_NETWORK
 
 config DNS_RESOLVER_ADDITIONAL_QUERIES
-	default 2 if WIFI_MODULE
+	default 2 if ZEGO_NETWORK
 
 # ---------------------------------------------------------------------------
 # Net management event queue
 # ---------------------------------------------------------------------------
 config NET_MGMT_EVENT_QUEUE_SIZE
-	default 150 if WIFI_MODULE
+	default 150 if ZEGO_NETWORK
 
-# HWM 2580 B (22% of 12000) × 2.0 = 5160 → 6144 — halved with 2× safety margin
+# HWM 2580 B (22% of 12000) x 2.0 = 5160 -> 6144 -- halved with 2x safety margin
 config NET_MGMT_EVENT_STACK_SIZE
-	default 6144 if WIFI_MODULE
+	default 6144 if ZEGO_NETWORK
 
 config NET_MGMT_EVENT_QUEUE_TIMEOUT
-	default 5000 if WIFI_MODULE
+	default 5000 if ZEGO_NETWORK

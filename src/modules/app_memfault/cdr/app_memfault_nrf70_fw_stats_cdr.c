@@ -9,7 +9,9 @@
 
 #include "app_memfault_nrf70_fw_stats_cdr.h"
 #include "../../messages.h"
+#ifdef CONFIG_ZEGO_BUTTON
 #include "button.h"
+#endif
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -313,6 +315,7 @@ int mflt_nrf70_fw_stats_cdr_restore_from_flash(void)
 #endif /* CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE */
 
 #if CONFIG_NRF70_FW_STATS_CDR_ENABLED
+#ifdef CONFIG_ZEGO_BUTTON
 /* Zbus: Button 1 / BUTTON0 short press -> collect nRF70 FW stats */
 
 static void cdr_button_listener(const struct zbus_channel *chan)
@@ -334,4 +337,5 @@ static void cdr_button_listener(const struct zbus_channel *chan)
 
 ZBUS_LISTENER_DEFINE(cdr_button_listener_def, cdr_button_listener);
 ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, cdr_button_listener_def, 0);
+#endif /* CONFIG_ZEGO_BUTTON */
 #endif
