@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-04-23-33 |
+| Version | 2026-06-05-10-20 |
 | PRD Version | 2026-06-04-23-04 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-05-10-20 | Verification P1 fixes: removed stale Spec Index row for deleted app-wifi-prov-ble-module.md; corrected Section 6 SPECS_VERSION description (auto-extracted by zego/wifi CMakeLists.txt, not a manual define). |
 | 2026-06-04-23-33 | Deleted button-module.md and app-wifi-prov-ble-module.md — both replaced by zego modules (`zego/button`, `zego/wifi_ble_prov`). Updated Spec Index, Zego table (added wifi_ble_prov; direct GitHub links), FR-001/FR-005 mappings, and dependency map. Version and PRD Version updated. |
 | 2026-05-14-14-13 | Reverse-design baseline generated from current implementation in src/modules and migrated to docs/dev-specs |
 | 2026-05-14-15-00 | Added ntp-module.md for FR-006: NTP time synchronization |
@@ -45,8 +46,7 @@ For product requirements driving this design, see [../pm-prd/PRD.md](../pm-prd/P
 |-----------|--------|--------------|
 | [architecture.md](architecture.md) | System architecture, module map, zbus channels, boot/init and thread budget | All |
 | [network-module.md](network-module.md) | Wi-Fi/network event management, `WIFI_CHAN`, `NETWORK_CHAN`, `APP_WIFI_STATE_CHAN` publishing | FR-001, FR-002 |
-| [ux.md](ux.md) | LED Wi-Fi state feedback (MARQUEE/ON/BLINK via `zego/led`) | FR-009 |
-| [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) | BLE Wi-Fi provisioning wrapper and credential flow | FR-005 |
+| [ux.md](ux.md) | LED Wi-Fi state feedback (ROTATE/ON/BLINK via `zego/led`) | FR-009 |
 | [heap-monitor-module.md](heap-monitor-module.md) | Heap telemetry and Memfault metric feed | FR-002, NFR-001 |
 | [app-memfault-module.md](app-memfault-module.md) | Memfault core, metrics, OTA triggers, CDR integration | FR-002, FR-003, FR-004 |
 | [app-https-client-module.md](app-https-client-module.md) | HTTPS periodic health requests and metrics | FR-005 |
@@ -118,13 +118,14 @@ For detailed channels and structs, see [architecture.md](architecture.md).
 
 **`SPECS_VERSION` — spec/code sync marker**
 
-`src/main.c` defines:
-```c
-#define SPECS_VERSION "<latest overview.md changelog timestamp>"
-```
-and prints it at boot. After any spec or PRD change that affects behavior, update
-`SPECS_VERSION` to match the new changelog timestamp and append a changelog row
-to each affected spec and to PRD.md.
+`SPECS_VERSION` is automatically extracted from this file's `| Version |` row by
+`zego/modules/wifi/CMakeLists.txt` at build time and passed as a compile definition.
+It is printed at boot by `zego_wifi_print_banner()` in `main.c`. No manual `#define`
+is required.
+
+After any spec or PRD change that affects behavior, update the `Version` field in
+this file's Document Information table, append a changelog row, and rebuild — the
+printed version will update automatically.
 
 ---
 

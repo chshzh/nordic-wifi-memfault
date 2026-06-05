@@ -39,7 +39,7 @@ or subscribe through zbus channels.
 - Memfault heartbeat, metrics, coredump reporting, and OTA checks
 - Disconnect-time debug capture — Memfault log ring-buffer and nRF70 CDR firmware statistics are persisted to external flash on connectivity loss, then restored and uploaded on the next reconnect; pre-disconnect logs retain original wall-clock timestamps and a visual separator marks the boundary in the Memfault cloud log view
 - Button-driven validation paths (heartbeat/CDR, OTA check, crash demos); button input provided by standalone **[zego/button](../zego/button)** module
-- LED Wi-Fi state feedback on LED 0: MARQUEE while connecting, solid ON when connected, fast BLINK on error; provided by **[zego/led](../zego/led)** + local UX module
+- LED Wi-Fi state feedback on LED 0: ROTATE while connecting, solid ON when connected, fast BLINK on error; provided by **[zego/led](../zego/led)** + local UX module
 - NTP time synchronization — syncs system clock from `pool.ntp.org` after network ready; log timestamps show real-world UTC time (e.g. `[2026-05-14 19:34:52.299,000]`)
 - Optional HTTPS periodic test module
 - Optional MQTT periodic pub/sub echo test module

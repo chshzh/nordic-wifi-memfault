@@ -49,7 +49,7 @@ LED 0 is driven by `APP_WIFI_STATE_CHAN` (published by `net_event_app.c`).
 Boot
  │
  ▼
-[MARQUEE] ◄── SYS_INIT (APP_UX priority 95)
+[ROTATE] ◄── SYS_INIT (APP_UX priority 95)
  │
  ├──► APP_WIFI_STATE_CONNECTED  ──► [Solid ON]
  │
@@ -60,7 +60,7 @@ Boot
 
 | `app_wifi_state` | LED 0 effect | `period_ms` |
 |------------------|-------------|-------------|
-| `CONNECTING` (boot) | MARQUEE | Kconfig default |
+| `CONNECTING` (boot) | ROTATE | Kconfig default |
 | `CONNECTED` | Solid ON | — |
 | `ERROR` (disconnected) | BLINK | 100 ms |
 
@@ -76,7 +76,7 @@ Defined in `src/modules/network/net_event_app.c`. Declared in `src/modules/messa
 | `APP_WIFI_STATE_ERROR` | `zego_network_on_wifi_disconnected()` fires |
 
 > `APP_WIFI_STATE_CONNECTING` is not published explicitly — the UX module starts
-> MARQUEE at boot via `SYS_INIT` unconditionally.
+> ROTATE at boot via `SYS_INIT` unconditionally.
 
 ---
 
