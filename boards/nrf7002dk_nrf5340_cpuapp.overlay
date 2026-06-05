@@ -25,17 +25,17 @@
 
 		slot0_partition: partition@a000 {
 			label = "image-0";
-			reg = <0xa000 0xe5000>; /* +4 KB for zego_banner + app_main */
+			reg = <0xa000 0xe4000>;
 		};
 
-		storage_partition: partition@ef000 {
+		storage_partition: partition@ee000 {
 			label = "storage";
-			reg = <0xef000 0x2000>;
+			reg = <0xee000 0x2000>;
 		};
 
-		memfault_storage: partition@f1000 {
+		memfault_storage: partition@f0000 {
 			label = "memfault-storage";
-			reg = <0xf1000 0xF000>; /* 60 KB (was 64 KB) */
+			reg = <0xf0000 0x10000>;
 		};
 	};
 };
@@ -51,19 +51,19 @@
 
 		slot1_partition: partition@0 {
 			label = "image-1";
-			reg = <0x0 0xe5000>; /* must match slot0 for MCUBoot swap */
+			reg = <0x0 0xe4000>; /* must match slot0 for MCUBoot swap */
 		};
 
 		/* 8 KB dedicated partition for Memfault disconnect-time log-state blob */
-		mflt_log_state_partition: partition@e5000 {
+		mflt_log_state_partition: partition@e4000 {
 			label = "mflt-log-state";
-			reg = <0xe5000 0x2000>;
+			reg = <0xe4000 0x2000>;
 		};
 
 		/* 8 KB dedicated partition for Memfault disconnect-time CDR (WiFi stats) blob */
-		mflt_cdr_state_partition: partition@e7000 {
+		mflt_cdr_state_partition: partition@e6000 {
 			label = "mflt-cdr-state";
-			reg = <0xe7000 0x2000>;
+			reg = <0xe6000 0x2000>;
 		};
 	};
 };
