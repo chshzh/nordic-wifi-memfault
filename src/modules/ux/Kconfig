@@ -8,7 +8,7 @@ config APP_UX_MODULE
 	help
 	  Drives LED 0 based on Wi-Fi connectivity state published on
 	  APP_WIFI_STATE_CHAN:
-	    CONNECTING  →  MARQUEE (boot animation)
+	    CONNECTING  →  ROTATE (boot animation)
 	    CONNECTED   →  Solid ON
 	    ERROR       →  Fast BLINK (100 ms half-period)
 
@@ -22,6 +22,6 @@ config APP_UX_INIT_PRIORITY
 	default 95
 	help
 	  Must be higher (later) than ZEGO_LED_INIT_PRIORITY (91) so the LED
-	  module is fully initialised before the UX module starts MARQUEE.
+	  module is fully initialised before the UX module starts ROTATE.
 
 endif # APP_UX_MODULE

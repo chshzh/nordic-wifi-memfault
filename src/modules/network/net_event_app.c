@@ -67,7 +67,11 @@ void zego_network_on_wifi_connected(enum zego_wifi_mode mode, const char *ip_add
 		.mode = mode,
 	};
 
-	zbus_chan_pub(&APP_WIFI_STATE_CHAN, &smsg, K_NO_WAIT);
+	int err3 = zbus_chan_pub(&APP_WIFI_STATE_CHAN, &smsg, K_NO_WAIT);
+
+	if (err3) {
+		LOG_WRN("Failed to publish APP_WIFI_STATE_CHAN (CONNECTED): %d", err3);
+	}
 }
 
 void zego_network_on_wifi_disconnected(void)
@@ -101,5 +105,9 @@ void zego_network_on_wifi_disconnected(void)
 		.mode = ZEGO_WIFI_MODE_STA,
 	};
 
-	zbus_chan_pub(&APP_WIFI_STATE_CHAN, &smsg, K_NO_WAIT);
+	int err3 = zbus_chan_pub(&APP_WIFI_STATE_CHAN, &smsg, K_NO_WAIT);
+
+	if (err3) {
+		LOG_WRN("Failed to publish APP_WIFI_STATE_CHAN (ERROR): %d", err3);
+	}
 }

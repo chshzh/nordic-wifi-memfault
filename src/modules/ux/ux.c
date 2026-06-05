@@ -8,7 +8,7 @@
  * @brief LED Wi-Fi state feedback for nordic-wifi-memfault.
  *
  * Subscribes to APP_WIFI_STATE_CHAN and drives LED 0:
- *   CONNECTING  →  MARQUEE  (started at boot via SYS_INIT)
+ *   CONNECTING  →  ROTATE  (started at boot via SYS_INIT)
  *   CONNECTED   →  Solid ON
  *   ERROR       →  Fast BLINK (100 ms half-period)
  *
@@ -40,14 +40,18 @@ static void led_set(enum led_msg_type type, uint16_t period_ms)
 		.period_ms = period_ms,
 	};
 
-	zbus_chan_pub(&LED_CMD_CHAN, &msg, K_NO_WAIT);
+	int err = zbus_chan_pub(&LED_CMD_CHAN, &msg, K_NO_WAIT);
+
+	if (err) {
+		LOG_WRN("Failed to publish LED_CMD_CHAN: %d", err);
+	}
 }
 
 static void apply_wifi_state_led(enum app_wifi_state state)
 {
 	switch (state) {
 	case APP_WIFI_STATE_CONNECTING:
-		led_set(LED_COMMAND_MARQUEE, 0);
+		led_set(LED_COMMAND_ROTATE, 0);
 		break;
 	case APP_WIFI_STATE_CONNECTED:
 		led_set(LED_COMMAND_ON, 0);
@@ -98,12 +102,12 @@ static void wifi_state_listener_cb(const struct zbus_channel *chan)
 ZBUS_LISTENER_DEFINE(app_wifi_state_listener, wifi_state_listener_cb);
 ZBUS_CHAN_ADD_OBS(APP_WIFI_STATE_CHAN, app_wifi_state_listener, 0);
 
-/* ── SYS_INIT: start MARQUEE at boot ───────────────────────────────────── */
+/* ── SYS_INIT: start ROTATE at boot ───────────────────────────────────── */
 
 static int app_ux_init(void)
 {
 	/* Start boot animation — LED module (priority 91) has already run. */
-	led_set(LED_COMMAND_MARQUEE, 0);
+	led_set(LED_COMMAND_ROTATE, 0);
 
 	/* Unblock app_ux_led_work_fn */
 	atomic_set(&app_ux_ready, 1);
