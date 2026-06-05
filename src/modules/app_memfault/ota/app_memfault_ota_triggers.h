@@ -7,7 +7,7 @@
 #ifndef APP_MEMFAULT_OTA_TRIGGERS_H
 #define APP_MEMFAULT_OTA_TRIGGERS_H
 
-#ifdef CONFIG_ZEGO_BUTTON
+#if defined(CONFIG_ZEGO_BUTTON) || defined(CONFIG_DK_LIBRARY)
 void mflt_ota_triggers_notify_button(void);
 #endif
 void mflt_ota_triggers_notify_connected(void);

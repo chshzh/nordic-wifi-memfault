@@ -23,7 +23,7 @@ LOG_MODULE_REGISTER(ota_triggers, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 #define MFLT_OTA_TRIGGERS_THREAD_STACK_SIZE CONFIG_MEMFAULT_OTA_THREAD_STACK_SIZE
 #define MFLT_OTA_TRIGGERS_THREAD_PRIORITY   K_LOWEST_APPLICATION_THREAD_PRIO
 
-#ifdef CONFIG_ZEGO_BUTTON
+#if defined(CONFIG_ZEGO_BUTTON) || defined(CONFIG_DK_LIBRARY)
 #define MFLT_OTA_TRIGGERS_BUTTON_FLAG BIT(0)
 #endif
 #define MFLT_OTA_TRIGGERS_CONNECT_FLAG BIT(1)
@@ -38,7 +38,7 @@ static const char *consume_trigger_context(void)
 	if (flags == 0) {
 		return "manual";
 	}
-#ifdef CONFIG_ZEGO_BUTTON
+#if defined(CONFIG_ZEGO_BUTTON) || defined(CONFIG_DK_LIBRARY)
 	if ((flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG) && (flags & MFLT_OTA_TRIGGERS_CONNECT_FLAG)) {
 		return "button+connect";
 	}
@@ -90,7 +90,7 @@ static void mflt_ota_triggers_thread(void *p1, void *p2, void *p3)
 		if (ret == 0) {
 			atomic_val_t flags = atomic_get(&mflt_ota_triggers_flags);
 			bool connect_only = (flags & MFLT_OTA_TRIGGERS_CONNECT_FLAG) &&
-#ifdef CONFIG_ZEGO_BUTTON
+#if defined(CONFIG_ZEGO_BUTTON) || defined(CONFIG_DK_LIBRARY)
 					    !(flags & MFLT_OTA_TRIGGERS_BUTTON_FLAG);
 #else
 					    true;
@@ -116,7 +116,7 @@ K_THREAD_DEFINE(mflt_ota_triggers_tid, MFLT_OTA_TRIGGERS_THREAD_STACK_SIZE,
 		mflt_ota_triggers_thread, NULL, NULL, NULL, MFLT_OTA_TRIGGERS_THREAD_PRIORITY, 0,
 		0);
 
-#ifdef CONFIG_ZEGO_BUTTON
+#if defined(CONFIG_ZEGO_BUTTON) || defined(CONFIG_DK_LIBRARY)
 void mflt_ota_triggers_notify_button(void)
 {
 	atomic_or(&mflt_ota_triggers_flags, MFLT_OTA_TRIGGERS_BUTTON_FLAG);
@@ -128,7 +128,7 @@ void mflt_ota_triggers_notify_button(void)
 		LOG_DBG("Memfault OTA check already pending");
 	}
 }
-#endif /* CONFIG_ZEGO_BUTTON */
+#endif /* CONFIG_ZEGO_BUTTON || CONFIG_DK_LIBRARY */
 
 void mflt_ota_triggers_notify_connected(void)
 {

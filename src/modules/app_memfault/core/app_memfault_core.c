@@ -80,7 +80,8 @@ static void log_freeze_work_fn(struct k_work *work)
 
 static K_WORK_DELAYABLE_DEFINE(log_freeze_work, log_freeze_work_fn);
 
-/* Recursive Fibonacci for stack overflow demo */
+/* Recursive Fibonacci for stack overflow demo (long-press Button 1) */
+#ifdef CONFIG_ZEGO_BUTTON
 static int fib(int n)
 {
 	if (n <= 1) {
@@ -88,6 +89,7 @@ static int fib(int n)
 	}
 	return fib(n - 1) + fib(n - 2);
 }
+#endif
 
 /* Memfault SDK callback */
 void memfault_metrics_heartbeat_collect_data(void)
@@ -259,8 +261,8 @@ static void memfault_network_listener(const struct zbus_channel *chan)
 ZBUS_LISTENER_DEFINE(memfault_network_listener_def, memfault_network_listener);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, memfault_network_listener_def, 0);
 
-/* BUTTON_CHAN listener: heartbeat, crash demos, metric, trace */
-#ifdef CONFIG_ZEGO_BUTTON
+/* Button handler: zbus BUTTON_CHAN (zego module) or direct dk_buttons (nRF7002DK fallback) */
+#if defined(CONFIG_ZEGO_BUTTON)
 static void memfault_button_listener(const struct zbus_channel *chan)
 {
 	const struct button_msg *msg = zbus_chan_const_msg(chan);
@@ -316,11 +318,41 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 
 ZBUS_LISTENER_DEFINE(memfault_button_listener_def, memfault_button_listener);
 ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, memfault_button_listener_def, 0);
-#endif /* CONFIG_ZEGO_BUTTON */
+
+#elif defined(CONFIG_DK_LIBRARY)
+
+#include <dk_buttons_and_leds.h>
+#include "../ota/app_memfault_ota_triggers.h"
+
+static void dk_button_handler(uint32_t button_state, uint32_t has_changed)
+{
+	if (has_changed & button_state & DK_BTN1_MSK) {
+		LOG_INF("Button 1: Memfault heartbeat + upload");
+		if (wifi_connected) {
+			memfault_metrics_heartbeat_debug_trigger();
+			k_sem_give(&upload_sem);
+		} else {
+			LOG_WRN("WiFi not connected, cannot collect metrics");
+		}
+	}
+	if (has_changed & button_state & DK_BTN2_MSK) {
+		mflt_ota_triggers_notify_button();
+	}
+}
+
+#endif /* CONFIG_ZEGO_BUTTON / CONFIG_DK_LIBRARY */
 
 static int memfault_core_init(void)
 {
 	LOG_INF("Memfault core init");
+
+#if defined(CONFIG_DK_LIBRARY) && !defined(CONFIG_ZEGO_BUTTON)
+	int btn_err = dk_buttons_init(dk_button_handler);
+
+	if (btn_err) {
+		LOG_ERR("dk_buttons_init failed: %d", btn_err);
+	}
+#endif
 
 #if CONFIG_MEMFAULT_NCS_STACK_METRICS
 	/* Register stack monitors at boot so early connect/auth peaks are not missed.
