@@ -18,12 +18,6 @@ manifest:
       import: true
       remote: ncs
       
-    - name: zview
-      url: https://github.com/wkhadgar/zview
-      revision: main
-      path: modules/tools/zview
-      west-commands: scripts/west-commands.yml
-      
     # Common app modules and libraries
     - name: zego
       path: zego
@@ -45,7 +39,13 @@ manifest:
     #   path: .claude
     #   revision: main
     #   remote: chshzh
-
+    
+    # - name: zview
+    #   url: https://github.com/wkhadgar/zview
+    #   revision: main
+    #   path: modules/tools/zview
+    #   west-commands: scripts/west-commands.yml
+    
 
   self:
     path: nordic-wifi-memfault
