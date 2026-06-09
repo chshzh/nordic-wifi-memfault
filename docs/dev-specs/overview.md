@@ -8,7 +8,7 @@
 | Version | 2026-06-05-10-20 |
 | PRD Version | 2026-06-04-23-04 |
 | NCS Version | v3.3.0 |
-| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
+| Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
 | Status | Implemented |
 
 ---

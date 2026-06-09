@@ -52,14 +52,14 @@ jobs:
     strategy:
       matrix:
         config:
-          - name: "nRF7002DK"
-            build_dir: "build_nrf7002dk"
-            board: "nrf7002dk/nrf5340/cpuapp"
-            cmake_args: ""
           - name: "nRF54LM20DK + nRF7002EB2"
             build_dir: "build_nrf54lm20dk_wifi"
             board: "nrf54lm20dk/nrf54lm20a/cpuapp"
             cmake_args: "-DSHIELD=nrf7002eb2"
+          - name: "nRF7002DK"
+            build_dir: "build_nrf7002dk"
+            board: "nrf7002dk/nrf5340/cpuapp"
+            cmake_args: ""
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

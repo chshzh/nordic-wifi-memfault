@@ -29,8 +29,8 @@ or subscribe through zbus channels.
 
 | Board | Build target |
 |-------|--------------|
-| nRF7002DK | `nrf7002dk/nrf5340/cpuapp` |
 | nRF54LM20DK + nRF7002EB2 | `nrf54lm20dk/nrf54lm20a/cpuapp` + `-DSHIELD=nrf7002eb2` |
+| nRF7002DK | `nrf7002dk/nrf5340/cpuapp` |
 
 ### Features
 
@@ -111,8 +111,8 @@ Monitor logs via UART:
 
 | Board | Port | Baud |
 |-------|------|------|
-| nRF7002DK | VCOM1 (`/dev/tty.usbmodem*3`) | 115200 |
 | nRF54LM20DK + nRF7002EB2 | VCOM0 (`/dev/tty.usbmodem*1`) | 115200 |
+| nRF7002DK | VCOM1 (`/dev/tty.usbmodem*3`) | 115200 |
 
 Use serial terminal at `115200` and verify:
 - boot banner and enabled module list,
@@ -132,14 +132,14 @@ metrics from its timeline to monitor connectivity, reboot reasons, and sensor he
 
 | Board | Button | Press | Action |
 |-------|--------|-------|--------|
-| nRF7002DK | Button 1 | short(<3s) | Trigger heartbeat and optional nRF70 CDR |
-| nRF7002DK | Button 1 | long(>=3s) | Stack overflow demo crash |
-| nRF7002DK | Button 2 | short(<3s) | Trigger OTA check |
-| nRF7002DK | Button 2 | long(>=3s) | Division-by-zero demo crash |
 | nRF54LM20DK + nRF7002EB2 | BUTTON0 | short(<3s) | Trigger heartbeat and optional nRF70 CDR |
 | nRF54LM20DK + nRF7002EB2 | BUTTON0 | long(>=3s) | Stack overflow demo crash |
 | nRF54LM20DK + nRF7002EB2 | BUTTON1 | short(<3s) | Trigger OTA check |
 | nRF54LM20DK + nRF7002EB2 | BUTTON1 | long(>=3s) | Division-by-zero demo crash |
+| nRF7002DK | Button 1 | short(<3s) | Trigger heartbeat and optional nRF70 CDR |
+| nRF7002DK | Button 1 | long(>=3s) | Stack overflow demo crash |
+| nRF7002DK | Button 2 | short(<3s) | Trigger OTA check |
+| nRF7002DK | Button 2 | long(>=3s) | Division-by-zero demo crash |
 ---
 
 ## Developer Guide
@@ -239,13 +239,13 @@ See the Nordic guide on [Workspace Application Setup](https://docs.nordicsemi.co
 Fill `overlay-app-memfault-project-info.conf` with your memfault project key and fw version.
 
 ```bash
-# nRF7002DK
-west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
-  -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
-
 # nRF54LM20DK + nRF7002EB2
 west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk -- \
   -DSHIELD=nrf7002eb2 \
+  -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
+
+# nRF7002DK
+west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
   -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
 ```
 
@@ -254,21 +254,21 @@ west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk -- \
 **First-time flash** (erases all flash including NVS — Wi-Fi credentials will need to be re-provisioned):
 
 ```bash
-# nRF7002DK
-west flash -d build_nrf7002dk --erase
-
 # nRF54LM20DK
 west flash -d build_nrf54lm20dk --recover
+
+# nRF7002DK
+west flash -d build_nrf7002dk --erase
 ```
 
 **Subsequent updates** (preserves NVS — Wi-Fi credentials are retained, no re-provisioning needed):
 
 ```bash
-# nRF7002DK
-west flash -d build_nrf7002dk
-
 # nRF54LM20DK
 west flash -d build_nrf54lm20dk
+
+# nRF7002DK
+west flash -d build_nrf7002dk
 ```
 
 ### Developer Notes
@@ -325,7 +325,8 @@ Start with [docs/dev-specs/overview.md](docs/dev-specs/overview.md).
 | [docs/dev-specs/overview.md](docs/dev-specs/overview.md) | Spec index and PRD-to-spec mapping |
 | [docs/dev-specs/architecture.md](docs/dev-specs/architecture.md) | System architecture and channel flow |
 | [docs/dev-specs/flash-memory-layout.md](docs/dev-specs/flash-memory-layout.md) | Flash/partition layouts, PM-to-DTS migration rationale, OTA compatibility limits |
-| [zego/button — button-spec.md](https://github.com/chshzh/zego/blob/main/button/docs/button-spec.md) | Button module — gesture detection (click, double-click, long press), Zbus `BUTTON_CHAN`; provided by **zego/button** |
+| [zego/button ↗](https://github.com/chshzh/zego/blob/main/modules/button/docs/button-spec.md) | Button module — gesture detection (click, double-click, long press), Zbus `BUTTON_CHAN`; provided by **zego/button** |
+| [zego/led ↗](https://github.com/chshzh/zego/blob/main/modules/led/docs/led-spec.md) | LED module — per-LED state machine (static, blink, breathe, rotate), Zbus `LED_CMD_CHAN`; provided by **zego/led** |
 | [docs/dev-specs/network-module.md](docs/dev-specs/network-module.md) | Wi-Fi/network event lifecycle |
 | [docs/dev-specs/app-wifi-prov-ble-module.md](docs/dev-specs/app-wifi-prov-ble-module.md) | BLE provisioning wrapper |
 | [docs/dev-specs/heap-monitor-module.md](docs/dev-specs/heap-monitor-module.md) | Heap monitoring behavior |

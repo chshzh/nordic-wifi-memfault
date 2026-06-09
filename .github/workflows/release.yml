@@ -79,6 +79,64 @@ jobs:
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${NORD_KEY}\"" > overlay-release-key.conf
           echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
 
+      - name: Build nRF54LM20DK — nord_project
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          mkdir -p build_nrf54lm20dk_wifi
+          set -o pipefail
+          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi -- \
+            -DSHIELD=nrf7002eb2 -DEXTRA_CONF_FILE="overlay-release-key.conf" 2>&1 | tee build_nrf54lm20dk_wifi/build.log
+
+      - name: Resolve merged hex — nRF54LM20DK (nord_project)
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          BUILD_DIR="build_nrf54lm20dk_wifi"
+          MERGED="${BUILD_DIR}/merged.hex"
+          if [ -f "${MERGED}" ]; then
+            echo "merged.hex already exists"
+          elif [ -f "${BUILD_DIR}/merged_domains.hex" ]; then
+            cp "${BUILD_DIR}/merged_domains.hex" "${MERGED}"
+            echo "Using merged_domains.hex"
+          else
+            echo "merged.hex not found — creating from component hex files"
+            MCUBOOT="${BUILD_DIR}/mcuboot/zephyr/zephyr.hex"
+            APP_S="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.signed.hex"
+            APP_P="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.hex"
+            PARTS=""
+            [ -f "${MCUBOOT}" ] && PARTS="${PARTS} ${MCUBOOT}"
+            if [ -f "${APP_S}" ]; then PARTS="${PARTS} ${APP_S}"
+            elif [ -f "${APP_P}" ]; then PARTS="${PARTS} ${APP_P}"
+            fi
+            if [ -n "${PARTS}" ]; then
+              {
+                echo 'import sys'
+                echo 'from intelhex import IntelHex'
+                echo 'out = IntelHex()'
+                echo 'for f in sys.argv[1:-1]:'
+                echo '  ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap="replace")'
+                echo 'out.write_hex_file(sys.argv[-1])'
+                echo 'print("merged.hex created from: " + " ".join(sys.argv[1:-1]))'
+              } | python3 - ${PARTS} "${MERGED}"
+            else
+              echo "ERROR: no hex files found in ${BUILD_DIR}"; find "${BUILD_DIR}" -name "*.hex" | head -20; exit 1
+            fi
+          fi
+
+      - name: Extract memory usage — nRF54LM20DK
+        working-directory: app-workspace/memfault-nrf7002dk
+        run: |
+          BUILD_LOG="build_nrf54lm20dk_wifi/build.log"
+          ROM_USAGE="$(awk '/^[[:space:]]*FLASH:/ {
+            n=$2+0; if (n>max_f) { max_f=n; line_f=$2 " " $3 " / " $4 " " $5 " (" $6 ")" }
+          } END { print line_f }' "$BUILD_LOG")"
+          RAM_USAGE="$(awk '/^[[:space:]]*RAM:/ {
+            n=$2+0; if (n>max_r) { max_r=n; line_r=$2 " " $3 " / " $4 " " $5 " (" $6 ")" }
+          } END { print line_r }' "$BUILD_LOG")"
+          : "${ROM_USAGE:=n/a}"
+          : "${RAM_USAGE:=n/a}"
+          printf "ROM_USAGE=%s\nRAM_USAGE=%s\n" "$ROM_USAGE" "$RAM_USAGE" > release-usage-nrf54lm20dk.txt
+          echo "nRF54LM20DK  ROM: $ROM_USAGE | RAM: $RAM_USAGE"
+
       - name: Build nRF7002DK — nord_project
         working-directory: app-workspace/memfault-nrf7002dk
         run: |
@@ -140,82 +198,24 @@ jobs:
           printf "ROM_USAGE=%s\nRAM_USAGE=%s\n" "$ROM_USAGE" "$RAM_USAGE" > release-usage-nrf7002dk.txt
           echo "nRF7002DK  ROM: $ROM_USAGE | RAM: $RAM_USAGE"
 
-      - name: Build nRF54LM20DK — nord_project
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          mkdir -p build_nrf54lm20dk_wifi
-          set -o pipefail
-          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi -- \
-            -DSHIELD=nrf7002eb2 -DEXTRA_CONF_FILE="overlay-release-key.conf" 2>&1 | tee build_nrf54lm20dk_wifi/build.log
-
-      - name: Resolve merged hex — nRF54LM20DK (nord_project)
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          BUILD_DIR="build_nrf54lm20dk_wifi"
-          MERGED="${BUILD_DIR}/merged.hex"
-          if [ -f "${MERGED}" ]; then
-            echo "merged.hex already exists"
-          elif [ -f "${BUILD_DIR}/merged_domains.hex" ]; then
-            cp "${BUILD_DIR}/merged_domains.hex" "${MERGED}"
-            echo "Using merged_domains.hex"
-          else
-            echo "merged.hex not found — creating from component hex files"
-            MCUBOOT="${BUILD_DIR}/mcuboot/zephyr/zephyr.hex"
-            APP_S="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.signed.hex"
-            APP_P="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.hex"
-            PARTS=""
-            [ -f "${MCUBOOT}" ] && PARTS="${PARTS} ${MCUBOOT}"
-            if [ -f "${APP_S}" ]; then PARTS="${PARTS} ${APP_S}"
-            elif [ -f "${APP_P}" ]; then PARTS="${PARTS} ${APP_P}"
-            fi
-            if [ -n "${PARTS}" ]; then
-              {
-                echo 'import sys'
-                echo 'from intelhex import IntelHex'
-                echo 'out = IntelHex()'
-                echo 'for f in sys.argv[1:-1]:'
-                echo '  ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap="replace")'
-                echo 'out.write_hex_file(sys.argv[-1])'
-                echo 'print("merged.hex created from: " + " ".join(sys.argv[1:-1]))'
-              } | python3 - ${PARTS} "${MERGED}"
-            else
-              echo "ERROR: no hex files found in ${BUILD_DIR}"; find "${BUILD_DIR}" -name "*.hex" | head -20; exit 1
-            fi
-          fi
-
-      - name: Extract memory usage — nRF54LM20DK
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          BUILD_LOG="build_nrf54lm20dk_wifi/build.log"
-          ROM_USAGE="$(awk '/^[[:space:]]*FLASH:/ {
-            n=$2+0; if (n>max_f) { max_f=n; line_f=$2 " " $3 " / " $4 " " $5 " (" $6 ")" }
-          } END { print line_f }' "$BUILD_LOG")"
-          RAM_USAGE="$(awk '/^[[:space:]]*RAM:/ {
-            n=$2+0; if (n>max_r) { max_r=n; line_r=$2 " " $3 " / " $4 " " $5 " (" $6 ")" }
-          } END { print line_r }' "$BUILD_LOG")"
-          : "${ROM_USAGE:=n/a}"
-          : "${RAM_USAGE:=n/a}"
-          printf "ROM_USAGE=%s\nRAM_USAGE=%s\n" "$ROM_USAGE" "$RAM_USAGE" > release-usage-nrf54lm20dk.txt
-          echo "nRF54LM20DK  ROM: $ROM_USAGE | RAM: $RAM_USAGE"
-
       - name: Stage nord_project artifacts
         working-directory: app-workspace/memfault-nrf7002dk
         env:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
           mkdir -p release
-          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
-             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf
-          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
-             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin
-          cp build_nrf7002dk/merged.hex \
-             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf \
              release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.elf
           cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
              release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.signed.bin
           cp build_nrf54lm20dk_wifi/merged.hex \
              release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex
+          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
+             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf
+          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
+             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin
+          cp build_nrf7002dk/merged.hex \
+             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex
           cp release-usage-nrf7002dk.txt release/
           cp release-usage-nrf54lm20dk.txt release/
 
@@ -332,8 +332,8 @@ jobs:
 
           | Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
           |-------|-------------|-----------|-------------|-----------|-----------|
-          | nRF7002DK | [nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
           | nRF54LM20DK + nRF7002EBII | [nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
+          | nRF7002DK | [nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
 
           **File types:**
           - \`.hex\` — Full board image for initial provisioning via \`nrfutil device program\`

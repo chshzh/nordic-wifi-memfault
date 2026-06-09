@@ -8,7 +8,7 @@
 | Version | 2026-06-04-23-33 |
 | PRD Version | 2026-06-04-23-04 |
 | NCS Version | v3.3.0 |
-| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
+| Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
 | Status | Implemented |
 
 ---
@@ -30,39 +30,6 @@
 ## Flash Memory Layout
 
 NCS v3.3+ Migration Note: As of NCS v3.3.0, this project has migrated from the legacy Partition Manager (PM) build-time system to DeviceTree fixed-partitions (DTS-driven). The layouts below reflect the DTS-based configuration deployed via overlay files.
-
-### nRF7002DK (nRF5340 - 1 MB internal flash)
-
-#### New Layout (DTS-based, NCS 3.3+)
-
-| Address | Partition | Size | Purpose |
-|---------|-----------|------|---------|
-| `0x00000` | `boot_partition` | 40 KB | Bootloader (MCUboot) |
-| `0x0A000` | `slot0_partition` | 920 KB | Primary app image |
-| `0xEE000` | `storage_partition` | 8 KB | WiFi credentials / NVS; small persistent app state |
-| `0xF0000` | `memfault_storage` | 64 KB | Crash coredumps (flash-backed, `CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y`) |
-
-External flash - MX25R64 (8 MB):
-
-| Address | Partition | Size | Purpose |
-|---------|-----------|------|---------|
-| `0x000000` | `slot1_partition` | 920 KB | Secondary OTA slot |
-| `0x0E4000` | `mflt_log_state_partition` | 8 KB | Memfault disconnect-time log-state blob (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) |
-| `0x0E6000` | `mflt_cdr_state_partition` | 8 KB | Memfault disconnect-time CDR blob (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`) |
-
-#### Legacy Layout (Partition Manager, NCS 3.2 and earlier)
-
-| Address | Partition | Size | Purpose | Notes |
-|---------|-----------|------|---------|-------|
-| `0x00000` | `mcuboot` | 40 KB | Bootloader | - |
-| `0x0A000` | `mcuboot_pad` | 512 B | Image header padding | Removed in DTS |
-| `0x0A200` | `app` | 912 KB | Main application | Now starts at `0x0A000` |
-| `0xEE000` | `settings_storage` | 8 KB | WiFi credentials / NVS | - |
-| `0xF0000` | `memfault_storage` | 64 KB | Crash coredumps | - |
-
-Key difference: the 512-byte `mcuboot_pad` is eliminated, shifting app start earlier by 0x200 bytes.
-
----
 
 ### nRF54LM20DK + nRF7002EB II (nRF54LM20A - 1984 KB RRAM)
 
@@ -102,6 +69,39 @@ External flash - MX25R6435F (8 MB via spi00):
 | Address | Partition | Size | Purpose | Notes |
 |---------|-----------|------|---------|-------|
 | `0x000000` | `mcuboot_secondary` | 1812 KB | OTA slot | Now 1804 KB in DTS |
+
+---
+
+### nRF7002DK (nRF5340 - 1 MB internal flash)
+
+#### New Layout (DTS-based, NCS 3.3+)
+
+| Address | Partition | Size | Purpose |
+|---------|-----------|------|---------|
+| `0x00000` | `boot_partition` | 40 KB | Bootloader (MCUboot) |
+| `0x0A000` | `slot0_partition` | 920 KB | Primary app image |
+| `0xEE000` | `storage_partition` | 8 KB | WiFi credentials / NVS; small persistent app state |
+| `0xF0000` | `memfault_storage` | 64 KB | Crash coredumps (flash-backed, `CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y`) |
+
+External flash - MX25R64 (8 MB):
+
+| Address | Partition | Size | Purpose |
+|---------|-----------|------|---------|
+| `0x000000` | `slot1_partition` | 920 KB | Secondary OTA slot |
+| `0x0E4000` | `mflt_log_state_partition` | 8 KB | Memfault disconnect-time log-state blob (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) |
+| `0x0E6000` | `mflt_cdr_state_partition` | 8 KB | Memfault disconnect-time CDR blob (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`) |
+
+#### Legacy Layout (Partition Manager, NCS 3.2 and earlier)
+
+| Address | Partition | Size | Purpose | Notes |
+|---------|-----------|------|---------|-------|
+| `0x00000` | `mcuboot` | 40 KB | Bootloader | - |
+| `0x0A000` | `mcuboot_pad` | 512 B | Image header padding | Removed in DTS |
+| `0x0A200` | `app` | 912 KB | Main application | Now starts at `0x0A000` |
+| `0xEE000` | `settings_storage` | 8 KB | WiFi credentials / NVS | - |
+| `0xF0000` | `memfault_storage` | 64 KB | Crash coredumps | - |
+
+Key difference: the 512-byte `mcuboot_pad` is eliminated, shifting app start earlier by 0x200 bytes.
 
 ---
 

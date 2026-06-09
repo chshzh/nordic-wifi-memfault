@@ -7,7 +7,7 @@
 | Project | nordic-wifi-memfault |
 | Version | 2026-05-21-17-32 |
 | NCS Version | v3.3.0 |
-| Target Board(s) | nRF7002DK (nRF5340), nRF54LM20DK + nRF7002EB2 |
+| Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK (nRF5340) |
 | Method | Thread Analyzer (`CONFIG_THREAD_ANALYZER_AUTO`) + heap_monitor, steady-state after Wi-Fi STA connect, Memfault heartbeat, MQTT publish, and HTTPS GET cycle |
 | Status | Applied |
 
@@ -142,8 +142,8 @@ Heap unchanged: no heap stats available from current logs; 2026-05-14 measuremen
 
 | Board | ISR0 usage | Allocated | Utilization |
 |-------|-----------|-----------|-------------|
-| nRF7002DK | 944 B | 2048 B | 46 % |
 | nRF54LM20DK | 560 B | 2048 B | 27 % |
+| nRF7002DK | 944 B | 2048 B | 46 % |
 
 ISR stack (`CONFIG_ISR_STACK_SIZE`) is at default (2048 B) and comfortably within bounds. No change needed.
 

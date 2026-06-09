@@ -8,7 +8,7 @@
 | Version | 2026-06-04-23-04 |
 | Status | Implemented |
 | NCS Version | v3.3.0 |
-| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
+| Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
 
 ---
 
@@ -175,8 +175,8 @@ bring-up time.
 
 | Board | Wi-Fi | Buttons | LEDs | Notes |
 |---|---|---|---|---|
-| nRF7002DK (nrf5340/cpuapp) | onboard nRF7002 | — | — | Flash budget too tight for LED/button modules |
 | nRF54LM20DK + nRF7002EB2 | shield-based nRF7002 | 3 (BUTTON0–2) | 4 | Full LED/button UX enabled; RRAM coredump; BLE prov |
+| nRF7002DK (nrf5340/cpuapp) | onboard nRF7002 | — | — | Flash budget too tight for LED/button modules |
 
 ### 5.2 Board-Specific Notes
 
