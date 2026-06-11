@@ -175,8 +175,15 @@ static void upload_thread_fn(void *a, void *b, void *c)
 		k_sem_take(&upload_sem, K_FOREVER);
 		LOG_INF("Connected to network");
 
+		/* Short initial delay: Zephyr's DNS resolver applies the DHCP-
+		 * supplied server address asynchronously after the IP-assigned
+		 * event fires. Without this, the very first getaddrinfo() call
+		 * always fails even though DHCP is complete.
+		 */
+		k_sleep(K_SECONDS(2));
+
 		LOG_INF("Waiting for DNS resolver to be ready for Memfault");
-		int dns_wait_time = 0;
+		int dns_wait_time = 2;
 		while (wifi_connected && !check_dns_ready(MEMFAULT_HOSTNAME)) {
 			if (dns_wait_time >= DNS_TIMEOUT_SEC) {
 				LOG_ERR("DNS timeout after %d seconds, "

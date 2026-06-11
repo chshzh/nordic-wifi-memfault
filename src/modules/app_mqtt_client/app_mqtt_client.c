@@ -373,9 +373,16 @@ static void app_mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 
 		LOG_INF("Network ready, waiting for DNS resolver");
 
+		/* Short initial delay: Zephyr's DNS resolver applies the DHCP-
+		 * supplied server address asynchronously after the IP-assigned
+		 * event fires. Without this, the very first getaddrinfo() call
+		 * always fails even though DHCP is complete.
+		 */
+		k_sleep(K_SECONDS(2));
+
 		/* Wait for DNS to be ready - check every 10 seconds, timeout
 		 * after 5 minutes */
-		int dns_wait_time = 0;
+		int dns_wait_time = 2;
 		const int dns_timeout = 300; /* 5 minutes */
 		while (network_ready && !check_dns_ready(CONFIG_APP_MQTT_CLIENT_BROKER_HOSTNAME)) {
 			if (dns_wait_time >= dns_timeout) {
