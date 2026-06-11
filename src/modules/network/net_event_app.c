@@ -32,8 +32,8 @@ ZBUS_CHAN_DEFINE(NETWORK_CHAN, struct network_msg, NULL, NULL, ZBUS_OBSERVERS_EM
 ZBUS_CHAN_DEFINE(APP_WIFI_STATE_CHAN, struct app_wifi_state_msg, NULL, NULL, ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(.state = APP_WIFI_STATE_CONNECTING, .mode = ZEGO_WIFI_MODE_STA));
 
-void zego_network_on_wifi_connected(enum zego_wifi_mode mode, const char *ip_addr,
-				    const char *mac_addr, const char *ssid)
+void zego_on_net_event_dhcp_bound(enum zego_wifi_mode mode, const char *ip_addr,
+				  const char *mac_addr, const char *ssid)
 {
 	ARG_UNUSED(ip_addr);
 	ARG_UNUSED(mac_addr);
@@ -77,7 +77,7 @@ void zego_network_on_wifi_connected(enum zego_wifi_mode mode, const char *ip_add
 	}
 }
 
-void zego_network_on_wifi_disconnected(void)
+void zego_on_net_event_wifi_disconnect(void)
 {
 #if CONFIG_ZEGO_WIFI_BLE_PROV
 	struct wifi_msg wmsg = {
