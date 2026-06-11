@@ -18,7 +18,6 @@
 #include <wifi.h>
 #include "../messages.h"
 #include "net_event_mgmt.h"
-#include "wifi_utils.h"
 #if CONFIG_ZEGO_WIFI_BLE_PROV
 #include <wifi_ble_prov.h>
 #endif
@@ -38,8 +37,6 @@ void zego_on_net_event_dhcp_bound(enum zego_wifi_mode mode, const char *ip_addr,
 	ARG_UNUSED(ip_addr);
 	ARG_UNUSED(mac_addr);
 	ARG_UNUSED(ssid);
-
-	wifi_print_status();
 
 #if CONFIG_ZEGO_WIFI_BLE_PROV
 	struct wifi_msg wmsg = {
