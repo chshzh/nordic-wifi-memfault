@@ -325,8 +325,8 @@ Start with [docs/dev-specs/overview.md](docs/dev-specs/overview.md).
 | [docs/dev-specs/overview.md](docs/dev-specs/overview.md) | Spec index and PRD-to-spec mapping |
 | [docs/dev-specs/architecture.md](docs/dev-specs/architecture.md) | System architecture and channel flow |
 | [docs/dev-specs/flash-memory-layout.md](docs/dev-specs/flash-memory-layout.md) | Flash/partition layouts, PM-to-DTS migration rationale, OTA compatibility limits |
-| [zego/button ↗](https://github.com/chshzh/zego/blob/main/modules/button/docs/button-spec.md) | Button module — gesture detection (click, double-click, long press), Zbus `BUTTON_CHAN`; provided by **zego/button** |
-| [zego/led ↗](https://github.com/chshzh/zego/blob/main/modules/led/docs/led-spec.md) | LED module — per-LED state machine (static, blink, breathe, rotate), Zbus `LED_CMD_CHAN`; provided by **zego/led** |
+| [zego/button ↗](https://github.com/chshzh/zego/blob/main/bricks/button/docs/button-spec.md) | Button module — gesture detection (click, double-click, long press), Zbus `BUTTON_CHAN`; provided by **zego/button** |
+| [zego/led ↗](https://github.com/chshzh/zego/blob/main/bricks/led/docs/led-spec.md) | LED module — per-LED state machine (static, blink, breathe, rotate), Zbus `LED_CMD_CHAN`; provided by **zego/led** |
 | [docs/dev-specs/network-module.md](docs/dev-specs/network-module.md) | Wi-Fi/network event lifecycle |
 | [docs/dev-specs/app-wifi-prov-ble-module.md](docs/dev-specs/app-wifi-prov-ble-module.md) | BLE provisioning wrapper |
 | [docs/dev-specs/heap-monitor-module.md](docs/dev-specs/heap-monitor-module.md) | Heap monitoring behavior |
