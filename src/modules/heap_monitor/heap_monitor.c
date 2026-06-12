@@ -41,6 +41,13 @@ static bool system_boot_report_pending = true;
 #if defined(CONFIG_MBEDTLS_ENABLE_HEAP) && defined(CONFIG_MBEDTLS_MEMORY_DEBUG)
 static uint32_t mbedtls_peak_used_all_time;
 static size_t mbedtls_peak_blocks_all_time;
+
+/* Read by ZView orchestrator as a flat 3×u32: total, used (cur), max_used */
+struct {
+	uint32_t total_bytes;
+	uint32_t used_bytes;
+	uint32_t max_used_bytes;
+} zview_mbedtls_stats;
 #endif
 
 static void log_heap_line(const char *heap_name, uint32_t used, uint32_t total, uint32_t peak,
@@ -165,6 +172,10 @@ static void report_mbedtls_heap(bool warn_on_used_pct)
 
 	mbedtls_peak_used_all_time = MAX(mbedtls_peak_used_all_time, (uint32_t)max_used);
 	mbedtls_peak_blocks_all_time = MAX(mbedtls_peak_blocks_all_time, max_blocks);
+
+	zview_mbedtls_stats.total_bytes = total;
+	zview_mbedtls_stats.used_bytes = (uint32_t)cur_used;
+	zview_mbedtls_stats.max_used_bytes = mbedtls_peak_used_all_time;
 
 	update_mbedtls_heap_metrics(total, (uint32_t)cur_used, mbedtls_peak_used_all_time);
 
