@@ -23,11 +23,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          path: app-workspace/memfault-nrf7002dk
+          path: app-workspace/nordic-wifi-memfault
 
       - name: Extract NCS version from west.yml
         id: extract-version
-        working-directory: app-workspace/memfault-nrf7002dk
+        working-directory: app-workspace/nordic-wifi-memfault
         run: |
           NCS_VERSION=$(awk '
             $1=="-" && $2=="name:" && $3=="sdk-nrf" { in_sdk=1; next }
@@ -38,7 +38,6 @@ jobs:
             exit 1
           fi
           echo "NCS_VERSION=${NCS_VERSION}" >> $GITHUB_OUTPUT
-          # The toolchain Docker image tag matches the NCS revision exactly.
           echo "TOOLCHAIN_VERSION=${NCS_VERSION}" >> $GITHUB_OUTPUT
 
   build-release:
@@ -50,17 +49,47 @@ jobs:
         shell: bash
     env:
       NORD_KEY: ${{ secrets.NORD_PROJECT_KEY }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: "nRF54LM20DK + nRF7002EBII"
+            build_dir: "build_nrf54lm20dk_wifi"
+            board: "nrf54lm20dk/nrf54lm20a/cpuapp"
+            cmake_args: "-DSHIELD=nrf7002eb2"
+            artifact_suffix: "nrf54lm20dk-nrf7002ebii"
+            board_qual: "nrf54lm20dk_nrf54lm20a_cpuapp"
+          - name: "nRF7002DK"
+            build_dir: "build_nrf7002dk"
+            board: "nrf7002dk/nrf5340/cpuapp"
+            cmake_args: ""
+            artifact_suffix: "nrf7002dk"
+            board_qual: "nrf7002dk_nrf5340_cpuapp"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          path: app-workspace/memfault-nrf7002dk
+          path: app-workspace/nordic-wifi-memfault
           fetch-depth: 0
+
+      - name: Cache west workspace
+        uses: actions/cache@v4
+        with:
+          path: |
+            app-workspace/.west
+            app-workspace/nrf
+            app-workspace/zephyr
+            app-workspace/modules
+            app-workspace/nrfxlib
+            app-workspace/bootloader
+            app-workspace/zego
+          key: west-${{ needs.set-version.outputs.NCS_VERSION }}-${{ hashFiles('app-workspace/nordic-wifi-memfault/west.yml') }}
 
       - name: Prepare west workspace
         working-directory: app-workspace
         run: |
-          west init -l memfault-nrf7002dk
+          grep -q 'base = zephyr' .west/config 2>/dev/null || \
+            west init -l nordic-wifi-memfault
           west update -o=--depth=1 -n
 
       - name: Extract version from tag
@@ -72,83 +101,26 @@ jobs:
 
       # ── nord_project build ──────────────────────────────────
       - name: Create overlay — nord_project
-        working-directory: app-workspace/memfault-nrf7002dk
+        working-directory: app-workspace/nordic-wifi-memfault
         env:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
           echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${NORD_KEY}\"" > overlay-release-key.conf
           echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
 
-      - name: Build nRF54LM20DK — nord_project
-        working-directory: app-workspace/memfault-nrf7002dk
+      - name: Build ${{ matrix.config.name }} — nord_project
+        working-directory: app-workspace/nordic-wifi-memfault
         run: |
-          mkdir -p build_nrf54lm20dk_wifi
+          mkdir -p ${{ matrix.config.build_dir }}
           set -o pipefail
-          west build -p -b nrf54lm20dk/nrf54lm20a/cpuapp -d build_nrf54lm20dk_wifi -- \
-            -DSHIELD=nrf7002eb2 -DEXTRA_CONF_FILE="overlay-release-key.conf" 2>&1 | tee build_nrf54lm20dk_wifi/build.log
+          west build -p -b ${{ matrix.config.board }} -d ${{ matrix.config.build_dir }} -- \
+            ${{ matrix.config.cmake_args }} \
+            -DEXTRA_CONF_FILE="overlay-release-key.conf" 2>&1 | tee ${{ matrix.config.build_dir }}/build.log
 
-      - name: Resolve merged hex — nRF54LM20DK (nord_project)
-        working-directory: app-workspace/memfault-nrf7002dk
+      - name: Resolve merged hex — ${{ matrix.config.name }}
+        working-directory: app-workspace/nordic-wifi-memfault
         run: |
-          BUILD_DIR="build_nrf54lm20dk_wifi"
-          MERGED="${BUILD_DIR}/merged.hex"
-          if [ -f "${MERGED}" ]; then
-            echo "merged.hex already exists"
-          elif [ -f "${BUILD_DIR}/merged_domains.hex" ]; then
-            cp "${BUILD_DIR}/merged_domains.hex" "${MERGED}"
-            echo "Using merged_domains.hex"
-          else
-            echo "merged.hex not found — creating from component hex files"
-            MCUBOOT="${BUILD_DIR}/mcuboot/zephyr/zephyr.hex"
-            APP_S="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.signed.hex"
-            APP_P="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.hex"
-            PARTS=""
-            [ -f "${MCUBOOT}" ] && PARTS="${PARTS} ${MCUBOOT}"
-            if [ -f "${APP_S}" ]; then PARTS="${PARTS} ${APP_S}"
-            elif [ -f "${APP_P}" ]; then PARTS="${PARTS} ${APP_P}"
-            fi
-            if [ -n "${PARTS}" ]; then
-              {
-                echo 'import sys'
-                echo 'from intelhex import IntelHex'
-                echo 'out = IntelHex()'
-                echo 'for f in sys.argv[1:-1]:'
-                echo '  ih = IntelHex(); ih.loadhex(f); out.merge(ih, overlap="replace")'
-                echo 'out.write_hex_file(sys.argv[-1])'
-                echo 'print("merged.hex created from: " + " ".join(sys.argv[1:-1]))'
-              } | python3 - ${PARTS} "${MERGED}"
-            else
-              echo "ERROR: no hex files found in ${BUILD_DIR}"; find "${BUILD_DIR}" -name "*.hex" | head -20; exit 1
-            fi
-          fi
-
-      - name: Extract memory usage — nRF54LM20DK
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          BUILD_LOG="build_nrf54lm20dk_wifi/build.log"
-          ROM_USAGE="$(awk '/^[[:space:]]*FLASH:/ {
-            n=$2+0; if (n>max_f) { max_f=n; line_f=$2 " " $3 " / " $4 " " $5 " (" $6 ")" }
-          } END { print line_f }' "$BUILD_LOG")"
-          RAM_USAGE="$(awk '/^[[:space:]]*RAM:/ {
-            n=$2+0; if (n>max_r) { max_r=n; line_r=$2 " " $3 " / " $4 " " $5 " (" $6 ")" }
-          } END { print line_r }' "$BUILD_LOG")"
-          : "${ROM_USAGE:=n/a}"
-          : "${RAM_USAGE:=n/a}"
-          printf "ROM_USAGE=%s\nRAM_USAGE=%s\n" "$ROM_USAGE" "$RAM_USAGE" > release-usage-nrf54lm20dk.txt
-          echo "nRF54LM20DK  ROM: $ROM_USAGE | RAM: $RAM_USAGE"
-
-      - name: Build nRF7002DK — nord_project
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          mkdir -p build_nrf7002dk
-          set -o pipefail
-          west build -p -b nrf7002dk/nrf5340/cpuapp -d build_nrf7002dk -- \
-            -DEXTRA_CONF_FILE="overlay-release-key.conf" 2>&1 | tee build_nrf7002dk/build.log
-
-      - name: Resolve merged hex — nRF7002DK (nord_project)
-        working-directory: app-workspace/memfault-nrf7002dk
-        run: |
-          BUILD_DIR="build_nrf7002dk"
+          BUILD_DIR="${{ matrix.config.build_dir }}"
           MERGED="${BUILD_DIR}/merged.hex"
           if [ -f "${MERGED}" ]; then
             echo "merged.hex already exists"
@@ -166,7 +138,7 @@ jobs:
             if [ -f "${APP_S}" ]; then PARTS="${PARTS} ${APP_S}"
             elif [ -f "${APP_P}" ]; then PARTS="${PARTS} ${APP_P}"
             fi
-            [ -f "${CPUNET}" ]  && PARTS="${PARTS} ${CPUNET}"
+            [ -f "${CPUNET}" ] && PARTS="${PARTS} ${CPUNET}"
             if [ -n "${PARTS}" ]; then
               {
                 echo 'import sys'
@@ -182,11 +154,10 @@ jobs:
             fi
           fi
 
-      - name: Extract memory usage — nRF7002DK
-        working-directory: app-workspace/memfault-nrf7002dk
+      - name: Extract memory usage — ${{ matrix.config.name }}
+        working-directory: app-workspace/nordic-wifi-memfault
         run: |
-          BUILD_LOG="build_nrf7002dk/build.log"
-          # Use the largest FLASH/RAM value — that is the main app, not MCUboot/hci_ipc
+          BUILD_LOG="${{ matrix.config.build_dir }}/build.log"
           ROM_USAGE="$(awk '/^[[:space:]]*FLASH:/ {
             n=$2+0; if (n>max_f) { max_f=n; line_f=$2 " " $3 " / " $4 " " $5 " (" $6 ")" }
           } END { print line_f }' "$BUILD_LOG")"
@@ -195,65 +166,48 @@ jobs:
           } END { print line_r }' "$BUILD_LOG")"
           : "${ROM_USAGE:=n/a}"
           : "${RAM_USAGE:=n/a}"
-          printf "ROM_USAGE=%s\nRAM_USAGE=%s\n" "$ROM_USAGE" "$RAM_USAGE" > release-usage-nrf7002dk.txt
-          echo "nRF7002DK  ROM: $ROM_USAGE | RAM: $RAM_USAGE"
+          printf "ROM_USAGE=%s\nRAM_USAGE=%s\n" "$ROM_USAGE" "$RAM_USAGE" > usage.txt
+          echo "${{ matrix.config.name }}  ROM: $ROM_USAGE | RAM: $RAM_USAGE"
 
-      - name: Stage nord_project artifacts
-        working-directory: app-workspace/memfault-nrf7002dk
+      - name: Stage artifacts — ${{ matrix.config.name }}
+        working-directory: app-workspace/nordic-wifi-memfault
         env:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
-          mkdir -p release
-          cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.elf \
-             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.elf
-          cp build_nrf54lm20dk_wifi/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
-             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.signed.bin
-          cp build_nrf54lm20dk_wifi/merged.hex \
-             release/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex
-          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.elf \
-             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf
-          cp build_nrf7002dk/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
-             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin
-          cp build_nrf7002dk/merged.hex \
-             release/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex
-          cp release-usage-nrf7002dk.txt release/
-          cp release-usage-nrf54lm20dk.txt release/
+          STAGE="stage-${{ matrix.config.artifact_suffix }}"
+          mkdir -p "$STAGE"
+          cp ${{ matrix.config.build_dir }}/memfault-nrf7002dk/zephyr/zephyr.elf \
+             "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.elf"
+          cp ${{ matrix.config.build_dir }}/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
+             "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.signed.bin"
+          cp ${{ matrix.config.build_dir }}/merged.hex \
+             "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.hex"
+          cp usage.txt "$STAGE/usage.txt"
 
-      - name: Upload release artifacts
+      - name: Upload release artifacts — ${{ matrix.config.name }}
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ steps.ver.outputs.VERSION }}
-          path: app-workspace/memfault-nrf7002dk/release/
+          name: release-${{ matrix.config.artifact_suffix }}
+          path: app-workspace/nordic-wifi-memfault/stage-${{ matrix.config.artifact_suffix }}/
 
   static-analysis:
-    needs: set-version
     runs-on: ubuntu-24.04
-    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ needs.set-version.outputs.NCS_VERSION }}
-    defaults:
-      run:
-        shell: bash
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          path: app-workspace/memfault-nrf7002dk
 
-      - name: Prepare west project
-        working-directory: app-workspace
+      - name: Fetch Zephyr checkpatch
         run: |
-          west init -l memfault-nrf7002dk
-          west update -o=--depth=1 -n
+          git clone --depth=1 https://github.com/zephyrproject-rtos/zephyr.git /tmp/zephyr
+          chmod +x /tmp/zephyr/scripts/checkpatch.pl
 
       - name: Run Zephyr checkpatch
-        working-directory: app-workspace
         run: |
           echo "Running Zephyr checkpatch on source files..."
-          if [ -d memfault-nrf7002dk/src/ ]; then
-            for file in $(find memfault-nrf7002dk/src/ -name "*.c" -o -name "*.h" 2>/dev/null); do
-              if [ -f "$file" ]; then
-                echo "Checking $file..."
-                ./zephyr/scripts/checkpatch.pl --no-tree --file "$file" || true
-              fi
+          if [ -d src/ ]; then
+            find src/ \( -name "*.c" -o -name "*.h" \) | while read -r file; do
+              echo "Checking $file..."
+              /tmp/zephyr/scripts/checkpatch.pl --no-tree --file "$file" || true
             done
           fi
           echo "Checkpatch analysis completed ✓"
@@ -275,11 +229,12 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/}
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Download release artifacts
+      - name: Download all release artifacts
         uses: actions/download-artifact@v4
         with:
-          name: release-${{ steps.ver.outputs.VERSION }}
+          pattern: release-*
           path: release/
+          merge-multiple: false
 
       - name: Generate release notes
         id: release-notes
@@ -302,19 +257,19 @@ jobs:
       - name: Prepare release body
         run: |
           read_usage() {
-            local file="$1"
+            local dir="$1"
             local key="$2"
-            grep "^${key}=" "$file" 2>/dev/null | cut -d= -f2-
+            grep "^${key}=" "release/${dir}/usage.txt" 2>/dev/null | cut -d= -f2-
           }
 
           VER="${{ steps.ver.outputs.VERSION }}"
           REPO="${{ github.server_url }}/${{ github.repository }}"
           DL_BASE="${REPO}/releases/download/${VER}"
 
-          NRF7002DK_ROM="$(read_usage "release/release-usage-nrf7002dk.txt"   ROM_USAGE)"
-          NRF7002DK_RAM="$(read_usage "release/release-usage-nrf7002dk.txt"   RAM_USAGE)"
-          NRF54LM20_ROM="$(read_usage "release/release-usage-nrf54lm20dk.txt" ROM_USAGE)"
-          NRF54LM20_RAM="$(read_usage "release/release-usage-nrf54lm20dk.txt" RAM_USAGE)"
+          NRF7002DK_ROM="$(read_usage "release-nrf7002dk"               ROM_USAGE)"
+          NRF7002DK_RAM="$(read_usage "release-nrf7002dk"               RAM_USAGE)"
+          NRF54LM20_ROM="$(read_usage "release-nrf54lm20dk-nrf7002ebii" ROM_USAGE)"
+          NRF54LM20_RAM="$(read_usage "release-nrf54lm20dk-nrf7002ebii" RAM_USAGE)"
 
           : "${NRF7002DK_ROM:=n/a}"
           : "${NRF7002DK_RAM:=n/a}"
@@ -322,29 +277,29 @@ jobs:
           : "${NRF54LM20_RAM:=n/a}"
 
           cat > /tmp/release-body.txt <<EOF
-          ## Nordic Wi-Fi Memfault Release ${VER}
+## Nordic Wi-Fi Memfault Release ${VER}
 
-          > Built with NCS ${{ needs.set-version.outputs.NCS_VERSION }} — version format is \`v<ncs-version>.<build>\` (e.g. \`v3.3.0.1\`), where the major/minor/patch matches the NCS version this firmware is based on.
+> Built with NCS ${{ needs.set-version.outputs.NCS_VERSION }} — version format is \`v<ncs-version>.<build>\` (e.g. \`v3.3.0.1\`), where the major/minor/patch matches the NCS version this firmware is based on.
 
-          ### 📦 Firmware Files
+### 📦 Firmware Files
 
-          Each release ships **6 files** across two hardware targets.
+Each release ships **6 files** across two hardware targets.
 
-          | Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
-          |-------|-------------|-----------|-------------|-----------|-----------|
-          | nRF54LM20DK + nRF7002EBII | [nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
-          | nRF7002DK | [nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
+| Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
+|-------|-------------|-----------|-------------|-----------|-----------|
+| nRF54LM20DK + nRF7002EBII | [nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
+| nRF7002DK | [nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
 
-          **File types:**
-          - \`.hex\` — Full board image for initial provisioning via \`nrfutil device program\`
-          - \`.signed.bin\` — OTA image for Memfault over-the-air update via MCUboot
-          - \`.elf\` — Symbol file for Memfault crash decoding and coredump analysis
+**File types:**
+- \`.hex\` — Full board image for initial provisioning via \`nrfutil device program\`
+- \`.signed.bin\` — OTA image for Memfault over-the-air update via MCUboot
+- \`.elf\` — Symbol file for Memfault crash decoding and coredump analysis
 
-           For flashing and connection instructions, see the [Evaluator Quick Start guide](https://github.com/chshzh/nordic-wifi-memfault/blob/main/README.md#evaluator-quick-start) in the README.
+For flashing and connection instructions, see the [Evaluator Quick Start guide](https://github.com/chshzh/nordic-wifi-memfault/blob/main/README.md#evaluator-quick-start) in the README.
 
-          ### 📝 Changes Since Last Release
+### 📝 Changes Since Last Release
 
-          EOF
+EOF
 
           if [ -f /tmp/changelog.txt ]; then
             cat /tmp/changelog.txt >> /tmp/release-body.txt
@@ -358,9 +313,9 @@ jobs:
           name: "Nordic Wi-Fi Memfault ${{ steps.ver.outputs.VERSION }}"
           body_path: /tmp/release-body.txt
           files: |
-            release/*.elf
-            release/*.bin
-            release/*.hex
+            release/**/*.elf
+            release/**/*.bin
+            release/**/*.hex
           draft: false
           prerelease: false
         env:
