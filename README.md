@@ -43,7 +43,7 @@ or subscribe through zbus channels.
 - NTP time synchronization — syncs system clock from `pool.ntp.org` after network ready; log timestamps show real-world UTC time (e.g. `[2026-05-14 19:34:52.299,000]`)
 - Optional HTTPS periodic test module
 - Optional MQTT periodic pub/sub echo test module
-- Heap monitoring for system and mbedTLS heaps
+- Heap and thread watermark monitoring via **[zego/memonitor](../zego/bricks/memonitor)** — samples all `k_heap` instances (including mbedTLS), all thread stack HWMs, and publishes to Memfault heartbeat metrics every 5 s; ZView live view enabled via `ZEGO_MEMONITOR_ZVIEW=y`
 - Modular architecture based on SYS_INIT + zbus
 
 ### Target Users
@@ -148,7 +148,7 @@ metrics from its timeline to monitor connectivity, reboot reasons, and sensor he
 
 ```text
 nordic-wifi-memfault/
-├── CMakeLists.txt          ← registers zego/button + zego/led via EXTRA_ZEPHYR_MODULES
+├── CMakeLists.txt          ← registers zego bricks via EXTRA_ZEPHYR_MODULES
 ├── Kconfig
 ├── prj.conf
 ├── west.yml
@@ -160,20 +160,20 @@ nordic-wifi-memfault/
 │   │   ├── overview.md
 │   │   ├── architecture.md
 │   │   ├── flash-memory-layout.md
+│   │   ├── partition-layout.md
 │   │   ├── network-module.md
-│   │   ├── app-wifi-prov-ble-module.md
-│   │   ├── heap-monitor-module.md
+│   │   ├── memonitor-module.md
 │   │   ├── app-memfault-module.md
 │   │   ├── app-https-client-module.md
-│   │   └── app-mqtt-client-module.md
+│   │   ├── app-mqtt-client-module.md
+│   │   ├── ntp-module.md
+│   │   └── ux.md
 │   └── qa-test/
 │       └── QA-*.md
 ├── src/
 │   ├── main.c
 │   └── modules/
 │       ├── network/
-│       ├── heap_monitor/
-│       ├── wifi_prov_over_ble/
 │       ├── app_memfault/
 │       ├── app_https_client/
 │       ├── app_mqtt_client/
@@ -185,6 +185,7 @@ nordic-wifi-memfault/
 # External Zephyr modules (sibling repo — ../zego/)
 ../zego/button/             ← gesture detection, BUTTON_CHAN; registered via EXTRA_ZEPHYR_MODULES
 ../zego/led/                ← LED control, LED_CMD_CHAN; registered via EXTRA_ZEPHYR_MODULES
+../zego/memonitor/          ← heap + thread watermark sampler, MEMONITOR_CHAN; replaces heap_monitor
 ```
 
 ### Workspace Setup
@@ -391,8 +392,8 @@ Start with [docs/dev-specs/overview.md](docs/dev-specs/overview.md).
 | [zego/button ↗](https://github.com/chshzh/zego/blob/main/bricks/button/docs/button-spec.md) | Button module — gesture detection (click, double-click, long press), Zbus `BUTTON_CHAN`; provided by **zego/button** |
 | [zego/led ↗](https://github.com/chshzh/zego/blob/main/bricks/led/docs/led-spec.md) | LED module — per-LED state machine (static, blink, breathe, rotate), Zbus `LED_CMD_CHAN`; provided by **zego/led** |
 | [docs/dev-specs/network-module.md](docs/dev-specs/network-module.md) | Wi-Fi/network event lifecycle |
-| [docs/dev-specs/app-wifi-prov-ble-module.md](docs/dev-specs/app-wifi-prov-ble-module.md) | BLE provisioning wrapper |
-| [docs/dev-specs/heap-monitor-module.md](docs/dev-specs/heap-monitor-module.md) | Heap monitoring behavior |
+| [zego/wifi_ble_prov ↗](https://github.com/chshzh/zego/blob/main/modules/wifi_ble_prov/docs/wifi-ble-prov-spec.md) | BLE provisioning wrapper; provided by **zego/wifi_ble_prov** |
+| [docs/dev-specs/memonitor-module.md](docs/dev-specs/memonitor-module.md) | Heap + thread watermark monitoring, ZView, Memfault metric feed |
 | [docs/dev-specs/app-memfault-module.md](docs/dev-specs/app-memfault-module.md) | Memfault integration wrapper |
 | [docs/dev-specs/app-https-client-module.md](docs/dev-specs/app-https-client-module.md) | HTTPS module behavior |
 | [docs/dev-specs/app-mqtt-client-module.md](docs/dev-specs/app-mqtt-client-module.md) | MQTT module behavior |
