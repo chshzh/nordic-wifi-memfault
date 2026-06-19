@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault |
-| Version | 2026-06-04-23-04 |
+| Version | 2026-06-19-12-31 |
 | Status | Implemented |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
@@ -19,14 +19,15 @@
 | 2026-05-14-14-13 | Reverse update: migrated canonical PRD to docs/pm-prd and reconciled requirements to currently implemented behavior |
 | 2026-05-14-15-00 | Added FR-006: NTP time synchronization for real-world timestamps in debug log |
 | 2026-05-15-16-20 | FR-006: extend acceptance criteria — NTP sync also gives Memfault dashboard events wall-clock timestamps (nrf54lm20dk only) |
-|| 2026-05-16-13-00 | FR-006: add periodic re-sync AC (every 6 h, 40 ppm drift, max 0.86 s error); Memfault OTA interval 30 min (48/day); HTTPS/MQTT per-request logs demoted to DBG, new INF summary logs added |
-|| 2026-05-16-17-00 | Memfault OTA check interval increased to 60 min (24/day); HTTPS request and MQTT publish intervals changed from 300 s to 900 s |
-|| 2026-05-19-09-07 | Added FR-007: persist disconnect-time log state to flash and restore it on next WiFi reconnect for Memfault cloud upload |
-|| 2026-05-20-14-00 | FR-007 revised: removed RAM-freeze (trigger_collection on disconnect); storage migrated to external flash partition; persist-once guard; both boards enabled; visual restore boundary in cloud logs |
-|| 2026-05-21-10-01 | Added FR-008: persist disconnect-time nRF70 CDR (WiFi firmware statistics) to external flash on disconnect; restore and upload to Memfault on next WiFi reconnect |
-|| 2026-05-22-10-00 | FR-001 behavior clarification: when the first stored AP is unavailable, the retry loop cycles through all stored credentials in sequence (round-robin) until one connects; retry plan with schedule and provisioner reminder is logged at loop start |
-| 2026-06-04-22-00 | Added FR-009: LED Wi-Fi state feedback (nRF54LM20DK only). Replaced duplicate `||` rows. Button gestures (FR-003/FR-004) scoped to nRF54LM20DK only — nRF7002DK omits LED/button modules to meet flash budget. Updated hardware table and board-specific notes. |
+| 2026-05-16-13-00 | FR-006: add periodic re-sync AC (every 6 h, 40 ppm drift, max 0.86 s error); Memfault OTA interval 30 min (48/day); HTTPS/MQTT per-request logs demoted to DBG, new INF summary logs added |
+| 2026-05-16-17-00 | Memfault OTA check interval increased to 60 min (24/day); HTTPS request and MQTT publish intervals changed from 300 s to 900 s |
+| 2026-05-19-09-07 | Added FR-007: persist disconnect-time log state to flash and restore it on next WiFi reconnect for Memfault cloud upload |
+| 2026-05-20-14-00 | FR-007 revised: removed RAM-freeze (trigger_collection on disconnect); storage migrated to external flash partition; persist-once guard; both boards enabled; visual restore boundary in cloud logs |
+| 2026-05-21-10-01 | Added FR-008: persist disconnect-time nRF70 CDR (WiFi firmware statistics) to external flash on disconnect; restore and upload to Memfault on next WiFi reconnect |
+| 2026-05-22-10-00 | FR-001 behavior clarification: when the first stored AP is unavailable, the retry loop cycles through all stored credentials in sequence (round-robin) until one connects; retry plan with schedule and provisioner reminder is logged at loop start |
+| 2026-06-04-22-00 | Added FR-009: LED Wi-Fi state feedback (nRF54LM20DK only). Button gestures (FR-003/FR-004) scoped to nRF54LM20DK only — nRF7002DK omits LED/button modules to meet flash budget. Updated hardware table and board-specific notes. |
 | 2026-06-04-23-04 | Formatted Document Information (removed non-template fields; simplified NCS Version). FR-003/FR-004 Engineering Spec: replaced inline zego/button note with GitHub spec link. Removed Section 10 (Engineering Spec References — PRD does not own spec files). |
+| 2026-06-19-12-31 | FR-002: updated Engineering Spec link from heap-monitor-module.md to memonitor-module.md (heap_monitor module replaced by zego/memonitor brick). |
 
 ---
 
@@ -127,7 +128,7 @@ bring-up time.
 | ID | As a... | I want to... | So that... | Acceptance Criteria | Engineering Spec |
 |---|---|---|---|---|---|
 | FR-001 | user | power on and connect device to Wi-Fi using stored/provisioned credentials | cloud features can run | Device reaches connected state and logs network-ready flow; if the first stored AP times out, the retry loop cycles through all stored credentials in sequence (round-robin) until one connects; retry plan is logged at loop start with per-SSID scheduled times and a provisioner tip | [network-module.md](../dev-specs/network-module.md), [app-wifi-prov-ble-module.md](../dev-specs/app-wifi-prov-ble-module.md) |
-| FR-002 | user | have telemetry uploaded after connectivity is ready | I can monitor device health remotely | Connect event triggers Memfault upload/heartbeat path | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [network-module.md](../dev-specs/network-module.md), [heap-monitor-module.md](../dev-specs/heap-monitor-module.md) |
+| FR-002 | user | have telemetry uploaded after connectivity is ready | I can monitor device health remotely | Connect event triggers Memfault upload/heartbeat path | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [network-module.md](../dev-specs/network-module.md), [memonitor-module.md](../dev-specs/memonitor-module.md) |
 | FR-003 | developer | use button 1 actions for validation | I can test heartbeat and crash reporting quickly | Short press triggers heartbeat path; long press triggers demo crash path **(nRF54LM20DK only — button module disabled on nRF7002DK)** | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [zego/button ↗](https://github.com/chshzh/zego/blob/main/modules/button/docs/button-spec.md) |
 | FR-004 | developer | use button 2 actions for OTA/fault validation | I can validate update and fault handling flows | Short press triggers OTA check; long press triggers demo crash path **(nRF54LM20DK only — button module disabled on nRF7002DK)** | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [zego/button ↗](https://github.com/chshzh/zego/blob/main/modules/button/docs/button-spec.md) |
 

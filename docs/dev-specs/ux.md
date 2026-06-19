@@ -5,8 +5,8 @@
 | Field | Value |
 |---|---|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-04-23-33 |
-| PRD Version | 2026-06-04-23-04 |
+| Version | 2026-06-19-12-44 |
+| PRD Version | 2026-06-19-12-31 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
 | Status | Implemented |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-04-23-33 | Formatted Document Information: `Module` → `Project`. PRD Version updated to 2026-06-04-23-04. |
 | 2026-06-04-23-00 | Initial spec — LED-only Wi-Fi state feedback using zego/led |
 

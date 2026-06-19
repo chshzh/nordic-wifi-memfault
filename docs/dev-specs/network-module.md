@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-04-23-45 |
-| PRD Version | 2026-06-04-23-04 |
+| Version | 2026-06-19-12-44 |
+| PRD Version | 2026-06-19-12-31 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
 | Status | Implemented |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-04-23-45 | Trimmed to app-layer shim only: updated Zbus Integration to show all channels and weak hook override table; removed stale Module Type, API, Kconfig, Memory, Test Points, and Developer Notes sections. |
 | 2026-06-04-23-33 | Location section updated to reference `net_event_app.c`; zego/network canonical spec banner added. |
 | 2026-05-26-15-21 | Developer Notes: document two-layer WiFi disconnect reason system (802.11 vs Zephyr status) |

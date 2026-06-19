@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-05-10-20 |
-| PRD Version | 2026-06-04-23-04 |
+| Version | 2026-06-19-12-44 |
+| PRD Version | 2026-06-19-12-31 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
 | Status | Implemented |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-05-10-20 | Verification P1 fix: added APP_WIFI_STATE_CHAN and LED_CMD_CHAN to Zbus channel table and message definitions; updated Boot Sequence with ux module. |
 | 2026-06-04-23-33 | Version and PRD Version updated to track latest PRD (2026-06-04-23-04). |
 | 2026-05-14-14-13 | Reverse-design architecture baseline generated from implementation |

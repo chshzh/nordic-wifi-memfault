@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-04-23-33 |
-| PRD Version | 2026-06-04-23-04 |
+| Version | 2026-06-19-12-44 |
+| PRD Version | 2026-06-19-12-31 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
 | Status | Implemented |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-04-23-33 | Formatted Document Information: `Module` → `Project`; added `NCS Version` and `Target Board(s)`. PRD Version updated to 2026-06-04-23-04. |
 | 2026-05-14-15-00 | Initial spec for FR-006: NTP time synchronization |
 | 2026-05-15-15-00 | Add downstream Memfault timestamp integration note |

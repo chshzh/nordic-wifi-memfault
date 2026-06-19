@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-05-10-20 |
-| PRD Version | 2026-06-04-23-04 |
+| Version | 2026-06-19-12-44 |
+| PRD Version | 2026-06-19-12-31 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
 | Status | Implemented |
@@ -17,6 +17,8 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
+| 2026-06-19-12-31 | Replaced heap-monitor-module.md with memonitor-module.md: deleted old spec, added memonitor-module.md (zego/memonitor brick), updated Spec Index, Zego table, PRD-to-Spec mapping, and dependency map. Architecture.md updated in parallel. |
 | 2026-06-05-10-20 | Verification P1 fixes: removed stale Spec Index row for deleted app-wifi-prov-ble-module.md; corrected Section 6 SPECS_VERSION description (auto-extracted by zego/wifi CMakeLists.txt, not a manual define). |
 | 2026-06-04-23-33 | Deleted button-module.md and app-wifi-prov-ble-module.md — both replaced by zego modules (`zego/button`, `zego/wifi_ble_prov`). Updated Spec Index, Zego table (added wifi_ble_prov; direct GitHub links), FR-001/FR-005 mappings, and dependency map. Version and PRD Version updated. |
 | 2026-05-14-14-13 | Reverse-design baseline generated from current implementation in src/modules and migrated to docs/dev-specs |
@@ -47,7 +49,7 @@ For product requirements driving this design, see [../pm-prd/PRD.md](../pm-prd/P
 | [architecture.md](architecture.md) | System architecture, module map, zbus channels, boot/init and thread budget | All |
 | [network-module.md](network-module.md) | Wi-Fi/network event management, `WIFI_CHAN`, `NETWORK_CHAN`, `APP_WIFI_STATE_CHAN` publishing | FR-001, FR-002 |
 | [ux.md](ux.md) | LED Wi-Fi state feedback (ROTATE/ON/BLINK via `zego/led`) | FR-009 |
-| [heap-monitor-module.md](heap-monitor-module.md) | Heap telemetry and Memfault metric feed | FR-002, NFR-001 |
+| [memonitor-module.md](memonitor-module.md) | Heap + thread watermark telemetry, ZView live monitoring, Memfault metric feed | FR-002, NFR-001 |
 | [app-memfault-module.md](app-memfault-module.md) | Memfault core, metrics, OTA triggers, CDR integration | FR-002, FR-003, FR-004 |
 | [app-https-client-module.md](app-https-client-module.md) | HTTPS periodic health requests and metrics | FR-005 |
 | [app-mqtt-client-module.md](app-mqtt-client-module.md) | MQTT echo client and connectivity metrics | FR-005 |
@@ -61,6 +63,7 @@ For product requirements driving this design, see [../pm-prd/PRD.md](../pm-prd/P
 | Button | `zego/modules/button` | [zego/button ↗](https://github.com/chshzh/zego/blob/main/modules/button/docs/button-spec.md) |
 | LED | `zego/modules/led` | [zego/led ↗](https://github.com/chshzh/zego/blob/main/modules/led/docs/led-spec.md) |
 | Wi-Fi BLE provisioning | `zego/modules/wifi_ble_prov` | [zego/wifi_ble_prov ↗](https://github.com/chshzh/zego/blob/main/modules/wifi_ble_prov/docs/wifi-ble-prov-spec.md) |
+| Memory + thread monitor | `zego/bricks/memonitor` | [memonitor-module.md](memonitor-module.md) (local) |
 
 ---
 
@@ -86,7 +89,7 @@ Key design decisions:
 | PRD requirement | Spec file | Status |
 |----------------|-----------|--------|
 | FR-001 Device connects to Wi-Fi with stored/provisioned credentials | network-module.md, [zego/wifi_ble_prov ↗](https://github.com/chshzh/zego/blob/main/modules/wifi_ble_prov/docs/wifi-ble-prov-spec.md) | Specified |
-| FR-002 Upload Memfault data after connectivity ready | app-memfault-module.md, network-module.md, heap-monitor-module.md | Specified |
+| FR-002 Upload Memfault data after connectivity ready | app-memfault-module.md, network-module.md, memonitor-module.md | Specified |
 | FR-003 Button 1 behavior (heartbeat/CDR/stack-overflow demo) | [app-memfault-module.md](app-memfault-module.md), [zego/button ↗](https://github.com/chshzh/zego/blob/main/modules/button/docs/button-spec.md) | Specified |
 | FR-004 Button 2 behavior (OTA check/div-by-zero demo) | [app-memfault-module.md](app-memfault-module.md), [zego/button ↗](https://github.com/chshzh/zego/blob/main/modules/button/docs/button-spec.md) | Specified |
 | FR-005 BLE provisioning and optional HTTPS/MQTT clients | [zego/wifi_ble_prov ↗](https://github.com/chshzh/zego/blob/main/modules/wifi_ble_prov/docs/wifi-ble-prov-spec.md), app-https-client-module.md, app-mqtt-client-module.md | Specified |
@@ -94,7 +97,7 @@ Key design decisions:
 | FR-007 Persist disconnect-time log state across reboot; upload to Memfault on next connect | app-memfault-module.md, partition-layout.md | Specified |
 | FR-008 CDR flash persist/restore for disconnect-time nRF70 WiFi stats | app-memfault-module.md, partition-layout.md | Specified |
 | FR-009 LED Wi-Fi state feedback (nRF54LM20DK) | ux.md | Specified |
-| NFR-001 Resource and stability constraints | architecture.md, heap-monitor-module.md | Specified |
+| NFR-001 Resource and stability constraints | architecture.md, memonitor-module.md | Specified |
 
 ---
 
@@ -107,7 +110,7 @@ zego/wifi_ble_prov (ext.) --> (credentials → NVS → network reconnect on next
 network --------------------> WIFI_CHAN --------------> app_memfault, app_https_client, app_mqtt_client
 network --------------------> NETWORK_CHAN -----------> app_memfault (core)
 network --------------------> APP_WIFI_STATE_CHAN -----> app_ux
-heap_monitor -----------------------------------------> Memfault metrics (if app_memfault enabled)
+zego/memonitor     (ext.) --> MEMONITOR_CHAN ---------> app_memfault (memonitor_metrics_listener)
 ```
 
 For detailed channels and structs, see [architecture.md](architecture.md).
