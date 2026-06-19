@@ -40,11 +40,11 @@ manifest:
     #   revision: main
     #   remote: chshzh
     
-    # - name: zview
-    #   url: https://github.com/wkhadgar/zview
-    #   revision: main
-    #   path: modules/tools/zview
-    #   west-commands: scripts/west-commands.yml
+    - name: zview
+      url: https://github.com/chshzh/zview
+      revision: main
+      path: modules/tools/zview
+      west-commands: scripts/west-commands.yml
     
 
   self:
