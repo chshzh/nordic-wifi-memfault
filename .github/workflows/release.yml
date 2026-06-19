@@ -130,8 +130,8 @@ jobs:
           else
             echo "merged.hex not found — creating from component hex files"
             MCUBOOT="${BUILD_DIR}/mcuboot/zephyr/zephyr.hex"
-            APP_S="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.signed.hex"
-            APP_P="${BUILD_DIR}/memfault-nrf7002dk/zephyr/zephyr.hex"
+            APP_S="${BUILD_DIR}/nordic-wifi-memfault/zephyr/zephyr.signed.hex"
+            APP_P="${BUILD_DIR}/nordic-wifi-memfault/zephyr/zephyr.hex"
             CPUNET="${BUILD_DIR}/hci_ipc/zephyr/zephyr.hex"
             PARTS=""
             [ -f "${MCUBOOT}" ] && PARTS="${PARTS} ${MCUBOOT}"
@@ -176,9 +176,9 @@ jobs:
         run: |
           STAGE="stage-${{ matrix.config.artifact_suffix }}"
           mkdir -p "$STAGE"
-          cp ${{ matrix.config.build_dir }}/memfault-nrf7002dk/zephyr/zephyr.elf \
+          cp ${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.elf \
              "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.elf"
-          cp ${{ matrix.config.build_dir }}/memfault-nrf7002dk/zephyr/zephyr.signed.bin \
+          cp ${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.signed.bin \
              "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.signed.bin"
           cp ${{ matrix.config.build_dir }}/merged.hex \
              "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.hex"

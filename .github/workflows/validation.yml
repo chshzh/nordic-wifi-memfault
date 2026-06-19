@@ -132,7 +132,7 @@ jobs:
         if: always()
         working-directory: app-workspace/nordic-wifi-memfault
         run: |
-          ELF_PATH="${{ matrix.config.build_dir }}/memfault-nrf7002dk/zephyr/zephyr.elf"
+          ELF_PATH="${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.elf"
           SIZE_REPORT="${{ matrix.config.build_dir }}/size-report.txt"
           SIZE_TOOL="$(command -v arm-zephyr-eabi-size || command -v llvm-size || command -v size)"
 
@@ -157,7 +157,7 @@ jobs:
           for f in build.log usage-summary.txt size-report.txt; do
             cp "${{ matrix.config.build_dir }}/$f" "$STAGE/" 2>/dev/null || true
           done
-          ELF="${{ matrix.config.build_dir }}/memfault-nrf7002dk/zephyr/zephyr.elf"
+          ELF="${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.elf"
           [ -f "$ELF" ] && cp "$ELF" "$STAGE/" || true
           BOARD_QUAL="${{ matrix.config.board }}"
           BOARD_QUAL="${BOARD_QUAL//\//_}"
