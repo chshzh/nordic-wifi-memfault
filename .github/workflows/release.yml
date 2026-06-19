@@ -9,6 +9,7 @@ on:
       tag:
         description: 'Release tag (e.g. v3.3.0.4)'
         required: true
+        type: string
 
 # Cancel any in-progress run for the same tag.
 concurrency:
