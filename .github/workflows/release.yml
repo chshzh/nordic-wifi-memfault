@@ -289,29 +289,29 @@ jobs:
           : "${NRF54LM20_RAM:=n/a}"
 
           cat > /tmp/release-body.txt <<EOF
-## Nordic Wi-Fi Memfault Release ${VER}
+          ## Nordic Wi-Fi Memfault Release ${VER}
 
-> Built with NCS ${{ needs.set-version.outputs.NCS_VERSION }} — version format is \`v<ncs-version>.<build>\` (e.g. \`v3.3.0.1\`), where the major/minor/patch matches the NCS version this firmware is based on.
+          > Built with NCS ${{ needs.set-version.outputs.NCS_VERSION }} — version format is \`v<ncs-version>.<build>\` (e.g. \`v3.3.0.1\`), where the major/minor/patch matches the NCS version this firmware is based on.
 
-### 📦 Firmware Files
+          ### 📦 Firmware Files
 
-Each release ships **6 files** across two hardware targets.
+          Each release ships **6 files** across two hardware targets.
 
-| Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
-|-------|-------------|-----------|-------------|-----------|-----------|
-| nRF54LM20DK + nRF7002EBII | [nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
-| nRF7002DK | [nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
+          | Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
+          |-------|-------------|-----------|-------------|-----------|-----------|
+          | nRF54LM20DK + nRF7002EBII | [nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf54lm20dk-nrf7002ebii-nord-project-${VER}.elf) | ${NRF54LM20_ROM} | ${NRF54LM20_RAM} |
+          | nRF7002DK | [nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
 
-**File types:**
-- \`.hex\` — Full board image for initial provisioning via \`nrfutil device program\`
-- \`.signed.bin\` — OTA image for Memfault over-the-air update via MCUboot
-- \`.elf\` — Symbol file for Memfault crash decoding and coredump analysis
+          **File types:**
+          - \`.hex\` — Full board image for initial provisioning via \`nrfutil device program\`
+          - \`.signed.bin\` — OTA image for Memfault over-the-air update via MCUboot
+          - \`.elf\` — Symbol file for Memfault crash decoding and coredump analysis
 
-For flashing and connection instructions, see the [Evaluator Quick Start guide](https://github.com/chshzh/nordic-wifi-memfault/blob/main/README.md#evaluator-quick-start) in the README.
+          For flashing and connection instructions, see the [Evaluator Quick Start guide](https://github.com/chshzh/nordic-wifi-memfault/blob/main/README.md#evaluator-quick-start) in the README.
 
-### 📝 Changes Since Last Release
+          ### 📝 Changes Since Last Release
 
-EOF
+          EOF
 
           if [ -f /tmp/changelog.txt ]; then
             cat /tmp/changelog.txt >> /tmp/release-body.txt

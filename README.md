@@ -1,7 +1,7 @@
 # Nordic Wi-Fi Memfault
 
 [![Validation](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/validation.yml/badge.svg)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/validation.yml)
-[![Release](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/release-fw.yml/badge.svg)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/release-fw.yml)
+[![Release](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/release.yml/badge.svg)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/release.yml)
 [![Latest Release](https://img.shields.io/github/v/release/chshzh/nordic-wifi-memfault?label=Latest%20Release&color=skyblue)](https://github.com/chshzh/nordic-wifi-memfault/releases/latest)
 
 ## What's New since v3.3.0.0
