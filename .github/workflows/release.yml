@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - 'v*'  # Release tags follow v<ncs-version>.<build>, e.g. v3.3.0.1, v3.3.0.2
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v3.3.0.4)'
+        required: true
 
 # Cancel any in-progress run for the same tag.
 concurrency:
@@ -96,6 +101,9 @@ jobs:
         id: ver
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
+          if [ "${VERSION}" = "${GITHUB_REF}" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          fi
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "Building release ${VERSION}"
 
@@ -227,6 +235,9 @@ jobs:
         id: ver
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
+          if [ "${VERSION}" = "${GITHUB_REF}" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          fi
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Download all release artifacts
