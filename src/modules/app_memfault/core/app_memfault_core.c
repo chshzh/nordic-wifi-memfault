@@ -15,7 +15,6 @@
 #include "button.h"
 #endif
 #include "../metrics/app_memfault_wifi_metrics.h"
-#include "../metrics/app_memfault_stack_metrics.h"
 
 #if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
 #include "../cdr/app_memfault_nrf70_fw_stats_cdr.h"
@@ -220,10 +219,6 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 		k_work_cancel_delayable(&log_freeze_work);
 		memfault_metrics_connectivity_connected_state_change(
 			kMemfaultMetricsConnectivityState_Connected);
-#if CONFIG_MEMFAULT_NCS_STACK_METRICS
-		mflt_stack_metrics_init();
-		LOG_INF("Stack metrics monitoring initialized");
-#endif
 		k_sem_give(&upload_sem);
 		break;
 	case WIFI_STA_DISCONNECTED:
@@ -359,13 +354,6 @@ static int memfault_core_init(void)
 	if (btn_err) {
 		LOG_ERR("dk_buttons_init failed: %d", btn_err);
 	}
-#endif
-
-#if CONFIG_MEMFAULT_NCS_STACK_METRICS
-	/* Register stack monitors at boot so early connect/auth peaks are not missed.
-	 * Late-created threads will be retried on Wi-Fi connect.
-	 */
-	mflt_stack_metrics_init();
 #endif
 
 	if (!boot_is_img_confirmed()) {

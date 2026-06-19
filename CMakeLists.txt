@@ -6,13 +6,14 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
-# Register zego modules: button, led, wifi, network, wifi_ble_prov.
+# Register zego modules: button, led, wifi, network, wifi_ble_prov, memonitor.
 get_filename_component(ZEGO_BUTTON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/button REALPATH)
 get_filename_component(ZEGO_LED_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/led REALPATH)
 get_filename_component(ZEGO_WIFI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/wifi REALPATH)
 get_filename_component(ZEGO_NETWORK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/network REALPATH)
 get_filename_component(ZEGO_WIFI_BLE_PROV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/wifi_ble_prov REALPATH)
-list(APPEND EXTRA_ZEPHYR_MODULES ${ZEGO_BUTTON_DIR} ${ZEGO_LED_DIR} ${ZEGO_WIFI_DIR} ${ZEGO_NETWORK_DIR} ${ZEGO_WIFI_BLE_PROV_DIR})
+get_filename_component(ZEGO_MEMONITOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/memonitor REALPATH)
+list(APPEND EXTRA_ZEPHYR_MODULES ${ZEGO_BUTTON_DIR} ${ZEGO_LED_DIR} ${ZEGO_WIFI_DIR} ${ZEGO_NETWORK_DIR} ${ZEGO_WIFI_BLE_PROV_DIR} ${ZEGO_MEMONITOR_DIR})
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(memfault-nrf7002dk)
@@ -41,9 +42,6 @@ target_sources(app PRIVATE src/main.c)
 # app shim (net_event_app.c) defines NETWORK_CHAN, declares WIFI_CHAN, overrides weak callbacks.
 if(CONFIG_ZEGO_NETWORK)
     add_subdirectory(src/modules/network)
-endif()
-if(CONFIG_HEAPS_MONITOR)
-    add_subdirectory(src/modules/heap_monitor)
 endif()
 if(CONFIG_APP_MEMFAULT_MODULE)
     add_subdirectory(src/modules/app_memfault)

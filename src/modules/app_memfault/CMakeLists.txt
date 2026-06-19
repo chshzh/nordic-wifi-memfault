@@ -24,9 +24,8 @@ if(CONFIG_NTP_MODULE)
 	target_sources(app PRIVATE core/app_memfault_platform_time.c)
 endif()
 
-if(CONFIG_MEMFAULT_NCS_STACK_METRICS)
-	target_sources(app PRIVATE metrics/app_memfault_stack_metrics.c)
-	target_include_directories(app PRIVATE ${ZEPHYR_NRF_MODULE_DIR}/modules/memfault-firmware-sdk/include)
+if(CONFIG_ZEGO_MEMONITOR)
+	target_sources(app PRIVATE metrics/app_memfault_memonitor_metrics.c)
 endif()
 
 if(CONFIG_NRF70_FW_STATS_CDR_ENABLED)

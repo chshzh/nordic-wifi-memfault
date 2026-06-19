@@ -10,7 +10,6 @@ module = APP_MAIN
 module-str = Application main
 source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
 
-rsource "src/modules/heap_monitor/Kconfig.heap_monitor"
 rsource "src/modules/app_memfault/Kconfig.app_memfault"
 rsource "src/modules/app_https_client/Kconfig.app_https_client"
 rsource "src/modules/app_mqtt_client/Kconfig.app_mqtt_client"
@@ -18,7 +17,6 @@ rsource "src/modules/ntp/Kconfig.ntp"
 rsource "src/modules/ux/Kconfig"
 
 rsource "src/modules/network/Kconfig.defaults"
-rsource "src/modules/heap_monitor/Kconfig.defaults"
 rsource "src/modules/app_memfault/Kconfig.defaults"
 rsource "src/modules/app_https_client/Kconfig.defaults"
 rsource "src/modules/app_mqtt_client/Kconfig.defaults"
@@ -26,10 +24,9 @@ rsource "src/modules/ntp/Kconfig.defaults"
 
 # Silence the v3.3.0 "Deprecated symbol MBEDTLS_LEGACY_CRYPTO_C" Kconfig
 # warning. The application enables MBEDTLS_LEGACY_CRYPTO_C in prj.conf to
-# keep the WPA supplicant RSA path available and to expose
-# MBEDTLS_MEMORY_DEBUG to the heap_monitor module (the PSA-only crypto path
-# in nrf_security/cmake/nrf_config.cmake does not forward this symbol to
-# nrf-config.h). The SDK-provided _SILENCE_DEPRECATION knob is promptless,
+# keep the WPA supplicant RSA path available (the PSA-only crypto path in
+# nrf_security/cmake/nrf_config.cmake does not forward MBEDTLS_MEMORY_DEBUG
+# to nrf-config.h). The SDK-provided _SILENCE_DEPRECATION knob is promptless,
 # so it must be selected from a Kconfig file rather than set in prj.conf.
 config MBEDTLS_LEGACY_CRYPTO_C_SILENCE_DEPRECATION
 	default y if MBEDTLS_LEGACY_CRYPTO_C

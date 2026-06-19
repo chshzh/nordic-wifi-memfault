@@ -4,8 +4,8 @@
 
 MEMFAULT_METRICS_KEY_DEFINE(switch_1_toggle_count, kMemfaultMetricType_Unsigned)
 
-/* Heap metrics */
-#if CONFIG_HEAPS_MONITOR
+/* Heap metrics — driven by app_memfault_memonitor_metrics.c via MEMONITOR_CHAN */
+#if CONFIG_ZEGO_MEMONITOR && CONFIG_ZEGO_MEMONITOR_HEAP_MONITOR
 #if CONFIG_HEAP_MEM_POOL_SIZE > 0
 MEMFAULT_METRICS_KEY_DEFINE(ncs_system_heap_total, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(ncs_system_heap_used, kMemfaultMetricType_Unsigned)
@@ -38,6 +38,21 @@ MEMFAULT_METRICS_KEY_DEFINE(ncs_tcp_work_unused_stack, kMemfaultMetricType_Unsig
 MEMFAULT_METRICS_KEY_DEFINE(ncs_shell_uart_unused_stack, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(ncs_logging_unused_stack, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(ncs_main_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_sysworkq_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_system_thread_unused_stack, kMemfaultMetricType_Unsigned)
+
+/* BLE thread metrics - only present when BT is enabled (nRF54LM20DK) */
+#if CONFIG_BT
+MEMFAULT_METRICS_KEY_DEFINE(ncs_bt_rx_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_bt_tx_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_bt_hci_isr_unused_stack, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(ncs_bt_host_tx_unused_stack, kMemfaultMetricType_Unsigned)
+#endif
+
+/* NTP thread metric - only present when NTP module is enabled */
+#if CONFIG_NTP_MODULE
+MEMFAULT_METRICS_KEY_DEFINE(ncs_ntp_unused_stack, kMemfaultMetricType_Unsigned)
+#endif
 
 /* app_memfault internal thread metrics - stack usage monitoring */
 MEMFAULT_METRICS_KEY_DEFINE(memfault_upload_unused_stack, kMemfaultMetricType_Unsigned)
