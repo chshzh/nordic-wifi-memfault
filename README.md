@@ -304,6 +304,69 @@ Only coredumps are written to non-volatile storage and survive a reset. All othe
 | Reboot events | 100/day, 1400/14-day | Reset-triggered | N/A |
 | Sessions | 16/day | 0 (not used) | N/A |
 
+#### Live Memory and Thread Watermark Monitoring with ZView
+
+Run ZView from the project root while the board is live. Replace the `-s` serial with your board's J-Link serial number (`nrfjprog --ids`).
+
+**nRF54LM20DK + nRF7002EB2:**
+```bash
+west zview live \
+  -e build_nrf54lm20dk/nordic-wifi-memfault/zephyr/zephyr.elf \
+  -r jlink \
+  -t nRF54LM20A_M33 \
+  -s 1051869687
+```
+
+**nRF7002DK:**
+```bash
+west zview live \
+  -e build_nrf7002dk/nordic-wifi-memfault/zephyr/zephyr.elf \
+  -r jlink \
+  -t nRF5340_xxAA \
+  -s 1050793110
+```
+Targets the application core (M33); the network core runs `hci_ipc` which has no Zephyr kernel objects to monitor.
+
+**How to get representative watermarks:** Exercise the full connectivity and upload cycle in one session before reading peak values. A typical sequence:
+1. Boot → Wi-Fi connects (STA) → DHCP completes
+2. Short-press BUTTON0 → triggers heartbeat + CDR upload
+3. Short-press BUTTON1 → triggers OTA check
+4. Power off the AP (or run `wifi disconnect`) → observe disconnect capture; restore AP → observe reconnect and log restore upload
+5. Long-press BUTTON0 → stack overflow coredump; reflash and reconnect
+
+ZView accumulates **high-water marks** (HWM) across the session — the peaks shown after this cycle represent worst-case usage for the STA + Memfault upload path.
+
+**Key threads to watch on nRF7002DK (nRF54LM20DK values are higher due to BLE):**
+
+| Thread | Expected HWM | Note |
+|---|---|---|
+| `hostap_handler` | ~7500 / 8304 (90 %) | High by design — drives WPA supplicant. Monitor for growth across firmware versions. |
+| `hostap_iface_wq` | ~3552 / 3952 (90 %) | WPA supplicant work queue. Stable. |
+| `nrf70_bh_wq` | ~1168 / 1304 (90 %) | nRF70 bottom half. Peaks at connect/disconnect. |
+| `sysworkq` | ~3800 / 5072 | Peaks during Memfault HTTP upload. |
+| `net_mgmt` | ~2536 / 3272 (STA peak) | Peaks during DHCP. |
+| `net_socket_service` | ~1960 / 2400 | Peaks during HTTPS/Memfault upload. |
+
+**Key heaps on nRF54LM20DK:**
+
+| Heap | Peak condition | HWM observed |
+|---|---|---|
+| `_system_heap` | STA connected + Memfault upload in flight | ~66 KB / 110 KB |
+| `_system_heap` | Disconnect-time log snapshot write to external flash | ~70 KB / 110 KB |
+
+**Memory sizing rules** — read HWM after the full cycle above:
+
+*Thread stacks:*
+- Resize if HWM > **80 %** of allocated stack size.
+- For large, well-characterised stacks (> 2048 B) — `hostap_handler`, `hostap_iface_wq`, `nrf70_bh_wq` — the practical threshold is **90 %**; these sit at 85–90 % by design and are stable.
+- Sizing formula: `CONFIG_<THREAD>_STACK_SIZE = HWM / 0.9` (≈ 10 % headroom).
+
+*System heap:*
+- Resize if heap HWM > **80 %** of total heap size.
+- Sizing formula: `CONFIG_HEAP_MEM_POOL_SIZE = HWM / 0.8` (≈ 20 % headroom).
+
+Update `prj.conf` or `boards/*.conf` with new measurements after each firmware change that touches network or Memfault upload paths.
+
 #### NTP Clock and Timeline Timestamps
 
 The device uses the Nordic `date_time` library (fed by SNTP) as the UTC time source for all Memfault timestamps. If NTP has not yet synced when an event is recorded, no device timestamp is embedded and the Memfault server falls back to the HTTP receive time for display.
