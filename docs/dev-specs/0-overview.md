@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-19-12-44 |
+| Version | 2026-06-22-12-40 |
 | PRD Version | 2026-06-19-12-31 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-22-12-40 | app-memfault-module.md: LOGGING_RAM_SIZE 4096→8192; mflt-log-state 8→12 KB; add mflt_log_buf_bytes_used metric; remove stale LOG_STATE_RESTORE_MAX_BYTES Kconfig entry |
 | 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-19-12-31 | Replaced heap-monitor-module.md with memonitor-module.md: deleted old spec, added memonitor-module.md (zego/memonitor brick), updated Spec Index, Zego table, PRD-to-Spec mapping, and dependency map. Architecture.md updated in parallel. |
 | 2026-06-05-10-20 | Verification P1 fixes: removed stale Spec Index row for deleted app-wifi-prov-ble-module.md; corrected Section 6 SPECS_VERSION description (auto-extracted by zego/wifi CMakeLists.txt, not a manual define). |

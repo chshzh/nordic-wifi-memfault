@@ -158,10 +158,10 @@ nordic-wifi-memfault/
 │   ├── pm-prd/
 │   │   └── PRD.md
 │   ├── dev-specs/
-│   │   ├── overview.md
-│   │   ├── architecture.md
-│   │   ├── flash-memory-layout.md
-│   │   ├── partition-layout.md
+│   │   ├── 0-overview.md
+│   │   ├── 1-architecture.md
+│   │   ├── 2-dts-partition.md
+│   │   ├── 3-memopt.md
 │   │   ├── network-module.md
 │   │   ├── memonitor-module.md
 │   │   ├── app-memfault-module.md
@@ -290,7 +290,7 @@ Only coredumps are written to non-volatile storage and survive a reset. All othe
 | Coredump (nRF54LM20DK) | `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM=y` | RRAM partition `memfault_coredump_partition` (64 KB at `0x1d5000`) | No — survives power cycle |
 | Coredump (nRF7002DK) | `CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y` | Flash partition `memfault_storage` (64 KB at `0xf0000`) | No — survives power cycle |
 | Heartbeat / trace events | `CONFIG_MEMFAULT_EVENT_STORAGE_SIZE=4096` | RAM ring buffer | Yes — lost on hard reset |
-| Log file | `CONFIG_MEMFAULT_LOGGING_RAM_SIZE=4096` | RAM circular buffer; disconnect-time snapshot persisted to external flash (`mflt-log-state`, 8 KB on mx25r64) when `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE=y` | Conditionally no — survives power cycle via external flash restore on next reconnect |
+| Log file | `CONFIG_MEMFAULT_LOGGING_RAM_SIZE=8192` | RAM circular buffer; disconnect-time snapshot persisted to external flash (`mflt-log-state`, 12 KB on mx25r64) when `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE=y` | Conditionally no — survives power cycle via external flash restore on next reconnect |
 | CDR (nRF70 FW stats) | `CONFIG_NRF70_FW_STATS_CDR_ENABLED=y` | Static RAM buffer (up to 1 KB) | Yes — lost on reboot before upload |
 
 #### Free-Tier Rate Limits
@@ -382,14 +382,15 @@ At 40 ppm crystal drift the device re-syncs every 6 hours (`CONFIG_NTP_RESYNC_IN
 
 ## Documentation
 
-Start with [docs/dev-specs/overview.md](docs/dev-specs/overview.md).
+Start with [docs/dev-specs/0-overview.md](docs/dev-specs/0-overview.md).
 
 | Document | Description |
 |---|---|
 | [docs/pm-prd/PRD.md](docs/pm-prd/PRD.md) | Product requirements and acceptance criteria |
-| [docs/dev-specs/overview.md](docs/dev-specs/overview.md) | Spec index and PRD-to-spec mapping |
-| [docs/dev-specs/architecture.md](docs/dev-specs/architecture.md) | System architecture and channel flow |
-| [docs/dev-specs/flash-memory-layout.md](docs/dev-specs/flash-memory-layout.md) | Flash/partition layouts, PM-to-DTS migration rationale, OTA compatibility limits |
+| [docs/dev-specs/0-overview.md](docs/dev-specs/0-overview.md) | Spec index and PRD-to-spec mapping |
+| [docs/dev-specs/1-architecture.md](docs/dev-specs/1-architecture.md) | System architecture and channel flow |
+| [docs/dev-specs/2-dts-partition.md](docs/dev-specs/2-dts-partition.md) | Flash/partition layouts, PM-to-DTS migration rationale, OTA compatibility limits |
+| [docs/dev-specs/3-memopt.md](docs/dev-specs/3-memopt.md) | Memory optimization report — thread stack watermarks, heap budget, sizing history |
 | [zego/button ↗](https://github.com/chshzh/zego/blob/main/bricks/button/docs/button-spec.md) | Button module — gesture detection (click, double-click, long press), Zbus `BUTTON_CHAN`; provided by **zego/button** |
 | [zego/led ↗](https://github.com/chshzh/zego/blob/main/bricks/led/docs/led-spec.md) | LED module — per-LED state machine (static, blink, breathe, rotate), Zbus `LED_CMD_CHAN`; provided by **zego/led** |
 | [docs/dev-specs/network-module.md](docs/dev-specs/network-module.md) | Wi-Fi/network event lifecycle |

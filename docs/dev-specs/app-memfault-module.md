@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-19-12-44 |
+| Version | 2026-06-22-12-40 |
 | PRD Version | 2026-06-19-12-31 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
@@ -55,16 +55,16 @@ reconnect.
 **Persist disconnect-time log state across reboot (FR-007, `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`):**
 `memfault_log_state_persist_now()` serializes the entire Memfault ring-buffer
 state (context struct + storage bytes) to a dedicated 8 KB partition on the
-external SPI/QSPI NOR flash (`mflt-log-state` in mx25r64) immediately after
+external SPI/QSPI NOR flash (`mflt-log-state` in mx25r64, **12 KB**) immediately after
 the 10 s disconnect delay fires. Enabled on both nRF54LM20DK and nRF7002DK.
 
 On the next WiFi reconnect, `memfault_log_state_restore_on_connect()` is called at the
 start of `on_connect()` — before any upload — while the flash driver is guaranteed
 initialized (APPLICATION level threads are running). It loads the blob, validates
 magic/version/size, then overwrites the live Memfault ring buffer in-place via
-`memfault_log_get_state()` live pointers. After restore, `memfault_log_trigger_collection()`
-is called to mark the restored ring-buffer content for upload (the blob saved to flash
-contains no trigger watermark, so this step is required). The blob is erased from flash
+`memfault_log_get_state()` live pointers. After restore, a `LOG_INF` emits `"Mflt log trigger (restore): N unsent logs, X/8192 bytes used"` and
+`MEMFAULT_METRIC_SET_UNSIGNED(mflt_log_buf_bytes_used, X)` records the fill level for the heartbeat.
+`memfault_log_trigger_collection()` is then called to mark the restored content for upload. The blob is erased from flash
 immediately after restore. The subsequent `memfault_zephyr_port_post_data()` call uploads
 the restored log file to Memfault, which shows original wall-clock timestamps (embedded
 by the Zephyr log formatter at capture time). A visual separator log line
@@ -181,19 +181,19 @@ Does not define its own public zbus channel in current implementation.
 | Symbol | Type | Default | Description |
 |--------|------|---------|-------------|
 | CONFIG_APP_MEMFAULT_MODULE | bool | n (enabled from prj.conf) | Enable module group |
-| CONFIG_MEMFAULT_UPLOAD_THREAD_STACK_SIZE | int | 5413 | Upload thread stack (sized for TLS; handles both on-connect and button-triggered uploads) |
+| CONFIG_MEMFAULT_UPLOAD_THREAD_STACK_SIZE | int | 6160 | Upload thread stack (sized for TLS; handles both on-connect and button-triggered uploads) |
 | CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN | int | 60 | Periodic OTA check interval (24/day; free-tier limit 100/day) |
 | CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC | int | 30 | Delay before OTA after event |
-| CONFIG_MEMFAULT_OTA_THREAD_STACK_SIZE | int | 4096 | OTA trigger thread stack |
+| CONFIG_MEMFAULT_OTA_THREAD_STACK_SIZE | int | 6330 | OTA trigger thread stack |
 | CONFIG_NRF70_FW_STATS_CDR_ENABLED | bool | n (enabled in prj.conf) | Enable nRF70 CDR uploads |
 | CONFIG_MEMFAULT_METRICS_SYNC_SUCCESS | bool | y | Enable sync_successful/sync_failure heartbeat counters |
 | CONFIG_MEMFAULT_METRICS_MEMFAULT_SYNC_SUCCESS | bool | y | Enable sync_memfault_successful/failure counters for Memfault uploads |
 | CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM | bool | y (nrf54lm20dk) | Use custom `memfault_platform_time_get_current()` backed by CLOCK_REALTIME (set by NTP module) |
 | CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM | bool | y (nrf54lm20dk) | RRAM-backed coredump storage using DTS `memfault_coredump_partition` |
 | CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM | bool | y (nrf7002dk) | Custom flash coredump backend in `core/memfault_flash_coredump_storage.c` using DTS `memfault_storage` partition; bypasses `PARTITION_MANAGER_ENABLED` dependency in upstream Kconfig |
-| CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE | bool | y (both boards) | Persist Memfault ring-buffer state to settings on disconnect; restore and upload on next WiFi connect |
+| CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE | bool | y (both boards) | Persist Memfault ring-buffer state to dedicated external flash partition on disconnect; restore and upload on next WiFi connect |
+| CONFIG_MEMFAULT_LOGGING_RAM_SIZE | int | 8192 | Memfault log ring-buffer size (RAM); flash partition `mflt-log-state` sized to 12 KB to hold the full blob (16 B hdr + context + 8192 B storage) |
 | CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE | bool | y (both boards) | Persist disconnect-time nRF70 CDR (WiFi fw stats) blob to external flash; restore and upload on next WiFi connect. Depends on `CONFIG_NRF70_FW_STATS_CDR_ENABLED`. |
-| CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE_MAX_BYTES | int | 3072 | Maximum settings payload bytes for the ring-buffer blob; bounded to protect the 8 KB shared settings partition |
 
 ---
 
@@ -267,13 +267,11 @@ MEMFAULT_METRIC_TIMER_STOP(app_wifi_connected_time);
 | Memfault threads | `{memfault_upload,mflt_ota_triggers}_unused_stack` | always |
 | App HTTPS | `app_https_client_unused_stack`, `app_https_req_{total,fail}_count` | `CONFIG_APP_HTTPS_CLIENT_MODULE` |
 | App MQTT | `app_mqtt_client_unused_stack`, `app_mqtt_echo_{total,fail}_count` | `CONFIG_APP_MQTT_CLIENT_MODULE` |
+| App memfault diagnostics | `mflt_log_buf_bytes_used` | always (set at heartbeat boundary and after log-state restore) |
 
 ---
 
 ## API / Public Interface
-
-This wrapper is primarily event-driven via SYS_INIT and zbus listeners.
-Public headers expose module-specific helpers used within module group components.
 
 ---
 
