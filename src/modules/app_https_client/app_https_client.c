@@ -13,6 +13,7 @@
 #include <zephyr/random/random.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/tls_credentials.h>
+#include <zephyr/net/dns_resolve.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/init.h>
@@ -239,6 +240,14 @@ static void send_http_request(void)
 	LOG_DBG("Looking up %s", CONFIG_APP_HTTPS_HOSTNAME);
 
 	err = getaddrinfo(CONFIG_APP_HTTPS_HOSTNAME, HTTPS_PORT, &hints, &res);
+	if (err == DNS_EAI_CANCELED) {
+		/* DNS query was canceled mid-flight (DHCP reconfigured the DNS
+		 * server address). Wait briefly and retry once.
+		 */
+		LOG_WRN("getaddrinfo() canceled (DNS reconfigured), retrying");
+		k_sleep(K_SECONDS(2));
+		err = getaddrinfo(CONFIG_APP_HTTPS_HOSTNAME, HTTPS_PORT, &hints, &res);
+	}
 	if (err) {
 		LOG_ERR("getaddrinfo() failed, EAI=%d errno=%d", err, errno);
 		request_failed = true;
