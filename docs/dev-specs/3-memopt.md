@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-05-21-17-32 |
+| Version | 2026-06-22-12-40 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK (nRF5340) |
 | Method | Thread Analyzer (`CONFIG_THREAD_ANALYZER_AUTO`) + heap_monitor, steady-state after Wi-Fi STA connect, Memfault heartbeat, MQTT publish, and HTTPS GET cycle |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-22-12-40 | Third measurement pass: WiFi + WPA supplicant global heaps split into 3 dedicated K_HEAPs; system heap drops from 72 410 B to 1 440 B; all thread stacks re-measured post BLE provisioning addition; MEMFAULT_LOGGING_RAM_SIZE 4096→8192 |
 | 2026-05-21-17-32 | Second measurement pass (nRF54LM20DK log: WiFi timeout + reconnect + Memfault upload cycle); sysworkq overflow root-caused and fixed; WiFi thread oversizing corrected; ~52 KB RAM saved |
 | 2026-05-14-00-00 | Initial measurement and stack/heap sizing applied to prj.conf |
 
@@ -146,6 +147,98 @@ Heap unchanged: no heap stats available from current logs; 2026-05-14 measuremen
 | nRF7002DK | 944 B | 2048 B | 46 % |
 
 ISR stack (`CONFIG_ISR_STACK_SIZE`) is at default (2048 B) and comfortably within bounds. No change needed.
+
+---
+
+---
+
+## Measurement Update — 2026-06-22
+
+**Source:** ZView watermark measurements after BLE provisioning (ZEGO_WIFI_BLE_PROV) integration; full STA connect + Memfault upload + MQTT publish + HTTPS GET cycle. Sizing rules: 20 % headroom (÷ 0.8) for watermark < 5120 B, 10 % headroom (÷ 0.9) for watermark ≥ 5120 B.
+
+**Key structural change — heap split:** `NRF_WIFI_GLOBAL_HEAP=n` and `WIFI_NM_WPA_SUPPLICANT_GLOBAL_HEAP=n` are now set. The Wi-Fi driver and WPA supplicant are each allocated from their own dedicated `K_HEAP` (visible as `wifi_drv_ctrl_mem_pool`, `wifi_drv_data_mem_pool`, and `wifi_nm_wpa_supplicant_mem_pool` in ZView). All `HEAP_MEM_POOL_ADD_SIZE_*` contributions from nRF70, hostap, board, and POSIX are removed, so `_system_heap` now reflects **app-only** usage and drops dramatically.
+
+### Thread Stack Watermarks (2026-06-22)
+
+| Thread / WQ | Kconfig | Watermark (B) | Rule | New size | Old size | Δ (B) |
+|-------------|---------|--------------|------|----------|----------|-------|
+| `sysworkq` | `SYSTEM_WORKQUEUE_STACK_SIZE` | 4528 | ÷0.8 | **5660** | 4988 | +672 |
+| `main` | `MAIN_STACK_SIZE` | 1496 | ÷0.9 | **1662** | 1662 | 0 |
+| `idle` | `IDLE_STACK_SIZE` | 248 | ÷0.8→310 | **320** (kept) | — | — |
+| `memfault_upload_tid` | `MEMFAULT_UPLOAD_THREAD_STACK_SIZE` | 4928 | ÷0.8 | **6160** | 5413 ¹ | +747 |
+| `mflt_upload` | `MEMFAULT_PERIODIC_UPLOAD_DEDICATED_WORKQUEUE_STACK_SIZE` | 4768 | ÷0.8 | **5960** | — ² | new |
+| `mflt_ota_triggers_tid` | `MEMFAULT_OTA_THREAD_STACK_SIZE` | 5064 | ÷0.8 | **6330** | 5600 | +730 |
+| downloader | `DOWNLOADER_STACK_SIZE` | 4824 | ÷0.8 | **6030** | 5360 | +670 |
+| `app_https_client_tid` | `APP_HTTPS_CLIENT_STACK_SIZE` | 5024 | ÷0.8 | **6280** | 5582 | +698 |
+| `app_mqtt_client_tid` | `APP_MQTT_CLIENT_STACK_SIZE` | 5272 | ÷0.9 | **5857** | 5848 | +9 |
+| `mqtt_helper_thread` | `MQTT_HELPER_STACK_SIZE` | 4040 | ÷0.8 | **5050** | 4488 | +562 |
+| `BT LW WQ` | `BT_LONG_WQ_STACK_SIZE` | 2008 | ÷0.8 | **2510** | 1591 | +919 |
+| `BT RX WQ` | `BT_RX_STACK_SIZE` | 20080 | ÷0.9 | **22311** | 21123 | +1188 |
+| `bt_tx_processor` | `BT_TX_PROCESSOR_STACK_SIZE` | 408 | ÷0.8 | **510** | — | new |
+| `ble_adv_daemon_wq` | `ZEGO_WIFI_BLE_PROV_ADV_DAEMON_STACK_SIZE` | 2448 | ÷0.8 | **3060** | — | new |
+| unnamed L2 WQ | `L2_WIFI_CONN_WQ_STACK_SIZE` | 248 | ÷0.9→276 | **276** | 276 | 0 |
+| `hostap_handler` | `WIFI_NM_WPA_SUPPLICANT_THREAD_STACK_SIZE` | 5384 | ÷0.9 | **5982** | 5991 | −9 |
+| `hostap_iface_wq` | `WIFI_NM_WPA_SUPPLICANT_WQ_STACK_SIZE` | 3848 | ÷0.8 | **4810** | 4328 | +482 |
+| `nrf70_bh_wq` | `NRF70_BH_WQ_STACK_SIZE` | 1072 | ÷0.8 | **1340** | 1208 | +132 |
+| `nrf70_intr_wq` | `NRF70_IRQ_WQ_STACK_SIZE` | 672 | ÷0.8 | **840** | 880 | −40 |
+| `rx_q` | `NET_RX_STACK_SIZE` | 1168 | kept | **2048** | 2048 | 0 |
+| `tx_q` | `NET_TX_STACK_SIZE` | 800 | kept | **2048** | 2048 | 0 |
+| `conn_mgr_monitor` | `NET_CONNECTION_MANAGER_MONITOR_STACK_SIZE` | 4416 | ÷0.8 | **5520** | 4924 | +596 |
+| `net_mgmt` | `NET_MGMT_EVENT_STACK_SIZE` | 2808 | ÷0.8 | **3510** | 3266 | +244 |
+| `MPSL Work` | `MPSL_WORK_STACK_SIZE` | 696 | kept | **1024** | 1024 | 0 |
+| `tcp_work` | `NET_TCP_WORKQ_STACK_SIZE` | 488 | kept | **1024** | 1024 | 0 |
+| `logging` | `LOG_PROCESS_THREAD_STACK_SIZE` | 752 | kept | **2048** | 2048 | 0 |
+| `net_socket_service` | (auto by Zephyr) | 784 | auto | — | — | — |
+| `mbox_wq` | `IPC_SERVICE_BACKEND_RPMSG_WQ_STACK_SIZE` | 400 | kept | **1024** | 1024 | 0 |
+
+¹ Previously tracked as `MEMFAULT_HTTP_DEDICATED_WORKQUEUE_STACK_SIZE` — Kconfig symbol renamed.  
+² New symbol in this NCS version; previous workqueue was folded into this.
+
+### Heap Watermarks (2026-06-22)
+
+| Heap | ZView pool name | Watermark (B) | Rule | New size | Old size | Δ (B) |
+|------|-----------------|--------------|------|----------|----------|-------|
+| `_system_heap` (app-only) | `_system_heap` | 1152 | ÷0.8 | **1440** | 72410 | −70970 |
+| mbedTLS heap | — | 69720 | ÷0.8 | **87150** | 86880 | +270 |
+| Wi-Fi ctrl heap (new) | `wifi_drv_ctrl_mem_pool` | 10288 | ÷0.8 | **12860** | — | new |
+| Wi-Fi data heap (new) | `wifi_drv_data_mem_pool` | 28520 | ÷0.8 | **35650** | — | new |
+| WPA supplicant heap (new) | `wifi_nm_wpa_supplicant_mem_pool` | 24184 | ÷0.8 | **30230** | — | new |
+
+> `HEAP_MEM_POOL_IGNORE_MIN=y` is still set — remove once app-only `_system_heap` watermark is confirmed stable at low usage over a full OTA + reconnect cycle.
+
+### Summary of Changes Applied — 2026-06-22
+
+| Kconfig | Old | New | Δ (B) | Reason |
+|---------|-----|-----|-------|--------|
+| `CONFIG_HEAP_MEM_POOL_SIZE` | 72410 | **1440** | −70970 | App-only heap after WiFi/WPA split; new watermark 1152 |
+| `CONFIG_NRF_WIFI_GLOBAL_HEAP` | y | **n** | — | Moved to dedicated `NRF_WIFI_CTRL/DATA_HEAP` |
+| `CONFIG_NRF_WIFI_CTRL_HEAP_SIZE` | — | **12860** | +12860 | New dedicated heap; watermark 10288 |
+| `CONFIG_NRF_WIFI_DATA_HEAP_SIZE` | — | **35650** | +35650 | New dedicated heap; watermark 28520 |
+| `CONFIG_WIFI_NM_WPA_SUPPLICANT_GLOBAL_HEAP` | y | **n** | — | Moved to dedicated `WPA_SUPPLICANT_HEAP` |
+| `CONFIG_WIFI_NM_WPA_SUPPLICANT_HEAP` | — | **30230** | +30230 | New dedicated heap; watermark 24184 |
+| `CONFIG_MBEDTLS_HEAP_SIZE` | 86880 | **87150** | +270 | Re-measured; watermark 69720 |
+| `CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE` | 4988 | **5660** | +672 | New watermark 4528 (BLE prov path) |
+| `CONFIG_MEMFAULT_UPLOAD_THREAD_STACK_SIZE` | 5413 | **6160** | +747 | Re-measured watermark 4928 |
+| `CONFIG_MEMFAULT_PERIODIC_UPLOAD_DEDICATED_WORKQUEUE_STACK_SIZE` | — | **5960** | +5960 | New symbol; watermark 4768 |
+| `CONFIG_MEMFAULT_OTA_THREAD_STACK_SIZE` | 5600 | **6330** | +730 | Re-measured watermark 5064 |
+| `CONFIG_DOWNLOADER_STACK_SIZE` | 5360 | **6030** | +670 | Re-measured watermark 4824 |
+| `CONFIG_APP_HTTPS_CLIENT_STACK_SIZE` | 5582 | **6280** | +698 | Re-measured watermark 5024 |
+| `CONFIG_APP_MQTT_CLIENT_STACK_SIZE` | 5848 | **5857** | +9 | Re-measured watermark 5272 |
+| `CONFIG_MQTT_HELPER_STACK_SIZE` | 4488 | **5050** | +562 | Re-measured watermark 4040 |
+| `CONFIG_BT_LONG_WQ_STACK_SIZE` | 1591 | **2510** | +919 | Re-measured watermark 2008 (BLE prov active) |
+| `CONFIG_BT_RX_STACK_SIZE` | 21123 | **22311** | +1188 | Re-measured watermark 20080 |
+| `CONFIG_BT_TX_PROCESSOR_STACK_SIZE` | — | **510** | +510 | New thread; watermark 408 |
+| `CONFIG_ZEGO_WIFI_BLE_PROV_ADV_DAEMON_STACK_SIZE` | — | **3060** | +3060 | New thread; watermark 2448 |
+| `CONFIG_WIFI_NM_WPA_SUPPLICANT_THREAD_STACK_SIZE` | 5991 | **5982** | −9 | Re-measured watermark 5384 |
+| `CONFIG_WIFI_NM_WPA_SUPPLICANT_WQ_STACK_SIZE` | 4328 | **4810** | +482 | Re-measured watermark 3848 |
+| `CONFIG_NRF70_BH_WQ_STACK_SIZE` | 1208 | **1340** | +132 | Re-measured watermark 1072 |
+| `CONFIG_NRF70_IRQ_WQ_STACK_SIZE` | 880 | **840** | −40 | Re-measured watermark 672 |
+| `CONFIG_NET_CONNECTION_MANAGER_MONITOR_STACK_SIZE` | 4924 | **5520** | +596 | Re-measured watermark 4416 |
+| `CONFIG_NET_MGMT_EVENT_STACK_SIZE` | 3266 | **3510** | +244 | Re-measured watermark 2808 |
+
+**Net thread stack RAM change (2026-06-22):** +9 650 B (~9.4 KB)  
+**Net heap RAM change (2026-06-22):** −70 970 (system) + 270 (mbedTLS) + 78 740 (new dedicated) = **+8 040 B** (~7.8 KB)  
+**Total net RAM change:** +17 690 B (~17.3 KB) — offset by structural split that makes Wi-Fi heaps observable and right-sized in ZView.
 
 ---
 

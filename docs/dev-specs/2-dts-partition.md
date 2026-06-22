@@ -50,8 +50,8 @@ External flash - MX25R6435F (8 MB via spi00):
 | Address | Partition | Size | Purpose |
 |---------|-----------|------|---------|
 | `0x000000` | `slot1_partition` | 1804 KB | Secondary OTA slot |
-| `0x1C3000` | `mflt_log_state_partition` | 8 KB | Memfault disconnect-time log-state blob (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) |
-| `0x1C5000` | `mflt_cdr_state_partition` | 8 KB | Memfault disconnect-time CDR blob (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`) |
+| `0x1C3000` | `mflt_log_state_partition` | 12 KB | Memfault disconnect-time log-state blob (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) |
+| `0x1C6000` | `mflt_cdr_state_partition` | 8 KB | Memfault disconnect-time CDR blob (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`) |
 
 #### Legacy Layout (Partition Manager, NCS 3.2 and earlier)
 
@@ -89,8 +89,8 @@ External flash - MX25R64 (8 MB):
 | Address | Partition | Size | Purpose |
 |---------|-----------|------|---------|
 | `0x000000` | `slot1_partition` | 920 KB | Secondary OTA slot |
-| `0x0E4000` | `mflt_log_state_partition` | 8 KB | Memfault disconnect-time log-state blob (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) |
-| `0x0E6000` | `mflt_cdr_state_partition` | 8 KB | Memfault disconnect-time CDR blob (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`) |
+| `0x0E4000` | `mflt_log_state_partition` | 12 KB | Memfault disconnect-time log-state blob (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) |
+| `0x0E7000` | `mflt_cdr_state_partition` | 8 KB | Memfault disconnect-time CDR blob (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`) |
 
 #### Legacy Layout (Partition Manager, NCS 3.2 and earlier)
 

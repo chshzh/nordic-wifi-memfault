@@ -4,6 +4,12 @@
 
 MEMFAULT_METRICS_KEY_DEFINE(switch_1_toggle_count, kMemfaultMetricType_Unsigned)
 
+/* Memfault log ring-buffer fill level at heartbeat boundary (bytes of unsent
+ * logs). Correlate with MemfaultSDKMetric_log_dropped_lines to diagnose
+ * whether drops coincide with a near-full buffer at trigger time.
+ */
+MEMFAULT_METRICS_KEY_DEFINE(mflt_log_buf_bytes_used, kMemfaultMetricType_Unsigned)
+
 /* Heap metrics — driven by app_memfault_memonitor_metrics.c via MEMONITOR_CHAN */
 #if CONFIG_ZEGO_MEMONITOR && CONFIG_ZEGO_MEMONITOR_HEAP_MONITOR
 #if CONFIG_HEAP_MEM_POOL_SIZE > 0

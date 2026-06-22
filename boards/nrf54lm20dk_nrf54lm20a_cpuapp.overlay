@@ -48,16 +48,16 @@
 			reg = <0x0 0x1c3000>;
 		};
 
-		/* 8 KB dedicated partition for Memfault disconnect-time log-state blob */
+		/* 12 KB dedicated partition for Memfault disconnect-time log-state blob (must fit 16 B hdr + ~80 B context + 8192 B storage) */
 		mflt_log_state_partition: partition@1c3000 {
 			label = "mflt-log-state";
-			reg = <0x1c3000 0x2000>;
+			reg = <0x1c3000 0x3000>;
 		};
 
 		/* 8 KB dedicated partition for Memfault disconnect-time CDR (WiFi stats) blob */
-		mflt_cdr_state_partition: partition@1c5000 {
+		mflt_cdr_state_partition: partition@1c6000 {
 			label = "mflt-cdr-state";
-			reg = <0x1c5000 0x2000>;
+			reg = <0x1c6000 0x2000>;
 		};
 	};
 };

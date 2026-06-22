@@ -54,16 +54,16 @@
 			reg = <0x0 0xe4000>; /* must match slot0 for MCUBoot swap */
 		};
 
-		/* 8 KB dedicated partition for Memfault disconnect-time log-state blob */
+		/* 12 KB dedicated partition for Memfault disconnect-time log-state blob (must fit 16 B hdr + ~80 B context + 8192 B storage) */
 		mflt_log_state_partition: partition@e4000 {
 			label = "mflt-log-state";
-			reg = <0xe4000 0x2000>;
+			reg = <0xe4000 0x3000>;
 		};
 
 		/* 8 KB dedicated partition for Memfault disconnect-time CDR (WiFi stats) blob */
-		mflt_cdr_state_partition: partition@e6000 {
+		mflt_cdr_state_partition: partition@e7000 {
 			label = "mflt-cdr-state";
-			reg = <0xe6000 0x2000>;
+			reg = <0xe7000 0x2000>;
 		};
 	};
 };

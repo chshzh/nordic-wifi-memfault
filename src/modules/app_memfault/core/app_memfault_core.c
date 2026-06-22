@@ -97,6 +97,16 @@ void memfault_metrics_heartbeat_collect_data(void)
 	memfault_ncs_metrics_collect_data();
 #endif
 	mflt_wifi_metrics_collect();
+
+	/* Diagnostic: log ring-buffer fill level at every heartbeat boundary.
+	 * This runs just before the SDK calls memfault_log_trigger_collection()
+	 * in the periodic upload handler, so the numbers reflect the buffer state
+	 * at trigger time. Use this to confirm/deny the dropped-lines hypothesis.
+	 */
+	sMfltLogUnsentCount uc = memfault_log_get_unsent_count();
+	LOG_INF("Mflt log trigger (heartbeat): %zu unsent logs, %zu/%u bytes used", uc.num_logs,
+		uc.bytes, CONFIG_MEMFAULT_LOGGING_RAM_SIZE);
+	MEMFAULT_METRIC_SET_UNSIGNED(mflt_log_buf_bytes_used, (uint32_t)uc.bytes);
 }
 
 #if defined(CONFIG_POSIX_API)
@@ -137,6 +147,9 @@ static void on_connect(void)
 		 * (which has no saved trigger watermark after a power cycle)
 		 * is included in the next upload.
 		 */
+		sMfltLogUnsentCount uc = memfault_log_get_unsent_count();
+		LOG_INF("Mflt log trigger (restore): %zu unsent logs, %zu/%u bytes used",
+			uc.num_logs, uc.bytes, CONFIG_MEMFAULT_LOGGING_RAM_SIZE);
 		memfault_log_trigger_collection();
 		LOG_INF("Disconnect-time log state restored — uploading to Memfault");
 	}
