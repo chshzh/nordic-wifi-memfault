@@ -321,23 +321,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Trigger Terraforma private build
+      - name: Push tag to Terraforma repo
         if: success()
         env:
           DISPATCH_TOKEN: ${{ secrets.TERRAFORMA_DISPATCH_TOKEN }}
+          VER: ${{ steps.ver.outputs.VERSION }}
         run: |
           if [ -z "${DISPATCH_TOKEN}" ]; then
-            echo "TERRAFORMA_DISPATCH_TOKEN not set — skipping private build trigger"
+            echo "##[warning]TERRAFORMA_DISPATCH_TOKEN not set — skipping Terraforma tag push"
             exit 0
           fi
-          HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            -H "Authorization: token ${DISPATCH_TOKEN}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/chshzh/nordic-wifi-memfault-terraforma/dispatches \
-            -d "{\"event_type\":\"public-release\",\"client_payload\":{\"tag\":\"${{ steps.ver.outputs.VERSION }}\"}}") 
-          echo "Dispatch HTTP status: ${HTTP}"
-          if [ "${HTTP}" = "204" ]; then
-            echo "Terraforma build triggered for ${{ steps.ver.outputs.VERSION }}"
-          else
-            echo "##[warning]Terraforma dispatch failed (HTTP ${HTTP}) — check TERRAFORMA_DISPATCH_TOKEN permissions (needs Actions: Write on the private repo)"
-          fi
+          git clone --depth=1 \
+            "https://x-access-token:${DISPATCH_TOKEN}@github.com/chshzh/nordic-wifi-memfault-terraforma.git" \
+            /tmp/terraforma
+          cd /tmp/terraforma
+          git tag "${VER}"
+          git push origin "${VER}"
+          echo "Pushed tag ${VER} to nordic-wifi-memfault-terraforma"
