@@ -240,7 +240,7 @@ static void send_http_request(void)
 
 	err = getaddrinfo(CONFIG_APP_HTTPS_HOSTNAME, HTTPS_PORT, &hints, &res);
 	if (err) {
-		LOG_ERR("getaddrinfo() failed, err %d", errno);
+		LOG_ERR("getaddrinfo() failed, EAI=%d errno=%d", err, errno);
 		request_failed = true;
 		goto clean_up;
 	}
