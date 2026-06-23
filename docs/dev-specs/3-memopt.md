@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-22-12-40 |
+| Version | 2026-06-23-09-53 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK (nRF5340) |
 | Method | Thread Analyzer (`CONFIG_THREAD_ANALYZER_AUTO`) + heap_monitor, steady-state after Wi-Fi STA connect, Memfault heartbeat, MQTT publish, and HTTPS GET cycle |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-23-09-53 | net_mgmt stack manually increased 3510→4480 |
 | 2026-06-22-12-40 | Third measurement pass: WiFi + WPA supplicant global heaps split into 3 dedicated K_HEAPs; system heap drops from 72 410 B to 1 440 B; all thread stacks re-measured post BLE provisioning addition; MEMFAULT_LOGGING_RAM_SIZE 4096→8192 |
 | 2026-05-21-17-32 | Second measurement pass (nRF54LM20DK log: WiFi timeout + reconnect + Memfault upload cycle); sysworkq overflow root-caused and fixed; WiFi thread oversizing corrected; ~52 KB RAM saved |
 | 2026-05-14-00-00 | Initial measurement and stack/heap sizing applied to prj.conf |
@@ -239,6 +240,18 @@ ISR stack (`CONFIG_ISR_STACK_SIZE`) is at default (2048 B) and comfortably withi
 **Net thread stack RAM change (2026-06-22):** +9 650 B (~9.4 KB)  
 **Net heap RAM change (2026-06-22):** −70 970 (system) + 270 (mbedTLS) + 78 740 (new dedicated) = **+8 040 B** (~7.8 KB)  
 **Total net RAM change:** +17 690 B (~17.3 KB) — offset by structural split that makes Wi-Fi heaps observable and right-sized in ZView.
+
+---
+
+## Configuration Update — 2026-06-23
+
+**Change:** `net_mgmt` stack manually increased beyond the measurement-derived value. Prior watermark (2026-06-22): 2808 B; measurement-derived size: 3510 B (÷0.8). New value: 4480 B (~60 % headroom above watermark).
+
+| Kconfig | Old | New | Δ (B) | Reason |
+|---------|-----|-----|-------|--------|
+| `CONFIG_NET_MGMT_EVENT_STACK_SIZE` | 3510 | **4480** | +970 | Manual increase for additional headroom |
+
+**Net stack RAM change (2026-06-23):** +970 B
 
 ---
 
