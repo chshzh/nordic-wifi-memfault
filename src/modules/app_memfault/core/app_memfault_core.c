@@ -151,14 +151,14 @@ static void on_connect(void)
 		LOG_INF("Mflt log trigger (restore): %zu unsent logs, %zu/%u bytes used",
 			uc.num_logs, uc.bytes, CONFIG_MEMFAULT_LOGGING_RAM_SIZE);
 		memfault_log_trigger_collection();
-		LOG_INF("Disconnect-time log state restored — uploading to Memfault");
+		LOG_INF("Disconnect-time log state restored - uploading to Memfault");
 	}
 #endif
 
 #if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
 	int cdr_restore_err = mflt_nrf70_fw_stats_cdr_restore_from_flash();
 	if (cdr_restore_err == 0) {
-		LOG_INF("Disconnect-time CDR state restored — uploading to Memfault");
+		LOG_INF("Disconnect-time CDR state restored - uploading to Memfault");
 	}
 #endif
 
@@ -254,7 +254,7 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 ZBUS_LISTENER_DEFINE(memfault_wifi_listener_def, memfault_wifi_listener);
 ZBUS_CHAN_ADD_OBS(WIFI_CHAN, memfault_wifi_listener_def, 0);
 
-/* NETWORK_CHAN listener — catches IP-layer loss (DHCP expiry, addr removal)
+/* NETWORK_CHAN listener - catches IP-layer loss (DHCP expiry, addr removal)
  * independently of Wi-Fi association state. */
 extern const struct zbus_channel NETWORK_CHAN;
 
