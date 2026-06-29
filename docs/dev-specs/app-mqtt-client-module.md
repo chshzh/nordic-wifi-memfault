@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-19-12-44 |
+| Version | 2026-06-29-13-23 |
 | PRD Version | 2026-06-19-12-31 |
 | NCS Version | v3.3.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-06-29-13-23 | Reconnect strategy changed to capped exponential backoff; broker-drop initial delay reduced to 30 s. |
 | 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-04-23-33 | Formatted Document Information: `Module` → `Project`; added `NCS Version` and `Target Board(s)`. PRD Version updated to 2026-06-04-23-04. |
 | 2026-05-14-14-13 | Reverse-design spec created from src/modules/app_mqtt_client implementation |
@@ -87,11 +88,37 @@ On disconnect events, publish activity is suspended until connectivity returns.
 
 ---
 
+## Reconnect Strategy
+
+Connection failures use a **capped exponential backoff**:
+
+| Retry attempt | Delay |
+|---|---|
+| 1 – 3 (quick) | 5 s |
+| 4 | 30 s |
+| 5 | 60 s |
+| 6 | 120 s |
+| 7+ | 300 s (cap) |
+
+Implemented by `mqtt_backoff_sec(retry_count)` using constants `MQTT_BACKOFF_BASE_SEC=30`
+and `MQTT_BACKOFF_MAX_SEC=300` (not Kconfig-exposed; change in source if needed).
+
+Broker-initiated drops (connection was established, then broker disconnected) use a fixed
+30 s initial delay before re-entering the retry loop, allowing brief broker hiccups to
+recover quickly without immediately triggering the exponential ladder.
+
+`CONFIG_APP_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC` (default 60 s) is no longer used as the
+flat retry interval; it remains in Kconfig for legacy compatibility but has no effect on
+the backoff schedule.
+
+---
+
 ## Error Handling
 
 | Error Condition | Detection | Response |
 |----------------|-----------|----------|
-| Broker connect failure | mqtt_helper return/error callback | retry after timeout |
+| Broker connect failure | mqtt_helper return/error callback | exponential backoff retry (see Reconnect Strategy) |
+| Broker-initiated drop | disconnect callback + network still ready | 30 s delay then exponential retry |
 | Publish failure | publish return code | count failure and continue |
 | TLS credential issue | connection setup failure | log and retry |
 | Wi-Fi disconnect | WIFI_CHAN event | pause client operations |

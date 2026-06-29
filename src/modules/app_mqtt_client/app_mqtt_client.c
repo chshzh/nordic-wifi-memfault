@@ -29,6 +29,23 @@
 LOG_MODULE_REGISTER(app_mqtt_client, CONFIG_APP_MQTT_CLIENT_LOG_LEVEL);
 
 #define DNS_CHECK_INTERVAL_SEC 10
+
+/* Item 7: Capped exponential backoff for MQTT reconnect.
+ * Retries 1-3: 5 s quick retries (transient startup issues).
+ * Retry 4+:    30 s → 60 s → 120 s → 300 s cap (persistent failures).
+ */
+#define MQTT_BACKOFF_BASE_SEC     30U
+#define MQTT_BACKOFF_MAX_SEC     300U
+
+static uint32_t mqtt_backoff_sec(int retry_count)
+{
+	if (retry_count <= 3) {
+		return 5U;
+	}
+	uint32_t b = MQTT_BACKOFF_BASE_SEC << (uint32_t)(retry_count - 4);
+
+	return MIN(b, MQTT_BACKOFF_MAX_SEC);
+}
 /* MQTT client states - prefixed to avoid conflict with mqtt_helper.h */
 enum app_mqtt_client_state {
 	APP_MQTT_STATE_DISCONNECTED,
@@ -442,27 +459,22 @@ static void app_mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 					k_sleep(K_MSEC(500));
 				} else if (err) {
 					retry_count++;
+					uint32_t delay = mqtt_backoff_sec(retry_count);
+
 					if (retry_count <= max_quick_retries) {
-						/* Quick retries for transient
-						 * network startup issues */
 						LOG_INF("Initial connection "
 							"attempt %d/%d failed, "
-							"retrying in 5 seconds",
-							retry_count, max_quick_retries);
-						k_sleep(K_SECONDS(5));
+							"retrying in %u seconds",
+							retry_count, max_quick_retries,
+							delay);
 					} else {
-						/* Longer backoff after initial
-						 * retries */
 						LOG_WRN("MQTT connection "
 							"failed after %d "
 							"attempts, "
-							"retrying in %d "
-							"seconds",
-							retry_count,
-							CONFIG_APP_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC);
-						k_sleep(K_SECONDS(
-							CONFIG_APP_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC));
+							"retrying in %u seconds",
+							retry_count, delay);
 					}
+					k_sleep(K_SECONDS(delay));
 				} else {
 					/* Connection initiated successfully,
 					 * reset retry counter */
@@ -484,10 +496,13 @@ static void app_mqtt_client_thread(void *arg1, void *arg2, void *arg3)
 			 */
 			if (mqtt_client_running && network_ready &&
 			    current_state == APP_MQTT_STATE_DISCONNECTED) {
+				/* Broker-initiated drop: short initial delay,
+				 * then the retry loop applies exponential
+				 * backoff if the problem persists.
+				 */
 				LOG_INF("Broker connection lost, reconnecting "
-					"in %d seconds",
-					CONFIG_APP_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC);
-				k_sleep(K_SECONDS(CONFIG_APP_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC));
+					"in %u seconds", MQTT_BACKOFF_BASE_SEC);
+				k_sleep(K_SECONDS(MQTT_BACKOFF_BASE_SEC));
 			}
 		}
 
