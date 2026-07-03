@@ -42,8 +42,7 @@ LOG_MODULE_DECLARE(zego_net_event_mgmt, CONFIG_ZEGO_NETWORK_LOG_LEVEL);
  */
 static struct net_mgmt_event_callback wifi_disc_reason_cb;
 
-static void wifi_disconnect_reason_handler(struct net_mgmt_event_callback *cb,
-					   uint64_t mgmt_event,
+static void wifi_disconnect_reason_handler(struct net_mgmt_event_callback *cb, uint64_t mgmt_event,
 					   struct net_if *iface)
 {
 	ARG_UNUSED(iface);
@@ -61,8 +60,7 @@ static void wifi_disconnect_reason_handler(struct net_mgmt_event_callback *cb,
 
 static int net_event_app_init(void)
 {
-	net_mgmt_init_event_callback(&wifi_disc_reason_cb,
-				     wifi_disconnect_reason_handler,
+	net_mgmt_init_event_callback(&wifi_disc_reason_cb, wifi_disconnect_reason_handler,
 				     NET_EVENT_WIFI_DISCONNECT_RESULT);
 	net_mgmt_add_event_callback(&wifi_disc_reason_cb);
 	return 0;
@@ -119,8 +117,10 @@ void zego_on_net_event_dhcp_bound(enum zego_wifi_mode mode, const char *ip_addr,
 	}
 }
 
-void zego_on_net_event_wifi_disconnect(void)
+void zego_on_net_event_wifi_disconnect(bool will_retry)
 {
+	ARG_UNUSED(will_retry);
+
 #if CONFIG_ZEGO_WIFI_BLE_PROV
 	struct wifi_msg wmsg = {
 		.type = WIFI_STA_DISCONNECTED,
