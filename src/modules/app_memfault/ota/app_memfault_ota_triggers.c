@@ -14,7 +14,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/zbus/zbus.h>
-#include <memfault/nrfconnect_port/fota.h>
+#include <memfault/ports/zephyr/fota.h>
 
 LOG_MODULE_REGISTER(ota_triggers, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 
@@ -54,9 +54,9 @@ static const char *consume_trigger_context(void)
 
 static void schedule_ota_check(const char *context)
 {
-#if IS_ENABLED(CONFIG_MEMFAULT_FOTA)
+#if IS_ENABLED(CONFIG_MEMFAULT_ZEPHYR_FOTA)
 	LOG_INF("Starting Memfault OTA check (%s)", context);
-	int rv = memfault_fota_start();
+	int rv = memfault_zephyr_fota_start();
 
 	if (rv < 0) {
 		LOG_ERR("Memfault OTA check failed (%s), err %d", context, rv);
@@ -70,7 +70,7 @@ static void schedule_ota_check(const char *context)
 
 	if (!warned) {
 		LOG_WRN("Memfault OTA support is disabled. Enable "
-			"CONFIG_MEMFAULT_FOTA to use OTA "
+			"CONFIG_MEMFAULT_ZEPHYR_FOTA to use OTA "
 			"checks");
 		warned = true;
 	}

@@ -42,9 +42,6 @@ config MEMFAULT_EVENT_STORAGE_SIZE
 config MEMFAULT_SHELL
 	default n
 
-config MEMFAULT_FOTA_CLI_CMD
-	default n
-
 # ---------------------------------------------------------------------------
 # Memfault HTTP upload
 # ---------------------------------------------------------------------------
@@ -171,7 +168,9 @@ config MEMFAULT_NCS_PROVISION_CERTIFICATES
 # ---------------------------------------------------------------------------
 # FOTA (Firmware Over-The-Air update)
 # ---------------------------------------------------------------------------
-config MEMFAULT_FOTA
+# Renamed from CONFIG_MEMFAULT_FOTA (removed in the bundled Memfault SDK's FOTA
+# rework; memfault_fota_start() was replaced by memfault_zephyr_fota_start()).
+config MEMFAULT_ZEPHYR_FOTA
 	default y if APP_MEMFAULT_MODULE
 
 config DFU_TARGET

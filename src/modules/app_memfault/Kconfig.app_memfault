@@ -47,14 +47,14 @@ config MEMFAULT_OTA_CONNECT_DELAY_SEC
 	range 0 300
 	help
 	  After a network-connect or button-press event signals the OTA thread,
-	  the thread sleeps this many seconds before calling memfault_fota_start().
+	  the thread sleeps this many seconds before calling memfault_zephyr_fota_start().
 	  This gives the DNS resolver time to settle after a fresh connection.
 	  Default is 60 seconds.
 
 config MEMFAULT_OTA_THREAD_STACK_SIZE
 	int "Stack size for the Memfault OTA trigger thread (bytes)"
 	help
-	  Stack size for the thread that calls memfault_fota_start().
+	  Stack size for the thread that calls memfault_zephyr_fota_start().
 	  4096 bytes is sufficient as the Memfault NCS port spawns its own
 	  HTTPS transfer internally.  Override in prj.conf if needed.
 
