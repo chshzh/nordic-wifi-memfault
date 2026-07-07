@@ -5,9 +5,9 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-29-13-23 |
-| PRD Version | 2026-06-19-12-31 |
-| NCS Version | v3.3.0 |
+| Version | 2026-07-07-16-32 |
+| PRD Version | 2026-07-07-16-32 |
+| NCS Version | v3.4.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
 | Status | Implemented |
 
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-07-07-16-32 | PRD Version updated to 2026-07-07-16-32. Replaced `APP_WIFI_STATE_CHAN` publishing with `ZEGO_UX_WIFI_STATE_CHAN` (owned by `zego/bricks/ux`), following the removal of the redundant local `src/modules/ux/`. Renamed `net_event_app.c` to `net_event_mgmt.c`. See [4-ux.md](4-ux.md). |
 | 2026-06-29-13-23 | Added `wifi_disconnect_reason_handler` net_mgmt callback; added `CONFIG_WIFI_NM_WPA_SUPPLICANT_BSS_MAX_IDLE_TIME=30` Kconfig. |
 | 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-04-23-45 | Trimmed to app-layer shim only: updated Zbus Integration to show all channels and weak hook override table; removed stale Module Type, API, Kconfig, Memory, Test Points, and Developer Notes sections. |
@@ -33,9 +34,9 @@ of connectivity truth for dependent modules.
 
 > **Core event handling provided by zego/network.**
 >
-> This spec covers only the application-layer shim (`net_event_app.c`) that bridges
+> This spec covers only the application-layer shim (`net_event_mgmt.c`) that bridges
 > `zego/network` events to the application zbus channels (`WIFI_CHAN`, `NETWORK_CHAN`,
-> `APP_WIFI_STATE_CHAN`). The core Wi-Fi/network event loop is in `zego/modules/network`.
+> `ZEGO_UX_WIFI_STATE_CHAN`). The core Wi-Fi/network event loop is in `zego/modules/network`.
 >
 > Canonical spec: **[zego/network ↗](https://github.com/chshzh/zego/blob/main/modules/network/docs/network-spec.md)**
 
@@ -44,7 +45,7 @@ of connectivity truth for dependent modules.
 ## Location
 
 - Path: `src/modules/network/`
-- Files: `net_event_app.c`, `Kconfig`, `Kconfig.defaults`, `CMakeLists.txt`
+- Files: `net_event_mgmt.c`, `Kconfig`, `Kconfig.defaults`, `CMakeLists.txt`
 
 ---
 
@@ -52,8 +53,8 @@ of connectivity truth for dependent modules.
 
 | Channel | Type | Defined in |
 |---------|------|------------|
-| `NETWORK_CHAN` | `struct network_msg` | `net_event_app.c` |
-| `APP_WIFI_STATE_CHAN` | `struct app_wifi_state_msg` | `net_event_app.c` |
+| `NETWORK_CHAN` | `struct network_msg` | `net_event_mgmt.c` |
+| `ZEGO_UX_WIFI_STATE_CHAN` | `struct zego_ux_wifi_state_msg` | `zego/bricks/ux/src/ux.h` (published by `net_event_mgmt.c`) |
 
 ---
 
@@ -65,7 +66,7 @@ of connectivity truth for dependent modules.
 |-----------|---------|----------|
 | `WIFI_CHAN` | `{ .type = WIFI_STA_CONNECTED }` | `CONFIG_ZEGO_WIFI_BLE_PROV=y` only |
 | `NETWORK_CHAN` | `{ .type = NETWORK_READY, .ready = true }` | Always |
-| `APP_WIFI_STATE_CHAN` | `{ .state = APP_WIFI_STATE_CONNECTED, .mode = mode }` | Always |
+| `ZEGO_UX_WIFI_STATE_CHAN` | `{ .state = ZEGO_UX_WIFI_STATE_CONNECTED, .mode = mode }` | Always |
 
 ### `zego_network_on_wifi_disconnected()`
 
@@ -73,13 +74,13 @@ of connectivity truth for dependent modules.
 |-----------|---------|----------|
 | `WIFI_CHAN` | `{ .type = WIFI_STA_DISCONNECTED }` | `CONFIG_ZEGO_WIFI_BLE_PROV=y` only |
 | `NETWORK_CHAN` | `{ .type = NETWORK_NOT_READY, .ready = false }` | Always |
-| `APP_WIFI_STATE_CHAN` | `{ .state = APP_WIFI_STATE_ERROR, .mode = ZEGO_WIFI_MODE_STA }` | Always |
+| `ZEGO_UX_WIFI_STATE_CHAN` | `{ .state = ZEGO_UX_WIFI_STATE_ERROR, .mode = ZEGO_WIFI_MODE_STA }` | Always |
 
 ---
 
 ## Disconnect Reason Diagnostic Callback
 
-`net_event_app.c` registers an additional `NET_EVENT_WIFI_DISCONNECT_RESULT` net_mgmt
+`net_event_mgmt.c` registers an additional `NET_EVENT_WIFI_DISCONNECT_RESULT` net_mgmt
 callback (`wifi_disconnect_reason_handler`) via `SYS_INIT` at `APPLICATION` priority.
 
 **Purpose:** Zephyr's `wifi_status.disconn_reason` (enum `wifi_disconn_reason`) maps all

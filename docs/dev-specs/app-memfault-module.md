@@ -5,9 +5,9 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-22-12-40 |
-| PRD Version | 2026-06-19-12-31 |
-| NCS Version | v3.3.0 |
+| Version | 2026-07-07-16-32 |
+| PRD Version | 2026-07-07-16-32 |
+| NCS Version | v3.4.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
 | Status | Implemented |
 
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-07-07-16-32 | PRD Version updated to 2026-07-07-16-32. NCS bumped v3.3.0→v3.4.0. Bundled Memfault SDK FOTA rework: `CONFIG_MEMFAULT_FOTA`→`CONFIG_MEMFAULT_ZEPHYR_FOTA`, `memfault_fota_start()`→`memfault_zephyr_fota_start()`; `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM`→`CONFIG_MEMFAULT_COREDUMP_STORAGE_NRF_RRAM`. |
 | 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-04-23-33 | Formatted Document Information: `Module` → `Project`; added `NCS Version` and `Target Board(s)`. PRD Version updated to 2026-06-04-23-04. |
 | 2026-05-14-14-13 | Reverse-design spec created from src/modules/app_memfault implementation |
@@ -146,7 +147,7 @@ only compiled when `CONFIG_NTP_MODULE=y` (nrf54lm20dk board config).
 | Field | Value |
 |-------|-------|
 | Library | Memfault SDK (NCS integration) |
-| NCS Kconfig | CONFIG_MEMFAULT, CONFIG_MEMFAULT_FOTA, related symbols selected by APP_MEMFAULT_MODULE |
+| NCS Kconfig | CONFIG_MEMFAULT, CONFIG_MEMFAULT_ZEPHYR_FOTA, related symbols selected by APP_MEMFAULT_MODULE |
 | Library internal threads | Upload/FOTA workqueues managed by Memfault/NCS ports |
 
 Representative API usage from this wrapper module:
@@ -154,7 +155,7 @@ Representative API usage from this wrapper module:
 - `memfault_platform_time_get_current()` — provide wall-clock timestamp from `CLOCK_REALTIME` (implemented in `memfault_platform_time.c`; returns false until NTP sync)
 - `memfault_zephyr_port_post_data()` — post queued data; return code checked and logged. **Called only from the dedicated upload thread** (`memfault_upload_tid`), never from zbus listeners or the system workqueue.
 - `memfault_metrics_heartbeat_debug_trigger()` — force heartbeat snapshot on connect
-- `memfault_fota_start()` — initiate OTA check
+- `memfault_zephyr_fota_start()` — initiate OTA check
 - Memfault metrics/trace APIs used by metrics and button handlers
 
 Callbacks and listener paths:
@@ -189,7 +190,7 @@ Does not define its own public zbus channel in current implementation.
 | CONFIG_MEMFAULT_METRICS_SYNC_SUCCESS | bool | y | Enable sync_successful/sync_failure heartbeat counters |
 | CONFIG_MEMFAULT_METRICS_MEMFAULT_SYNC_SUCCESS | bool | y | Enable sync_memfault_successful/failure counters for Memfault uploads |
 | CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM | bool | y (nrf54lm20dk) | Use custom `memfault_platform_time_get_current()` backed by CLOCK_REALTIME (set by NTP module) |
-| CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM | bool | y (nrf54lm20dk) | RRAM-backed coredump storage using DTS `memfault_coredump_partition` |
+| CONFIG_MEMFAULT_COREDUMP_STORAGE_NRF_RRAM | bool | y (nrf54lm20dk) | RRAM-backed coredump storage using DTS `memfault_coredump_partition` |
 | CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM | bool | y (nrf7002dk) | Custom flash coredump backend in `core/memfault_flash_coredump_storage.c` using DTS `memfault_storage` partition; bypasses `PARTITION_MANAGER_ENABLED` dependency in upstream Kconfig |
 | CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE | bool | y (both boards) | Persist Memfault ring-buffer state to dedicated external flash partition on disconnect; restore and upload on next WiFi connect |
 | CONFIG_MEMFAULT_LOGGING_RAM_SIZE | int | 8192 | Memfault log ring-buffer size (RAM); flash partition `mflt-log-state` sized to 12 KB to hold the full blob (16 B hdr + context + 8192 B storage) |
@@ -286,7 +287,7 @@ MEMFAULT_METRIC_TIMER_STOP(app_wifi_connected_time);
 | Log-state persist failure | `flash_area_write()` returns error | `LOG_WRN`; runtime continues normally without crash |
 | Log-state restore size mismatch | persisted `context_len`/`storage_len` differ from live ring-buffer sizes | discard blob, log warning; firmware update between boots is the typical cause |
 | Log-state restore — no blob found | settings subtree empty or load error | silent no-op; normal upload proceeds |
-| OTA check failure | `memfault_fota_start` result | log error and retain current firmware |
+| OTA check failure | `memfault_zephyr_fota_start` result | log error and retain current firmware |
 | CDR upload limit reached | Memfault CDR limit handling | skip until permitted window |
 | Log file rate limit exceeded | Memfault backend silently drops assembled log file (device still receives HTTP 202 for chunks — **no firmware-side warning**) | visible only in Platform UI → Device → Developer Mode → Processing Errors; enable Server-Side Developer Mode for testing; set `MEMFAULT_PERIODIC_UPLOAD_INTERVAL_SECS=3600` for production |
 

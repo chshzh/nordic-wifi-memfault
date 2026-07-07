@@ -5,9 +5,9 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-19-12-44 |
-| PRD Version | 2026-06-19-12-31 |
-| NCS Version | v3.3.0 |
+| Version | 2026-07-07-16-32 |
+| PRD Version | 2026-07-07-16-32 |
+| NCS Version | v3.4.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
 | Status | Implemented |
 
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-07-07-16-32 | PRD Version updated to 2026-07-07-16-32. NCS bumped v3.3.0→v3.4.0. `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM` renamed to `CONFIG_MEMFAULT_COREDUMP_STORAGE_NRF_RRAM` in the bundled Memfault SDK; no layout change. |
 | 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-04-23-33 | Version and PRD Version updated to track latest PRD (2026-06-04-23-04). |
 | 2026-05-18-15-20 | Switched restore-path design to compact internal settings storage (no dedicated external restore partition) |
@@ -43,7 +44,7 @@ Internal flash - RRAM (`cpuapp_rram`):
 | `0x000000` | `boot_partition` | 64 KB | Bootloader (MCUboot) |
 | `0x010000` | `slot0_partition` | 1804 KB | Primary app image |
 | `0x1D3000` | `storage_partition` | 8 KB | WiFi credentials / NVS; small persistent app state |
-| `0x1D5000` | `memfault_coredump_partition` | 64 KB | Crash coredumps (RRAM-backed, `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM=y`) |
+| `0x1D5000` | `memfault_coredump_partition` | 64 KB | Crash coredumps (RRAM-backed, `CONFIG_MEMFAULT_COREDUMP_STORAGE_NRF_RRAM=y`) |
 
 External flash - MX25R6435F (8 MB via spi00):
 

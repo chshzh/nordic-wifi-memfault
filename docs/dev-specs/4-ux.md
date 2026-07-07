@@ -5,11 +5,11 @@
 | Field | Value |
 |---|---|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-19-12-44 |
-| PRD Version | 2026-06-19-12-31 |
-| NCS Version | v3.3.0 |
+| Version | 2026-07-07-16-32 |
+| PRD Version | 2026-07-07-16-32 |
+| NCS Version | v3.4.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
-| Status | Implemented |
+| Status | Removed — superseded by `zego/bricks/ux` |
 
 ---
 
@@ -17,95 +17,27 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-07-07-16-32 | **Module removed.** PRD Version updated to 2026-07-07-16-32. The local `src/modules/ux/` (`CONFIG_APP_UX_MODULE`) duplicated LED 0 Wi-Fi-state feedback now provided by `zego/bricks/ux` (`CONFIG_ZEGO_UX`), which this project already links in for the startup banner. Both modules were independently driving LED 0 (confirmed on hardware: duplicate "LED ROTATE effect started" at boot from two separate `SYS_INIT` handlers). `src/modules/network/net_event_mgmt.c` (renamed from `net_event_app.c`) now publishes `ZEGO_UX_WIFI_STATE_CHAN` directly instead of the removed `APP_WIFI_STATE_CHAN`. See [ux-spec.md](../../../zego/bricks/ux/docs/ux-spec.md) for the current implementation. |
 | 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-04-23-33 | Formatted Document Information: `Module` → `Project`. PRD Version updated to 2026-06-04-23-04. |
 | 2026-06-04-23-00 | Initial spec — LED-only Wi-Fi state feedback using zego/led |
 
 ---
 
-## 1. Purpose
+## Current state
 
-The UX module (`src/modules/ux/ux.c`) drives LED 0 to reflect Wi-Fi connectivity
-state using `LED_CMD_CHAN` (from `zego/led`).
+LED 0 Wi-Fi state feedback is now owned entirely by `zego/bricks/ux` (`CONFIG_ZEGO_UX=y`,
+already enabled for the startup banner — see [0-overview.md](0-overview.md)). This project's
+only remaining integration point is `src/modules/network/net_event_mgmt.c`, which publishes
+`ZEGO_UX_WIFI_STATE_CHAN` on connectivity changes:
 
-Enable with `CONFIG_APP_UX_MODULE=y`.  No button handling — button gestures (heartbeat,
-OTA check, crash demo) are handled by `app_memfault_core.c` via `BUTTON_CHAN`.
-
----
-
-## 2. Kconfig Symbols
-
-| Symbol | Default | Description |
-|--------|---------|-------------|
-| `CONFIG_APP_UX_MODULE` | `n` | Enable the UX module |
-| `CONFIG_APP_UX_INIT_PRIORITY` | `95` | `SYS_INIT` priority; must be > `ZEGO_LED_INIT_PRIORITY` (91) |
-
----
-
-## 3. LED 0 State Machine
-
-LED 0 is driven by `APP_WIFI_STATE_CHAN` (published by `net_event_app.c`).
-
-```
-Boot
- │
- ▼
-[ROTATE] ◄── SYS_INIT (APP_UX priority 95)
- │
- ├──► APP_WIFI_STATE_CONNECTED  ──► [Solid ON]
- │
- └──► APP_WIFI_STATE_ERROR      ──► [Fast BLINK 100 ms]
-              │
-              └──► APP_WIFI_STATE_CONNECTED ──► [Solid ON]
-```
-
-| `app_wifi_state` | LED 0 effect | `period_ms` |
-|------------------|-------------|-------------|
-| `CONNECTING` (boot) | ROTATE | Kconfig default |
-| `CONNECTED` | Solid ON | — |
-| `ERROR` (disconnected) | BLINK | 100 ms |
-
----
-
-## 4. APP_WIFI_STATE_CHAN
-
-Defined in `src/modules/network/net_event_app.c`. Declared in `src/modules/messages.h`.
-
-| Event | Published when |
+| Event | Published state |
 |-------|----------------|
-| `APP_WIFI_STATE_CONNECTED` | `zego_network_on_wifi_connected()` fires (STA connected) |
-| `APP_WIFI_STATE_ERROR` | `zego_network_on_wifi_disconnected()` fires |
+| `zego_on_net_event_dhcp_bound()` | `ZEGO_UX_WIFI_STATE_CONNECTED` |
+| `zego_on_net_event_wifi_disconnect()` | `ZEGO_UX_WIFI_STATE_ERROR` |
 
-> `APP_WIFI_STATE_CONNECTING` is not published explicitly — the UX module starts
-> ROTATE at boot via `SYS_INIT` unconditionally.
+Boot-time ROTATE and the LED effect state machine itself are handled internally by
+`zego/bricks/ux` — see its spec for details: [ux-spec.md](../../../zego/bricks/ux/docs/ux-spec.md).
 
----
-
-## 5. Init-Order Safety
-
-The atomic `app_ux_ready` flag (set in `app_ux_init()`, SYS_INIT priority 95) ensures
-that `app_ux_led_work_fn` does not call `k_work_schedule()` on `led_sm[n].effect_work`
-before `k_work_init_delayable()` has run in `led_module_init()` (priority 91).
-
-Any connectivity event that arrives before init completes is replayed from `app_ux_init()`.
-
----
-
-## 6. Zbus Channel Summary
-
-| Channel | Role | Direction |
-|---------|------|-----------|
-| `APP_WIFI_STATE_CHAN` | Wi-Fi state events (from `net_event_app.c`) | Input |
-| `LED_CMD_CHAN` | LED commands (to `zego/led`) | Output |
-
----
-
-## 7. File Map
-
-| File | Role |
-|------|------|
-| `src/modules/ux/ux.c` | Module implementation |
-| `src/modules/ux/Kconfig` | `CONFIG_APP_UX_MODULE`, `CONFIG_APP_UX_INIT_PRIORITY` |
-| `src/modules/ux/CMakeLists.txt` | Adds `ux.c` when module is enabled |
-| `src/modules/messages.h` | `APP_WIFI_STATE_CHAN` declaration + `app_wifi_state_msg` type |
-| `src/modules/network/net_event_app.c` | Defines `APP_WIFI_STATE_CHAN`; publishes on connectivity events |
+Button gestures (heartbeat, OTA check, crash demo) remain handled separately by
+`app_memfault_core.c` via `BUTTON_CHAN`, unaffected by this removal.

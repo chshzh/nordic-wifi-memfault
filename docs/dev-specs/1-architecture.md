@@ -5,9 +5,9 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-06-19-12-44 |
-| PRD Version | 2026-06-19-12-31 |
-| NCS Version | v3.3.0 |
+| Version | 2026-07-07-16-32 |
+| PRD Version | 2026-07-07-16-32 |
+| NCS Version | v3.4.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
 | Status | Implemented |
 
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-07-07-16-32 | PRD Version updated to 2026-07-07-16-32. Removed `src/modules/ux/` (`APP_UX_MODULE`) — superseded by `zego/bricks/ux`, which already provides identical LED 0 Wi-Fi-state feedback and was linked in for the startup banner (both were independently driving LED 0). `net_event_app.c` (renamed `net_event_mgmt.c`) now publishes `ZEGO_UX_WIFI_STATE_CHAN` instead of the removed `APP_WIFI_STATE_CHAN`; `messages.h` no longer defines `app_wifi_state_msg`. See [4-ux.md](4-ux.md). |
 | 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-05-10-20 | Verification P1 fix: added APP_WIFI_STATE_CHAN and LED_CMD_CHAN to Zbus channel table and message definitions; updated Boot Sequence with ux module. |
 | 2026-06-04-23-33 | Version and PRD Version updated to track latest PRD (2026-06-04-23-04). |
@@ -46,9 +47,8 @@ own internal threads.
 src/
 ├── main.c
 └── modules/
-    ├── messages.h          ← app-local Zbus types (network_msg, app_wifi_state_msg)
-    ├── network/            ← net_event_app.c: NETWORK_CHAN + APP_WIFI_STATE_CHAN + WIFI_CHAN
-    ├── ux/                 ← LED Wi-Fi state feedback (APP_WIFI_STATE_CHAN → LED_CMD_CHAN)
+    ├── messages.h          ← app-local Zbus types (network_msg)
+    ├── network/            ← net_event_mgmt.c: NETWORK_CHAN + WIFI_CHAN + ZEGO_UX_WIFI_STATE_CHAN
     ├── heap_monitor/       ← heap telemetry → Memfault metrics
     ├── app_memfault/       ← Memfault core, metrics, OTA triggers, CDR
     ├── app_https_client/   ← HTTPS health-check client (nRF54LM20DK only)
@@ -76,8 +76,7 @@ Note: src/modules/wifi_prov_over_ble/ is a legacy stale directory; it is not com
 | BUTTON_CHAN | struct button_msg | zego/button (external) | app_memfault core, app_memfault ota, app_memfault cdr | runtime |
 | WIFI_CHAN | struct wifi_msg | network module | app_memfault core, app_memfault ota, wifi_prov_over_ble, app_https_client, app_mqtt_client | runtime |
 | NETWORK_CHAN | struct network_msg | network module | app_memfault core, ntp (optional) | runtime |
-| APP_WIFI_STATE_CHAN | struct app_wifi_state_msg | network module (net_event_app.c) | app_ux | runtime |
-| LED_CMD_CHAN | struct led_msg | app_ux | zego/led (external) | runtime |
+| ZEGO_UX_WIFI_STATE_CHAN | struct zego_ux_wifi_state_msg | network module (net_event_mgmt.c) | zego/ux (external) | runtime |
 
 ### Message Definitions
 
@@ -115,17 +114,7 @@ struct network_msg {
     bool ready;
 };
 
-enum app_wifi_state {
-    APP_WIFI_STATE_CONNECTING,
-    APP_WIFI_STATE_CONNECTED,
-    APP_WIFI_STATE_ERROR,
-};
-struct app_wifi_state_msg {
-    enum app_wifi_state state;
-    enum zego_wifi_mode mode;
-};
-
-/* led_msg defined in zego/led — LED_COMMAND_ROTATE/ON/BLINK */
+/* zego_ux_wifi_state_msg defined in zego/bricks/ux/src/ux.h */
 ```
 
 ---
