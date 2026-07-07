@@ -92,6 +92,18 @@ jobs:
             west init -l nordic-wifi-memfault
           west update -o=--depth=1 -n
 
+      - name: Apply vendored nrf_security patches
+        working-directory: app-workspace
+        run: |
+          PATCH=zego/patches/nrf_security/0001-forward-mbedtls-memory-debug.patch
+          TARGET=nrf/subsys/nrf_security/cmake/psa_crypto_want_config.cmake
+          if grep -q MBEDTLS_MEMORY_DEBUG "$TARGET"; then
+            echo "Already applied (cached nrf checkout) — skipping"
+          else
+            git -C nrf apply "$PWD/$PATCH"
+            echo "Applied $PATCH"
+          fi
+
       - name: Extract version from tag
         id: ver
         run: |
