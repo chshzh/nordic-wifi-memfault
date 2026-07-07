@@ -185,7 +185,7 @@ size_t mflt_nrf70_fw_stats_cdr_get_size(void)
 
 #define CDR_STATE_MAGIC 0x43445253u /* 'CDRS' */
 #define CDR_STATE_VER   1u
-#define CDR_STATE_FA_ID FIXED_PARTITION_ID(mflt_cdr_state_partition)
+#define CDR_STATE_FA_ID PARTITION_ID(mflt_cdr_state_partition)
 
 struct cdr_state_hdr {
 	uint32_t magic;

@@ -13,7 +13,7 @@ endif()
 
 # nRF7002DK: DTS-partition flash coredump backend (bypasses PM dependency).
 # Upstream Kconfig requires PARTITION_MANAGER_ENABLED even though the
-# implementation only uses FIXED_PARTITION_* DTS macros.
+# implementation only uses PARTITION_* DTS macros.
 if(CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM AND CONFIG_BOARD_NRF7002DK_NRF5340_CPUAPP)
 	target_sources(app PRIVATE core/app_memfault_flash_coredump_storage.c)
 endif()

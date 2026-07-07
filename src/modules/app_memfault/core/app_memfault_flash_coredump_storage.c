@@ -8,7 +8,7 @@
  *
  * This is a copy of nrf/modules/memfault-firmware-sdk/memfault_flash_coredump_storage.c
  * placed here to bypass the PARTITION_MANAGER_ENABLED dependency in the upstream NCS
- * Kconfig. The implementation only uses FIXED_PARTITION_* DTS macros, which work
+ * Kconfig. The implementation only uses PARTITION_* DTS macros, which work
  * without Partition Manager when a `memfault_storage` fixed partition exists in DTS.
  *
  * Upstream issue: CONFIG_MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP has
@@ -28,7 +28,7 @@ static bool last_coredump_cleared;
 void memfault_platform_coredump_storage_get_info(sMfltCoredumpStorageInfo *info)
 {
 	*info = (sMfltCoredumpStorageInfo){
-		.size = FIXED_PARTITION_SIZE(memfault_storage),
+		.size = PARTITION_SIZE(memfault_storage),
 	};
 }
 
@@ -46,7 +46,7 @@ bool memfault_platform_coredump_storage_read(uint32_t offset, void *data, size_t
 		return false;
 	}
 
-	const uint32_t address = FIXED_PARTITION_OFFSET(memfault_storage) + offset;
+	const uint32_t address = PARTITION_OFFSET(memfault_storage) + offset;
 
 	memcpy(data, (void *)address, read_len);
 	return true;
@@ -65,7 +65,7 @@ bool memfault_platform_coredump_storage_erase(uint32_t offset, size_t erase_size
 	}
 
 	for (size_t page = offset; page < erase_size; page += page_size) {
-		const uint32_t address = FIXED_PARTITION_OFFSET(memfault_storage) + page;
+		const uint32_t address = PARTITION_OFFSET(memfault_storage) + page;
 
 		nrfx_nvmc_page_erase(address);
 	}
@@ -75,7 +75,7 @@ bool memfault_platform_coredump_storage_erase(uint32_t offset, size_t erase_size
 
 bool memfault_platform_coredump_storage_buffered_write(sCoredumpWorkingBuffer *blk)
 {
-	const uint32_t start_addr = FIXED_PARTITION_OFFSET(memfault_storage);
+	const uint32_t start_addr = PARTITION_OFFSET(memfault_storage);
 	const uint32_t addr = start_addr + blk->write_offset;
 
 	if (!prv_op_within_flash_bounds(blk->write_offset, MEMFAULT_COREDUMP_STORAGE_WRITE_SIZE)) {
@@ -105,7 +105,7 @@ void memfault_platform_coredump_storage_clear(void)
 	const struct flash_area *flash_area;
 	int err;
 
-	err = flash_area_open(FIXED_PARTITION_ID(memfault_storage), &flash_area);
+	err = flash_area_open(PARTITION_ID(memfault_storage), &flash_area);
 	if (err) {
 		MEMFAULT_LOG_ERROR("Unable to open coredump storage: 0x%x", err);
 		return;

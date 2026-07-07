@@ -63,7 +63,7 @@ LOG_MODULE_REGISTER(memfault_log_state_restore, CONFIG_APP_MEMFAULT_MODULE_LOG_L
 
 #define LOG_STATE_MAGIC 0x4d4c5352u /* 'MLSR' */
 #define LOG_STATE_VER   2u          /* v2: external-flash backed */
-#define LOG_STATE_FA_ID FIXED_PARTITION_ID(mflt_log_state_partition)
+#define LOG_STATE_FA_ID PARTITION_ID(mflt_log_state_partition)
 
 struct log_state_hdr {
 	uint32_t magic;
