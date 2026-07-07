@@ -36,24 +36,4 @@ struct network_msg {
 	bool ready;
 };
 
-/* ============================================================================
- * APP WI-FI STATE — consumed by src/modules/ux/ for LED feedback.
- * Published by net_event_app.c on connectivity changes.
- * ============================================================================
- */
-#include <wifi.h>
-
-enum app_wifi_state {
-	APP_WIFI_STATE_CONNECTING, /**< Boot default — not published explicitly */
-	APP_WIFI_STATE_CONNECTED,  /**< STA connected or SoftAP client joined */
-	APP_WIFI_STATE_ERROR,      /**< Disconnected / error */
-};
-
-struct app_wifi_state_msg {
-	enum app_wifi_state state;
-	enum zego_wifi_mode mode;
-};
-
-ZBUS_CHAN_DECLARE(APP_WIFI_STATE_CHAN);
-
 #endif /* MESSAGES_H */

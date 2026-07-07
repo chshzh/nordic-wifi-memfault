@@ -5,12 +5,14 @@
  */
 
 /*
- * net_event_app.c — memfault-specific network connectivity callbacks.
+ * net_event_mgmt.c — memfault-specific network connectivity callbacks.
  *
- * Defines NETWORK_CHAN and APP_WIFI_STATE_CHAN, and overrides the __weak hooks
- * from zego/network/src/net_event_mgmt.c to publish on those channels.
- * When CONFIG_ZEGO_WIFI_BLE_PROV is enabled, also publishes to WIFI_CHAN so
- * the BLE advertisement reflects the current connection state.
+ * Defines NETWORK_CHAN, and overrides the __weak hooks from
+ * zego/network/src/net_event_mgmt.c to publish on it. Also publishes
+ * ZEGO_UX_WIFI_STATE_CHAN (owned by zego/bricks/ux) so LED 0 reflects
+ * connectivity state. When CONFIG_ZEGO_WIFI_BLE_PROV is enabled, also
+ * publishes to WIFI_CHAN so the BLE advertisement reflects the current
+ * connection state.
  */
 
 #include <zephyr/zbus/zbus.h>
@@ -18,6 +20,7 @@
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/wifi_mgmt.h>
 #include <wifi.h>
+#include <ux.h>
 #include "../messages.h"
 #include "net_event_mgmt.h"
 #if CONFIG_ZEGO_WIFI_BLE_PROV
@@ -71,9 +74,6 @@ SYS_INIT(net_event_app_init, APPLICATION, 1);
 ZBUS_CHAN_DEFINE(NETWORK_CHAN, struct network_msg, NULL, NULL, ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0));
 
-ZBUS_CHAN_DEFINE(APP_WIFI_STATE_CHAN, struct app_wifi_state_msg, NULL, NULL, ZBUS_OBSERVERS_EMPTY,
-		 ZBUS_MSG_INIT(.state = APP_WIFI_STATE_CONNECTING, .mode = ZEGO_WIFI_MODE_STA));
-
 void zego_on_net_event_dhcp_bound(enum zego_wifi_mode mode, const char *ip_addr,
 				  const char *mac_addr, const char *ssid)
 {
@@ -105,15 +105,15 @@ void zego_on_net_event_dhcp_bound(enum zego_wifi_mode mode, const char *ip_addr,
 		LOG_WRN("Failed to publish NETWORK_CHAN (READY): %d", err2);
 	}
 
-	struct app_wifi_state_msg smsg = {
-		.state = APP_WIFI_STATE_CONNECTED,
+	struct zego_ux_wifi_state_msg smsg = {
+		.state = ZEGO_UX_WIFI_STATE_CONNECTED,
 		.mode = mode,
 	};
 
-	int err3 = zbus_chan_pub(&APP_WIFI_STATE_CHAN, &smsg, K_NO_WAIT);
+	int err3 = zbus_chan_pub(&ZEGO_UX_WIFI_STATE_CHAN, &smsg, K_NO_WAIT);
 
 	if (err3) {
-		LOG_WRN("Failed to publish APP_WIFI_STATE_CHAN (CONNECTED): %d", err3);
+		LOG_WRN("Failed to publish ZEGO_UX_WIFI_STATE_CHAN (CONNECTED): %d", err3);
 	}
 }
 
@@ -145,14 +145,14 @@ void zego_on_net_event_wifi_disconnect(bool will_retry)
 		LOG_WRN("Failed to publish NETWORK_CHAN (NOT_READY): %d", err2);
 	}
 
-	struct app_wifi_state_msg smsg = {
-		.state = APP_WIFI_STATE_ERROR,
+	struct zego_ux_wifi_state_msg smsg = {
+		.state = ZEGO_UX_WIFI_STATE_ERROR,
 		.mode = ZEGO_WIFI_MODE_STA,
 	};
 
-	int err3 = zbus_chan_pub(&APP_WIFI_STATE_CHAN, &smsg, K_NO_WAIT);
+	int err3 = zbus_chan_pub(&ZEGO_UX_WIFI_STATE_CHAN, &smsg, K_NO_WAIT);
 
 	if (err3) {
-		LOG_WRN("Failed to publish APP_WIFI_STATE_CHAN (ERROR): %d", err3);
+		LOG_WRN("Failed to publish ZEGO_UX_WIFI_STATE_CHAN (ERROR): %d", err3);
 	}
 }
