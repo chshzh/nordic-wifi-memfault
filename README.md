@@ -275,7 +275,7 @@ Only coredumps are written to non-volatile storage and survive a reset. All othe
 
 | Data | Kconfig | Storage | Volatile? |
 |------|---------|---------|-----------|
-| Coredump (nRF54LM20DK) | `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM=y` | RRAM partition `memfault_coredump_partition` (64 KB at `0x1d5000`) | No — survives power cycle |
+| Coredump (nRF54LM20DK) | `CONFIG_MEMFAULT_COREDUMP_STORAGE_NRF_RRAM=y` | RRAM partition `memfault_coredump_partition` (64 KB at `0x1d5000`) | No — survives power cycle |
 | Coredump (nRF7002DK) | `CONFIG_MEMFAULT_COREDUMP_STORAGE_CUSTOM=y` | Flash partition `memfault_storage` (64 KB at `0xf0000`) | No — survives power cycle |
 | Heartbeat / trace events | `CONFIG_MEMFAULT_EVENT_STORAGE_SIZE=4096` | RAM ring buffer | Yes — lost on hard reset |
 | Log file | `CONFIG_MEMFAULT_LOGGING_RAM_SIZE=8192` | RAM circular buffer; disconnect-time snapshot persisted to external flash (`mflt-log-state`, 12 KB on mx25r64) when `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE=y` | Conditionally no — survives power cycle via external flash restore on next reconnect |
@@ -304,7 +304,7 @@ west zview live \
   -e build_nrf54lm20dk/nordic-wifi-memfault/zephyr/zephyr.elf \
   -r jlink \
   -t nRF54LM20A_M33 \
-  -s 1051869687
+  -s 1051839157
 ```
 
 **nRF7002DK:**
