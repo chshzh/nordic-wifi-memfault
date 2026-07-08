@@ -95,14 +95,22 @@ jobs:
       - name: Apply vendored nrf_security patches
         working-directory: app-workspace
         run: |
-          PATCH=zego/patches/nrf_security/0001-forward-mbedtls-memory-debug.patch
-          TARGET=nrf/subsys/nrf_security/cmake/psa_crypto_want_config.cmake
-          if grep -q MBEDTLS_MEMORY_DEBUG "$TARGET"; then
-            echo "Already applied (cached nrf checkout) — skipping"
-          else
-            git -C nrf apply "$PWD/$PATCH"
-            echo "Applied $PATCH"
-          fi
+          NCS_VERSION="${{ needs.set-version.outputs.NCS_VERSION }}"
+          case "$NCS_VERSION" in
+            v3.4.*)
+              PATCH=zego/patches/nrf_security/0001-forward-mbedtls-memory-debug.patch
+              TARGET=nrf/subsys/nrf_security/cmake/psa_crypto_want_config.cmake
+              if grep -q MBEDTLS_MEMORY_DEBUG "$TARGET"; then
+                echo "Already applied (cached nrf checkout) — skipping"
+              else
+                git -C nrf apply "$PWD/$PATCH"
+                echo "Applied $PATCH"
+              fi
+              ;;
+            *)
+              echo "NCS ${NCS_VERSION} does not need the nrf_security patch (only required for v3.4.x) — skipping"
+              ;;
+          esac
 
       - name: Extract version from tag
         id: ver
