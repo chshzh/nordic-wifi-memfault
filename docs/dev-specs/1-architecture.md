@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-08-00-01 |
+| Version | 2026-07-08-00-02 |
 | PRD Version | 2026-07-07-16-32 |
 | NCS Version | v3.4.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
@@ -16,6 +16,8 @@
 ## Changelog
 
 | Version | Summary of changes |
+|---|---|
+| 2026-07-08-00-02 | Moved `src/modules/ntp/` to `zego/bricks/ntp/` as a first-class zego brick (also adopted by `zego/nordic-wifi-app-template`). `CONFIG_NTP_MODULE`/`CONFIG_NTP_*` → `CONFIG_ZEGO_NTP`/`CONFIG_ZEGO_NTP_*`. `net_event_mgmt.c` now also publishes `ZEGO_NTP_NET_CHAN` alongside `NETWORK_CHAN`/`WIFI_CHAN`/`ZEGO_UX_WIFI_STATE_CHAN`. See [ntp-module.md](ntp-module.md). |
 |---|---|
 | 2026-07-08-00-01 | Re-introduced `src/modules/ux/ux.c` (`CONFIG_ZEGO_UX`) in the Module Map \u2014 overrides zego/ux's `__weak` Button 0 single-click/long-press hooks only (LED feedback still owned by `zego/bricks/ux`). See [4-ux.md](4-ux.md). |
 | 2026-07-08-00-00 | Added Zbus Subscription/Publish Diagrams (Mermaid) under Zbus Channels, derived from `ZBUS_CHAN_DEFINE`/`ZBUS_CHAN_ADD_OBS`/`zbus_chan_pub` call sites across `src/modules/` and `zego/bricks/`. Split into a connectivity-flow diagram and an input/LED/telemetry-flow diagram (top-down layout, color-coded by module origin) after the combined single-diagram version proved too cluttered to read. |
@@ -55,8 +57,7 @@ src/
     ├── heap_monitor/       ← heap telemetry → Memfault metrics
     ├── app_memfault/       ← Memfault core, metrics, OTA triggers, CDR
     ├── app_https_client/   ← HTTPS health-check client (nRF54LM20DK only)
-    ├── app_mqtt_client/    ← MQTT echo client
-    └── ntp/                ← SNTP time synchronization
+    └── app_mqtt_client/    ← MQTT echo client
 
 # External zego modules (registered via EXTRA_ZEPHYR_MODULES in CMakeLists.txt)
 ../zego/modules/
@@ -65,6 +66,7 @@ src/
     ├── wifi/               ← mode selector, startup banner
     ├── network/            ← Wi-Fi event backbone (zego_network_on_* weak hooks)
     ├── ux/                 ← LED 0 state machine + Button 0 gesture hooks (two hooks overridden locally - see src/modules/ux/)
+    ├── ntp/                ← SNTP time synchronization (CONFIG_ZEGO_NTP=y); subscribes ZEGO_NTP_NET_CHAN, published from src/modules/network/net_event_mgmt.c
     └── wifi_ble_prov/      ← BLE Wi-Fi provisioning (CONFIG_ZEGO_WIFI_BLE_PROV=y)
 
 Note: src/modules/wifi_prov_over_ble/ is a legacy stale directory; it is not compiled
@@ -79,8 +81,9 @@ Note: src/modules/wifi_prov_over_ble/ is a legacy stale directory; it is not com
 |---------|-------------|-----------|-------------|-----------|
 | BUTTON_CHAN | struct button_msg | zego/button (external) | app_memfault core, app_memfault ota, app_memfault cdr | runtime |
 | WIFI_CHAN | struct wifi_msg | network module | app_memfault core, app_memfault ota, wifi_prov_over_ble, app_https_client, app_mqtt_client | runtime |
-| NETWORK_CHAN | struct network_msg | network module | app_memfault core, ntp (optional) | runtime |
+| NETWORK_CHAN | struct network_msg | network module | app_memfault core | runtime |
 | ZEGO_UX_WIFI_STATE_CHAN | struct zego_ux_wifi_state_msg | network module (net_event_mgmt.c) | zego/ux (external) | runtime |
+| ZEGO_NTP_NET_CHAN | struct zego_ntp_net_msg | network module (net_event_mgmt.c) | zego/ntp (external, optional) | runtime |
 
 ### Message Definitions
 
@@ -119,6 +122,7 @@ struct network_msg {
 };
 
 /* zego_ux_wifi_state_msg defined in zego/bricks/ux/src/ux.h */
+/* zego_ntp_net_msg defined in zego/bricks/ntp/src/ntp.h */
 ```
 
 ### Zbus Subscription/Publish Diagrams
@@ -146,13 +150,16 @@ flowchart TD
     WIFI_CHAN((WIFI_CHAN))
     NETWORK_CHAN((NETWORK_CHAN))
     UXSTATE((ZEGO_UX_WIFI_STATE_CHAN))
+    NTPCHAN((ZEGO_NTP_NET_CHAN))
     BLECHAN((BLE_PROV_CONN_CHAN))
 
     NET -- "pub (CONFIG_ZEGO_WIFI_BLE_PROV=y)" --> WIFI_CHAN
     NET --> NETWORK_CHAN & UXSTATE
+    NET -- "pub (CONFIG_ZEGO_NTP=y)" --> NTPCHAN
 
     WIFI_CHAN --> PROV & MFC & MFOTA & HTTPS & MQTT
-    NETWORK_CHAN --> MFC & NTP
+    NETWORK_CHAN --> MFC
+    NTPCHAN --> NTP
     UXSTATE --> UX
     PROV --> BLECHAN --> UX
 
@@ -160,9 +167,9 @@ flowchart TD
     classDef appmod fill:#dbeafe,stroke:#2563eb,stroke-width:1px,color:#1e3a5c
     classDef zegomod fill:#dcfce7,stroke:#16a34a,stroke-width:1px,color:#14532d
 
-    class WIFI_CHAN,NETWORK_CHAN,UXSTATE,BLECHAN chan
-    class NET,MFC,MFOTA,HTTPS,MQTT,NTP appmod
-    class PROV,UX zegomod
+    class WIFI_CHAN,NETWORK_CHAN,UXSTATE,NTPCHAN,BLECHAN chan
+    class NET,MFC,MFOTA,HTTPS,MQTT appmod
+    class PROV,UX,NTP zegomod
 ```
 
 #### Input / LED / telemetry flow

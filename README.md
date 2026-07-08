@@ -198,15 +198,15 @@ nordic-wifi-memfault/
 │       ├── app_memfault/
 │       ├── app_https_client/
 │       ├── app_mqtt_client/
-│       ├── ntp/
 │       └── messages.h
 ├── overlay-app-memfault-project-info.conf.template
 └── .github/workflows/build.yml
 
 # External Zephyr modules (sibling repo — ../zego/)
-../zego/button/             ← gesture detection, BUTTON_CHAN; registered via EXTRA_ZEPHYR_MODULES
-../zego/led/                ← LED control, LED_CMD_CHAN; registered via EXTRA_ZEPHYR_MODULES
-../zego/memonitor/          ← heap + thread watermark sampler, MEMONITOR_CHAN; replaces heap_monitor
+../zego/bricks/button/      ← gesture detection, BUTTON_CHAN; registered via EXTRA_ZEPHYR_MODULES
+../zego/bricks/led/         ← LED control, LED_CMD_CHAN; registered via EXTRA_ZEPHYR_MODULES
+../zego/bricks/memonitor/   ← heap + thread watermark sampler, MEMONITOR_CHAN; replaces heap_monitor
+../zego/bricks/ntp/         ← SNTP time synchronization, ZEGO_NTP_NET_CHAN; replaces src/modules/ntp
 ```
 
 ### Workspace Setup
@@ -393,7 +393,7 @@ Update `prj.conf` or `boards/*.conf` with new measurements after each firmware c
 
 The device uses the Nordic `date_time` library (fed by SNTP) as the UTC time source for all Memfault timestamps. If NTP has not yet synced when an event is recorded, no device timestamp is embedded and the Memfault server falls back to the HTTP receive time for display.
 
-At 40 ppm crystal drift the device re-syncs every 6 hours (`CONFIG_NTP_RESYNC_INTERVAL_SEC=21600`), keeping timestamp error ≤ 0.86 s. Adjust for tighter or looser requirements (3 h → ≤ 0.43 s, 12 h → ≤ 1.73 s).
+At 40 ppm crystal drift the device re-syncs every 6 hours (`CONFIG_ZEGO_NTP_RESYNC_INTERVAL_SEC=21600`), keeping timestamp error ≤ 0.86 s. Adjust for tighter or looser requirements (3 h → ≤ 0.43 s, 12 h → ≤ 1.73 s).
 
 | Data | When the timestamp is captured | What it means on the Memfault timeline | If NTP not yet synced |
 |---|---|---|---|

@@ -118,12 +118,13 @@ across the reconnect — unnecessarily dropping new logs. By moving the trigger 
 normal reconnects (no reboot) upload the full ring buffer as-is; only after a power cycle is
 the trigger needed to mark the restored content.
 
-**NTP-backed Memfault event timestamps (nrf54lm20dk only):** `memfault_platform_time.c`
+**NTP-backed Memfault event timestamps (nrf54lm20dk only):** `app_memfault_platform_time.c`
 implements `memfault_platform_time_get_current()` using `CLOCK_REALTIME`, which is set
-by the NTP module after a successful SNTP sync. This gives Memfault events (crashes,
+by the `zego/ntp` brick after a successful SNTP sync. This gives Memfault events (crashes,
 traces, metrics, log files) wall-clock timestamps on the dashboard instead of
 epoch-0 placeholders. Enabled via `CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM=y`;
-only compiled when `CONFIG_NTP_MODULE=y` (nrf54lm20dk board config).
+only compiled when `CONFIG_ZEGO_NTP=y` (nrf54lm20dk board config). See
+[ntp-module.md](ntp-module.md).
 
 ---
 
