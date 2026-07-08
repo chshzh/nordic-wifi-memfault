@@ -17,13 +17,13 @@ void banner_compiled_app_modules(void)
 	LOG_INF("----------------------------------------------");
 	LOG_INF("APP:");
 #if CONFIG_APP_MEMFAULT_MODULE
-	LOG_INF("  " CLR_BLU "app_memfault" CLR_RST);
+	LOG_INF("" CLR_BLU "app_memfault" CLR_RST);
 #endif
 #if CONFIG_APP_HTTPS_CLIENT_MODULE
-	LOG_INF("  " CLR_BLU "app_https_client" CLR_RST);
+	LOG_INF("" CLR_BLU "app_https_client" CLR_RST);
 #endif
 #if CONFIG_APP_MQTT_CLIENT_MODULE
-	LOG_INF("  " CLR_BLU "app_mqtt_client" CLR_RST);
+	LOG_INF("" CLR_BLU "app_mqtt_client" CLR_RST);
 #endif
 }
 
