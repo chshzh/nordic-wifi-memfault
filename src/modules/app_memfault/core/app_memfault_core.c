@@ -59,6 +59,13 @@ static volatile bool wifi_connected;
  */
 static bool log_freeze_scheduled;
 
+/* Guard: true once the device has completed a real WIFI_STA_CONNECTED at
+ * least once. The boot-time "no stored credentials" / "BLE prov not yet
+ * done" state also publishes a disconnect notification (WIFI_STA_DISCONNECTED
+ * / NETWORK_NOT_READY) even though nothing was ever connected or lost - this
+ * guard prevents that from scheduling a pointless log/CDR persist to flash. */
+static bool network_ever_connected;
+
 static void log_freeze_work_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
@@ -228,6 +235,7 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 	switch (msg->type) {
 	case WIFI_STA_CONNECTED:
 		wifi_connected = true;
+		network_ever_connected = true;
 		log_freeze_scheduled = false;
 		k_work_cancel_delayable(&log_freeze_work);
 		memfault_metrics_connectivity_connected_state_change(
@@ -238,7 +246,7 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 		wifi_connected = false;
 		memfault_metrics_connectivity_connected_state_change(
 			kMemfaultMetricsConnectivityState_ConnectionLost);
-		if (!log_freeze_scheduled) {
+		if (network_ever_connected && !log_freeze_scheduled) {
 			log_freeze_scheduled = true;
 			k_work_schedule(&log_freeze_work, K_SECONDS(LOG_FREEZE_DELAY_SEC));
 			LOG_WRN("Network connectivity lost - scheduling Memfault log persist in %d "
@@ -263,7 +271,7 @@ static void memfault_network_listener(const struct zbus_channel *chan)
 	const struct network_msg *msg = zbus_chan_const_msg(chan);
 
 	if (msg->type == NETWORK_NOT_READY) {
-		if (!log_freeze_scheduled) {
+		if (network_ever_connected && !log_freeze_scheduled) {
 			log_freeze_scheduled = true;
 			k_work_schedule(&log_freeze_work, K_SECONDS(LOG_FREEZE_DELAY_SEC));
 			LOG_WRN("Network connectivity lost - scheduling Memfault log persist in %d "

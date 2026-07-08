@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-07-16-32 |
+| Version | 2026-07-08-00-00 |
 | PRD Version | 2026-07-07-16-32 |
 | NCS Version | v3.4.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-07-08-00-00 | Added `network_ever_connected` guard: `WIFI_STA_DISCONNECTED`/`NETWORK_NOT_READY` no longer schedule the log/CDR disconnect-persist work (or log "Network connectivity lost") unless the device has completed a real `WIFI_STA_CONNECTED` at least once. Fixes a spurious flash persist + log line on first boot with no stored Wi-Fi credentials, where `zego/network`'s "no stored credentials" boot path publishes a disconnect notification even though nothing was ever connected. |
 | 2026-07-07-16-32 | PRD Version updated to 2026-07-07-16-32. NCS bumped v3.3.0→v3.4.0. Bundled Memfault SDK FOTA rework: `CONFIG_MEMFAULT_FOTA`→`CONFIG_MEMFAULT_ZEPHYR_FOTA`, `memfault_fota_start()`→`memfault_zephyr_fota_start()`; `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM`→`CONFIG_MEMFAULT_COREDUMP_STORAGE_NRF_RRAM`. |
 | 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-04-23-33 | Formatted Document Information: `Module` → `Project`; added `NCS Version` and `Target Board(s)`. PRD Version updated to 2026-06-04-23-04. |
@@ -42,7 +43,12 @@ translates them into Memfault SDK API operations.
 
 **Log persist on connectivity loss:** whenever a connectivity loss is detected
 (Wi-Fi deassociation via WIFI_CHAN, or IP-layer loss via NETWORK_CHAN), a
-10-second delayable work item is scheduled — **once per disconnect event**.
+10-second delayable work item is scheduled — **once per disconnect event**,
+and **only if the device has completed a real `WIFI_STA_CONNECTED` at least
+once** (`network_ever_connected` guard, set on first connect). This prevents
+the boot-time "no stored credentials" disconnect notification (published by
+`zego/network` even though the device was never actually connected) from
+triggering a pointless flash persist.
 A `log_freeze_scheduled` boolean guard ensures that only the first event in
 a burst schedules the work; subsequent events (e.g. simultaneous
 `WIFI_STA_DISCONNECTED` + `NETWORK_NOT_READY`) are silently ignored and do not
@@ -159,8 +165,8 @@ Representative API usage from this wrapper module:
 - Memfault metrics/trace APIs used by metrics and button handlers
 
 Callbacks and listener paths:
-- WIFI_CHAN listener: `WIFI_STA_CONNECTED` clears `log_freeze_scheduled`, cancels pending persist work, and triggers DNS wait + upload; `WIFI_STA_DISCONNECTED` sets `log_freeze_scheduled` and schedules persist work (once).
-- NETWORK_CHAN listener: `NETWORK_NOT_READY` sets `log_freeze_scheduled` and schedules persist work (once, only if not already scheduled by the WIFI listener).
+- WIFI_CHAN listener: `WIFI_STA_CONNECTED` sets `network_ever_connected`, clears `log_freeze_scheduled`, cancels pending persist work, and triggers DNS wait + upload; `WIFI_STA_DISCONNECTED` sets `log_freeze_scheduled` and schedules persist work (once), but only if `network_ever_connected` is true.
+- NETWORK_CHAN listener: `NETWORK_NOT_READY` sets `log_freeze_scheduled` and schedules persist work (once, only if not already scheduled by the WIFI listener), but only if `network_ever_connected` is true.
 - BUTTON_CHAN listener in core/ota/cdr maps button actions to heartbeat, OTA check,
   and crash demo triggers. **Button 1 short press** calls `memfault_metrics_heartbeat_debug_trigger()` then `k_sem_give(&upload_sem)` to wake the upload thread asynchronously — it does NOT call `memfault_zephyr_port_post_data()` directly, as that performs TLS operations unsuitable for the system workqueue stack.
 
@@ -282,8 +288,9 @@ MEMFAULT_METRIC_TIMER_STOP(app_wifi_connected_time);
 |----------------|-----------|----------|
 | DNS not ready on connect | `getaddrinfo` polling with 10 s interval, 300 s total timeout | warn log; continue anyway after timeout |
 | Upload failure (Wi-Fi up, internet down) | `memfault_zephyr_port_post_data()` returns non-zero | `LOG_ERR` with error code; `sync_memfault_failure` metric incremented; periodic timer retries |
-| Wi-Fi deassociation | `WIFI_STA_DISCONNECTED` on WIFI_CHAN | connectivity metric → `ConnectionLost`; if not already scheduled, sets `log_freeze_scheduled` and schedules persist work |
-| IP-layer loss (DHCP expiry, addr removal) | `NETWORK_NOT_READY` on NETWORK_CHAN | if not already scheduled, sets `log_freeze_scheduled` and schedules persist work; no connectivity metric change (Wi-Fi may still be associated) |
+| Wi-Fi deassociation | `WIFI_STA_DISCONNECTED` on WIFI_CHAN | connectivity metric → `ConnectionLost`; if `network_ever_connected` and not already scheduled, sets `log_freeze_scheduled` and schedules persist work |
+| IP-layer loss (DHCP expiry, addr removal) | `NETWORK_NOT_READY` on NETWORK_CHAN | if `network_ever_connected` and not already scheduled, sets `log_freeze_scheduled` and schedules persist work; no connectivity metric change (Wi-Fi may still be associated) |
+| Boot with no stored Wi-Fi credentials | `WIFI_STA_DISCONNECTED`/`NETWORK_NOT_READY` published by `zego/network`'s boot-time "no stored credentials" path | ignored — `network_ever_connected` is still false, so no persist work is scheduled and no "Network connectivity lost" log is emitted |
 | Log-state persist failure | `flash_area_write()` returns error | `LOG_WRN`; runtime continues normally without crash |
 | Log-state restore size mismatch | persisted `context_len`/`storage_len` differ from live ring-buffer sizes | discard blob, log warning; firmware update between boots is the typical cause |
 | Log-state restore — no blob found | settings subtree empty or load error | silent no-op; normal upload proceeds |
