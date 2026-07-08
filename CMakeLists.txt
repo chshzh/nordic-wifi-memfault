@@ -6,7 +6,7 @@
 
 cmake_minimum_required(VERSION 3.20.0)
 
-# Register zego modules: button, led, wifi, network, wifi_ble_prov, memonitor, ux.
+# Register zego modules: button, led, wifi, network, wifi_ble_prov, memonitor, ux, ntp.
 get_filename_component(ZEGO_BUTTON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/button REALPATH)
 get_filename_component(ZEGO_LED_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/led REALPATH)
 get_filename_component(ZEGO_WIFI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/wifi REALPATH)
@@ -14,7 +14,8 @@ get_filename_component(ZEGO_NETWORK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bric
 get_filename_component(ZEGO_WIFI_BLE_PROV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/wifi_ble_prov REALPATH)
 get_filename_component(ZEGO_MEMONITOR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/memonitor REALPATH)
 get_filename_component(ZEGO_UX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/ux REALPATH)
-list(APPEND EXTRA_ZEPHYR_MODULES ${ZEGO_BUTTON_DIR} ${ZEGO_LED_DIR} ${ZEGO_WIFI_DIR} ${ZEGO_NETWORK_DIR} ${ZEGO_WIFI_BLE_PROV_DIR} ${ZEGO_MEMONITOR_DIR} ${ZEGO_UX_DIR})
+get_filename_component(ZEGO_NTP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zego/bricks/ntp REALPATH)
+list(APPEND EXTRA_ZEPHYR_MODULES ${ZEGO_BUTTON_DIR} ${ZEGO_LED_DIR} ${ZEGO_WIFI_DIR} ${ZEGO_NETWORK_DIR} ${ZEGO_WIFI_BLE_PROV_DIR} ${ZEGO_MEMONITOR_DIR} ${ZEGO_UX_DIR} ${ZEGO_NTP_DIR})
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(memfault-nrf7002dk)
@@ -56,9 +57,9 @@ endif()
 if(CONFIG_APP_MQTT_CLIENT_MODULE)
     add_subdirectory(src/modules/app_mqtt_client)
 endif()
-if(CONFIG_NTP_MODULE)
-    add_subdirectory(src/modules/ntp)
-endif()
+
+# ntp module now provided by zego/ntp (EXTRA_ZEPHYR_MODULES above); app shim
+# (net_event_mgmt.c) publishes ZEGO_NTP_NET_CHAN from its weak-hook overrides.
 
 # zego/wifi_ble_prov handles BLE provisioning as an EXTRA_ZEPHYR_MODULE (no extra target_link_libraries needed).
 # zego/led is registered above and provides LED_CMD_CHAN; consumed by zego/ux.

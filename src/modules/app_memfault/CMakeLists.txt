@@ -20,7 +20,7 @@ endif()
 
 # NTP module is only enabled on nrf54lm20dk; provide a CLOCK_REALTIME-backed
 # memfault_platform_time_get_current() so Memfault events get wall-clock timestamps.
-if(CONFIG_NTP_MODULE)
+if(CONFIG_ZEGO_NTP)
 	target_sources(app PRIVATE core/app_memfault_platform_time.c)
 endif()
 

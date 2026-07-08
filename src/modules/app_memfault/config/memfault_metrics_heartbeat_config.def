@@ -56,7 +56,7 @@ MEMFAULT_METRICS_KEY_DEFINE(ncs_bt_host_tx_unused_stack, kMemfaultMetricType_Uns
 #endif
 
 /* NTP thread metric - only present when NTP module is enabled */
-#if CONFIG_NTP_MODULE
+#if CONFIG_ZEGO_NTP
 MEMFAULT_METRICS_KEY_DEFINE(ncs_ntp_unused_stack, kMemfaultMetricType_Unsigned)
 #endif
 

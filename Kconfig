@@ -13,13 +13,11 @@ source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
 rsource "src/modules/app_memfault/Kconfig.app_memfault"
 rsource "src/modules/app_https_client/Kconfig.app_https_client"
 rsource "src/modules/app_mqtt_client/Kconfig.app_mqtt_client"
-rsource "src/modules/ntp/Kconfig.ntp"
 
 rsource "src/modules/network/Kconfig.defaults"
 rsource "src/modules/app_memfault/Kconfig.defaults"
 rsource "src/modules/app_https_client/Kconfig.defaults"
 rsource "src/modules/app_mqtt_client/Kconfig.defaults"
-rsource "src/modules/ntp/Kconfig.defaults"
 
 endmenu
 

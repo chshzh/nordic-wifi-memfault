@@ -12,7 +12,9 @@
  * ZEGO_UX_WIFI_STATE_CHAN (owned by zego/bricks/ux) so LED 0 reflects
  * connectivity state. When CONFIG_ZEGO_WIFI_BLE_PROV is enabled, also
  * publishes to WIFI_CHAN so the BLE advertisement reflects the current
- * connection state.
+ * connection state. When CONFIG_ZEGO_NTP is enabled, also publishes to
+ * ZEGO_NTP_NET_CHAN (owned by zego/bricks/ntp) so the brick knows when to
+ * query its SNTP server.
  */
 
 #include <zephyr/zbus/zbus.h>
@@ -25,6 +27,9 @@
 #include "net_event_mgmt.h"
 #if CONFIG_ZEGO_WIFI_BLE_PROV
 #include <wifi_ble_prov.h>
+#endif
+#if CONFIG_ZEGO_NTP
+#include <ntp.h>
 #endif
 
 LOG_MODULE_DECLARE(zego_net_event_mgmt, CONFIG_ZEGO_NETWORK_LOG_LEVEL);
@@ -115,6 +120,15 @@ void zego_on_net_event_dhcp_bound(enum zego_wifi_mode mode, const char *ip_addr,
 	if (err3) {
 		LOG_WRN("Failed to publish ZEGO_UX_WIFI_STATE_CHAN (CONNECTED): %d", err3);
 	}
+
+#if CONFIG_ZEGO_NTP
+	struct zego_ntp_net_msg ntp_msg = { .connected = true };
+	int err4 = zbus_chan_pub(&ZEGO_NTP_NET_CHAN, &ntp_msg, K_MSEC(100));
+
+	if (err4) {
+		LOG_WRN("Failed to publish ZEGO_NTP_NET_CHAN (connected): %d", err4);
+	}
+#endif
 }
 
 void zego_on_net_event_wifi_disconnect(bool will_retry)
@@ -155,4 +169,13 @@ void zego_on_net_event_wifi_disconnect(bool will_retry)
 	if (err3) {
 		LOG_WRN("Failed to publish ZEGO_UX_WIFI_STATE_CHAN (ERROR): %d", err3);
 	}
+
+#if CONFIG_ZEGO_NTP
+	struct zego_ntp_net_msg ntp_msg = { .connected = false };
+	int err4 = zbus_chan_pub(&ZEGO_NTP_NET_CHAN, &ntp_msg, K_MSEC(100));
+
+	if (err4) {
+		LOG_WRN("Failed to publish ZEGO_NTP_NET_CHAN (disconnected): %d", err4);
+	}
+#endif
 }

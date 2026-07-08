@@ -74,7 +74,7 @@ static const struct thread_metric s_thread_table[] = {
 	{"bt_hci_isr", MEMFAULT_METRICS_KEY(ncs_bt_hci_isr_unused_stack)},
 	{"bt_host_tx", MEMFAULT_METRICS_KEY(ncs_bt_host_tx_unused_stack)},
 #endif
-#if CONFIG_NTP_MODULE
+#if CONFIG_ZEGO_NTP
 	{"ntp", MEMFAULT_METRICS_KEY(ncs_ntp_unused_stack)},
 #endif
 };

@@ -5,8 +5,8 @@
  *
  * Memfault real-time timestamp provider via CLOCK_REALTIME.
  *
- * Only compiled when CONFIG_NTP_MODULE=y (nrf54lm20dk target). The NTP module
- * calls sys_clock_settime(SYS_CLOCK_REALTIME) after a successful SNTP sync.
+ * Only compiled when CONFIG_ZEGO_NTP=y (nrf54lm20dk target). The zego/ntp
+ * brick calls sys_clock_settime(SYS_CLOCK_REALTIME) after a successful SNTP sync.
  * This implementation reads that clock so Memfault events (crashes, traces,
  * metrics, CDR) carry wall-clock timestamps on the Memfault dashboard.
  *
