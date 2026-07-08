@@ -117,19 +117,50 @@ metrics from its timeline to monitor connectivity, reboot reasons, and sensor he
 
 ---
 
-## Buttons
+## Buttons & LEDs
 
-| Board | Button | Press | Action |
-|-------|--------|-------|--------|
-| nRF54LM20DK + nRF7002EB2 | BUTTON0 | short(<3s) | Trigger heartbeat and optional nRF70 CDR |
-| nRF54LM20DK + nRF7002EB2 | BUTTON0 | long(>=3s) | Stack overflow demo crash |
-| nRF54LM20DK + nRF7002EB2 | BUTTON1 | short(<3s) | Trigger OTA check |
-| nRF54LM20DK + nRF7002EB2 | BUTTON1 | long(>=3s) | Division-by-zero demo crash |
-| nRF7002DK | Button 1 | short(<3s) | Trigger heartbeat and optional nRF70 CDR |
-| nRF7002DK | Button 1 | long(>=3s) | Stack overflow demo crash |
-| nRF7002DK | Button 2 | short(<3s) | Trigger OTA check |
-| nRF7002DK | Button 2 | long(>=3s) | Division-by-zero demo crash |
+### Buttons
+
+| Board | Button | Gesture | Action |
+|-------|--------|---------|--------|
+| nRF54LM20DK + nRF7002EB2 | BUTTON0 (idx 0) | Single click | Trigger heartbeat + optional nRF70 CDR collection/upload |
+| | | Double-click | Toggle BLE provisioning advertising on/off — zego/ux default, unmodified (this app is STA-only, so zego/ux's P2P-pairing double-click branch never applies) |
+| | | Long press ≥ 3 s | Stack overflow demo crash — overrides zego/ux's default (Wi-Fi mode cycle + reboot) so the two don't race |
+| | BUTTON1 (idx 1) | Single click | Trigger Memfault OTA check |
+| | | Long press ≥ 3 s | Division-by-zero demo crash |
+| | BUTTON2 (idx 2) | Single click | Increment `switch_1_toggle_count` Memfault heartbeat metric |
+| nRF7002DK | Button 1 / SW0 (idx 0) | Single click | Trigger heartbeat + optional nRF70 CDR collection/upload |
+| | | Double-click | Toggle BLE provisioning advertising on/off — zego/ux default, unmodified |
+| | | Long press ≥ 3 s | Stack overflow demo crash — overrides zego/ux's default (Wi-Fi mode cycle + reboot) so the two don't race |
+| | Button 2 / SW1 (idx 1) | Single click | Trigger Memfault OTA check |
+| | | Long press ≥ 3 s | Division-by-zero demo crash |
+
+BUTTON0/Button-1's single-click and long-press are wired to this app's own demos via
+`app_memfault_core.c` and `app_memfault_nrf70_fw_stats_cdr.c`'s own `BUTTON_CHAN` listeners;
+`src/modules/ux/ux.c` overrides zego/ux's default single-click/long-press actions on that
+same button as no-ops so they don't also fire (see [4-ux.md](docs/dev-specs/4-ux.md)).
+Double-click is intentionally left at the zego/ux default since this app assigns no
+behavior of its own to it. `BUTTON2` only exists on nRF54LM20DK + nRF7002EB2 (3 physical
+buttons vs. 2 on nRF7002DK); `app_memfault_core.c` also has a `BUTTON3` handler
+(`switch_2_toggled` trace event) for future 4-button boards, but no currently supported
+board exposes it.
+
+### LEDs
+
+LED 0's Wi-Fi-state feedback is owned entirely by `zego/bricks/ux` — this app does not
+drive any LED directly. See [zego/led ↗](https://github.com/chshzh/zego/blob/main/bricks/led/docs/led-spec.md)
+and [zego/ux ↗](https://github.com/chshzh/zego/blob/main/bricks/ux/docs/ux-spec.md) for the
+full state machine.
+
+| Effect | nRF54LM20DK + nRF7002EB2 (4 LEDs) | nRF7002DK (2 LEDs) | When it happens |
+|--------|--------------------------|-----------|------------------|
+| ROTATE | All 4 LEDs (idx 0–3) chase, 500 ms/step | Both LEDs (idx 0–1) chase, 500 ms/step | Boot / connecting; any automatic STA reconnect retry in progress after a disconnect (retries indefinitely as long as ≥ 1 Wi-Fi credential is stored) |
+| SOLID-ON | LED0 (idx 0) | LED0 (idx 0) | STA connected (DHCP-bound, has IP) |
+| BREATHE | LED0 (idx 0) | LED0 (idx 0) | BLE provisioning advertising active (auto-starts at boot; toggled by Button 0/1 double-click) |
+| BLINK-FAST (100 ms half-period) | LED0 (idx 0) | LED0 (idx 0) | **The only case where reconnection is not possible**: STA with zero stored Wi-Fi credentials |
+
 ---
+
 
 ## Developer Guide
 
@@ -163,6 +194,7 @@ nordic-wifi-memfault/
 │   ├── main.c
 │   └── modules/
 │       ├── network/
+│       ├── ux/             ← overrides zego/ux's Button 0 single-click/long-press hooks only
 │       ├── app_memfault/
 │       ├── app_https_client/
 │       ├── app_mqtt_client/
@@ -313,7 +345,7 @@ west zview live \
   -e build_nrf7002dk/nordic-wifi-memfault/zephyr/zephyr.elf \
   -r jlink \
   -t nRF5340_xxAA \
-  -s 1050793110
+  -s 1050767018
 ```
 Targets the application core (M33); the network core runs `hci_ipc` which has no Zephyr kernel objects to monitor.
 

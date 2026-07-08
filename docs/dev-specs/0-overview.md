@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-07-16-32 |
+| Version | 2026-07-08-00-00 |
 | PRD Version | 2026-07-07-16-32 |
 | NCS Version | v3.4.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-07-08-00-00 | Re-introduced `src/modules/ux/ux.c` (`CONFIG_ZEGO_UX`) — gesture-hook overrides only, not LED duplication. Overrides `zego/bricks/ux`'s `__weak zego_ux_on_single_click()`/`zego_ux_on_long_press()` as no-ops to stop them racing/duplicating this app's own Button 0 heartbeat-CDR and stack-overflow demos; `zego_ux_on_double_click()` intentionally left at the zego/ux default. See [4-ux.md](4-ux.md). |
 | 2026-07-07-16-32 | PRD Version updated to 2026-07-07-16-32. Removed `src/modules/ux/` (`APP_UX_MODULE`) — redundant with `zego/bricks/ux` (`CONFIG_ZEGO_UX`), already linked in for the startup banner and providing identical LED 0 Wi-Fi-state feedback (confirmed duplicate LED driving on hardware). `net_event_app.c` (renamed `net_event_mgmt.c`) now publishes `ZEGO_UX_WIFI_STATE_CHAN` directly. See [4-ux.md](4-ux.md). |
 | 2026-06-29-13-23 | 5-network-module.md: added disconnect reason callback + BSS_MAX_IDLE_TIME=30 Kconfig. app-mqtt-client-module.md: exponential backoff reconnect strategy, broker-drop delay 60 s→30 s. |
 | 2026-06-22-12-40 | app-memfault-module.md: LOGGING_RAM_SIZE 4096→8192; mflt-log-state 8→12 KB; add mflt_log_buf_bytes_used metric; remove stale LOG_STATE_RESTORE_MAX_BYTES Kconfig entry |
@@ -51,7 +52,7 @@ For product requirements driving this design, see [../pm-prd/PRD.md](../pm-prd/P
 |-----------|--------|--------------|
 | [architecture.md](architecture.md) | System architecture, module map, zbus channels, boot/init and thread budget | All |
 | [network-module.md](network-module.md) | Wi-Fi/network event management, `WIFI_CHAN`, `NETWORK_CHAN`, `ZEGO_UX_WIFI_STATE_CHAN` publishing | FR-001, FR-002 |
-| [4-ux.md](4-ux.md) | LED Wi-Fi state feedback — now provided by `zego/bricks/ux` (module removed) | FR-009 |
+| [4-ux.md](4-ux.md) | LED Wi-Fi state feedback (owned by `zego/bricks/ux`); local `src/modules/ux/ux.c` overrides Button 0 single-click/long-press gesture hooks only | FR-009 |
 | [memonitor-module.md](memonitor-module.md) | Heap + thread watermark telemetry, ZView live monitoring, Memfault metric feed | FR-002, NFR-001 |
 | [app-memfault-module.md](app-memfault-module.md) | Memfault core, metrics, OTA triggers, CDR integration | FR-002, FR-003, FR-004 |
 | [app-https-client-module.md](app-https-client-module.md) | HTTPS periodic health requests and metrics | FR-005 |

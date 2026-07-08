@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-07-16-32 |
+| Version | 2026-07-08-00-01 |
 | PRD Version | 2026-07-07-16-32 |
 | NCS Version | v3.4.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
@@ -17,6 +17,8 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-07-08-00-01 | Re-introduced `src/modules/ux/ux.c` (`CONFIG_ZEGO_UX`) in the Module Map \u2014 overrides zego/ux's `__weak` Button 0 single-click/long-press hooks only (LED feedback still owned by `zego/bricks/ux`). See [4-ux.md](4-ux.md). |
+| 2026-07-08-00-00 | Added Zbus Subscription/Publish Diagrams (Mermaid) under Zbus Channels, derived from `ZBUS_CHAN_DEFINE`/`ZBUS_CHAN_ADD_OBS`/`zbus_chan_pub` call sites across `src/modules/` and `zego/bricks/`. Split into a connectivity-flow diagram and an input/LED/telemetry-flow diagram (top-down layout, color-coded by module origin) after the combined single-diagram version proved too cluttered to read. |
 | 2026-07-07-16-32 | PRD Version updated to 2026-07-07-16-32. Removed `src/modules/ux/` (`APP_UX_MODULE`) — superseded by `zego/bricks/ux`, which already provides identical LED 0 Wi-Fi-state feedback and was linked in for the startup banner (both were independently driving LED 0). `net_event_app.c` (renamed `net_event_mgmt.c`) now publishes `ZEGO_UX_WIFI_STATE_CHAN` instead of the removed `APP_WIFI_STATE_CHAN`; `messages.h` no longer defines `app_wifi_state_msg`. See [4-ux.md](4-ux.md). |
 | 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
 | 2026-06-05-10-20 | Verification P1 fix: added APP_WIFI_STATE_CHAN and LED_CMD_CHAN to Zbus channel table and message definitions; updated Boot Sequence with ux module. |
@@ -49,6 +51,7 @@ src/
 └── modules/
     ├── messages.h          ← app-local Zbus types (network_msg)
     ├── network/            ← net_event_mgmt.c: NETWORK_CHAN + WIFI_CHAN + ZEGO_UX_WIFI_STATE_CHAN
+    ├── ux/                 ← overrides zego/ux's __weak Button 0 single-click/long-press hooks only (LED feedback still owned by zego/ux)
     ├── heap_monitor/       ← heap telemetry → Memfault metrics
     ├── app_memfault/       ← Memfault core, metrics, OTA triggers, CDR
     ├── app_https_client/   ← HTTPS health-check client (nRF54LM20DK only)
@@ -61,6 +64,7 @@ src/
     ├── led/                ← consumes LED_CMD_CHAN (CONFIG_ZEGO_LED=y)
     ├── wifi/               ← mode selector, startup banner
     ├── network/            ← Wi-Fi event backbone (zego_network_on_* weak hooks)
+    ├── ux/                 ← LED 0 state machine + Button 0 gesture hooks (two hooks overridden locally - see src/modules/ux/)
     └── wifi_ble_prov/      ← BLE Wi-Fi provisioning (CONFIG_ZEGO_WIFI_BLE_PROV=y)
 
 Note: src/modules/wifi_prov_over_ble/ is a legacy stale directory; it is not compiled
@@ -116,6 +120,94 @@ struct network_msg {
 
 /* zego_ux_wifi_state_msg defined in zego/bricks/ux/src/ux.h */
 ```
+
+### Zbus Subscription/Publish Diagrams
+
+Derived directly from `ZBUS_CHAN_DEFINE` / `ZBUS_CHAN_ADD_OBS` / `zbus_chan_pub` call sites in
+`src/modules/**` and `../zego/bricks/**`. Split into two diagrams by concern (connectivity vs.
+input/UX/telemetry) to keep each one readable — the combined graph has too many crossing edges.
+Layout is top-down: publishers rank above the channel they publish to, subscribers rank below it.
+🟦 blue = app module (`src/modules/`), 🟩 green = zego brick (external), 🟨 yellow = zbus channel.
+Dashed arrow = direct `zbus_chan_read()` (no listener registered), not a subscription.
+
+#### Connectivity event flow
+
+```mermaid
+flowchart TD
+    NET["network<br/>net_event_mgmt.c"]
+    PROV["wifi_ble_prov"]
+    MFC["app_memfault core"]
+    MFOTA["app_memfault ota"]
+    HTTPS["app_https_client"]
+    MQTT["app_mqtt_client"]
+    NTP["ntp"]
+    UX["ux"]
+
+    WIFI_CHAN((WIFI_CHAN))
+    NETWORK_CHAN((NETWORK_CHAN))
+    UXSTATE((ZEGO_UX_WIFI_STATE_CHAN))
+    BLECHAN((BLE_PROV_CONN_CHAN))
+
+    NET -- "pub (CONFIG_ZEGO_WIFI_BLE_PROV=y)" --> WIFI_CHAN
+    NET --> NETWORK_CHAN & UXSTATE
+
+    WIFI_CHAN --> PROV & MFC & MFOTA & HTTPS & MQTT
+    NETWORK_CHAN --> MFC & NTP
+    UXSTATE --> UX
+    PROV --> BLECHAN --> UX
+
+    classDef chan fill:#fff3cd,stroke:#c99a2e,stroke-width:1px,color:#5c4300
+    classDef appmod fill:#dbeafe,stroke:#2563eb,stroke-width:1px,color:#1e3a5c
+    classDef zegomod fill:#dcfce7,stroke:#16a34a,stroke-width:1px,color:#14532d
+
+    class WIFI_CHAN,NETWORK_CHAN,UXSTATE,BLECHAN chan
+    class NET,MFC,MFOTA,HTTPS,MQTT,NTP appmod
+    class PROV,UX zegomod
+```
+
+#### Input / LED / telemetry flow
+
+```mermaid
+flowchart TD
+    BTN["button"]
+    UX["ux"]
+    MFC["app_memfault core"]
+    MFCDR["app_memfault cdr"]
+    MFOTA["app_memfault ota"]
+    LED["led"]
+    MEM["memonitor"]
+    MFMET["app_memfault metrics"]
+    WIFIMODE["wifi<br/>mode selector"]
+    NET["network<br/>net_event_mgmt.c"]
+
+    BUTTON_CHAN((BUTTON_CHAN))
+    LEDCMD((LED_CMD_CHAN))
+    MEMCHAN((MEMONITOR_CHAN))
+    MODECHAN((WIFI_MODE_CHAN))
+
+    BTN --> BUTTON_CHAN --> UX
+    BUTTON_CHAN --> MFC & MFCDR & MFOTA
+
+    UX --> LEDCMD --> LED
+    MEM --> MEMCHAN --> MFMET
+
+    WIFIMODE --> MODECHAN
+    MODECHAN -. "read (zbus_chan_read)" .-> NET
+
+    classDef chan fill:#fff3cd,stroke:#c99a2e,stroke-width:1px,color:#5c4300
+    classDef appmod fill:#dbeafe,stroke:#2563eb,stroke-width:1px,color:#1e3a5c
+    classDef zegomod fill:#dcfce7,stroke:#16a34a,stroke-width:1px,color:#14532d
+
+    class BUTTON_CHAN,LEDCMD,MEMCHAN,MODECHAN chan
+    class MFC,MFCDR,MFOTA,MFMET,NET appmod
+    class BTN,UX,LED,MEM,WIFIMODE zegomod
+```
+
+Notes:
+- `WIFI_CHAN` and `BLE_PROV_CONN_CHAN` are defined in `zego/bricks/wifi_ble_prov/src/wifi_ble_prov.c`, not in the app; the app's `network` module only publishes onto `WIFI_CHAN` (weak-hook override), gated by `CONFIG_ZEGO_WIFI_BLE_PROV`.
+- `LED_STATE_CHAN` (defined in `zego/bricks/led`) has no production subscriber (sample app only) and is omitted above.
+- `WIFI_MODE_CHAN` is not observer-based: `network` reads it once via `zbus_chan_read()` at boot to pick SoftAP/STA/P2P startup, rather than subscribing to it.
+- `network` and `app_memfault core`/`ota` appear in both diagrams since they participate in both concerns.
 
 ---
 
