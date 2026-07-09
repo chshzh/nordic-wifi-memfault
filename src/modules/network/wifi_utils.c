@@ -13,7 +13,8 @@
 #include <zephyr/net/dhcpv4.h>
 #include <zephyr/net/dhcpv4_server.h>
 #include <zephyr/net/socket.h>
-#include <zephyr/net/wifi_credentials.h>
+#include <net/wifi_credentials.h>
+#include <net/wifi_mgmt_ext.h>
 #include <zephyr/net/wifi_utils.h>
 #include <zephyr/sys/util.h>
 #include <errno.h>
@@ -390,10 +391,16 @@ void wifi_print_dhcp_ip(struct net_if *iface, struct net_mgmt_event_callback *cb
 
 	net_addr_ntop(AF_INET, addr, dhcp_info, sizeof(dhcp_info));
 
-	struct in_addr netmask = net_if_ipv4_get_netmask_by_addr(iface, addr);
+	/* net_if_ipv4_get_netmask_by_addr()/net_if_ipv4_get_gw() do not exist
+	 * on the Zephyr version bundled with NCS v2.6.4 (single-address-per-
+	 * interface IPv4 API); use the single-netmask getter and read the
+	 * gateway directly off the interface's IPv4 config.
+	 */
+	struct in_addr netmask = net_if_ipv4_get_netmask(iface);
 	net_addr_ntop(AF_INET, &netmask, netmask_info, sizeof(netmask_info));
 
-	struct in_addr gw = net_if_ipv4_get_gw(iface);
+	struct in_addr gw = iface->config.ip.ipv4 ? iface->config.ip.ipv4->gw
+						   : (struct in_addr){0};
 	net_addr_ntop(AF_INET, &gw, gw_info, sizeof(gw_info));
 
 	LOG_INF("\r\n\r\nDevice IP address: %s\r\nSubnet mask: %s\r\nGateway: %s\r\n", 

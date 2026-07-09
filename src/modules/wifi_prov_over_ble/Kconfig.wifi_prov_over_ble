@@ -10,7 +10,6 @@ config WIFI_STA_PROV_OVER_BLE_ENABLED
 	select BT_PERIPHERAL
 	select BT_SMP
 	select BT_WIFI_PROV
-	select WIFI_PROV_CORE
 	select NANOPB
 	default n
 	help

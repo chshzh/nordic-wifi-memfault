@@ -147,8 +147,9 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 	switch (msg->type) {
 	case WIFI_STA_CONNECTED:
 		wifi_connected = true;
-		memfault_metrics_connectivity_connected_state_change(
-			kMemfaultMetricsConnectivityState_Connected);
+		/* memfault_metrics_connectivity_connected_state_change() does not
+		 * exist in the Memfault SDK version bundled with NCS v2.6.4.
+		 */
 #if CONFIG_MEMFAULT_NCS_STACK_METRICS
 		mflt_stack_metrics_init();
 		LOG_INF("Stack metrics monitoring initialized");
@@ -157,8 +158,6 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 		break;
 	case WIFI_STA_DISCONNECTED:
 		wifi_connected = false;
-		memfault_metrics_connectivity_connected_state_change(
-			kMemfaultMetricsConnectivityState_ConnectionLost);
 		break;
 	default:
 		break;
@@ -255,8 +254,9 @@ static int memfault_core_init(void)
 	}
 
 	memfault_log_set_min_save_level(kMemfaultPlatformLogLevel_Debug);
-	memfault_metrics_connectivity_connected_state_change(
-		kMemfaultMetricsConnectivityState_Started);
+	/* memfault_metrics_connectivity_connected_state_change() does not
+	 * exist in the Memfault SDK version bundled with NCS v2.6.4.
+	 */
 
 	return 0;
 }

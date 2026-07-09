@@ -59,5 +59,8 @@ config MQTT_KEEPALIVE
 config MQTT_HELPER_PROVISION_CERTIFICATES
 	default y if APP_MQTT_CLIENT_MODULE
 
-config MQTT_HELPER_CERTIFICATES_FOLDER
-	default "src/modules/app_mqtt_client/cert" if APP_MQTT_CLIENT_MODULE
+# MQTT_HELPER_CERTIFICATES_FOLDER (a directory of PEM files) does not exist
+# on NCS v2.6.4; that mqtt_helper version instead expects
+# MQTT_HELPER_CERTIFICATES_FILE, a single generated header. app_mqtt_client
+# is disabled by default (APP_MQTT_CLIENT_MODULE=n), so no equivalent is
+# wired up here.

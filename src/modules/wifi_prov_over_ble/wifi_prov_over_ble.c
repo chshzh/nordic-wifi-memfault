@@ -20,14 +20,14 @@
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/net/wifi.h>
 #include <zephyr/net/wifi_mgmt.h>
-#include <zephyr/net/wifi_credentials.h>
+#include <net/wifi_credentials.h>
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
 
-#include <net/wifi_prov_core/wifi_prov_core.h>
 #include <bluetooth/services/wifi_provisioning.h>
+#include <net/wifi_mgmt_ext.h>
 
 LOG_MODULE_REGISTER(wifi_prov_over_ble, CONFIG_WIFI_PROV_OVER_BLE_LOG_LEVEL);
 
@@ -46,10 +46,10 @@ LOG_MODULE_REGISTER(wifi_prov_over_ble, CONFIG_WIFI_PROV_OVER_BLE_LOG_LEVEL);
 #define ADV_DATA_RSSI_IDX             (BT_UUID_SIZE_128 + 3)
 
 #define PROV_BT_LE_ADV_PARAM_FAST                                              \
-	BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN, BT_GAP_ADV_FAST_INT_MIN_2,         \
+	BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, BT_GAP_ADV_FAST_INT_MIN_2,   \
 			BT_GAP_ADV_FAST_INT_MAX_2, NULL)
 #define PROV_BT_LE_ADV_PARAM_SLOW                                              \
-	BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN, BT_GAP_ADV_SLOW_INT_MIN,           \
+	BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, BT_GAP_ADV_SLOW_INT_MIN,     \
 			BT_GAP_ADV_SLOW_INT_MAX, NULL)
 
 #define ADV_DAEMON_STACK_SIZE 4096
@@ -70,6 +70,24 @@ static struct k_work_q adv_daemon_work_q;
 static uint8_t device_name[] = {'P', 'V', '0', '0', '0', '0', '0', '0'};
 static uint8_t prov_svc_data[] = {BT_UUID_PROV_VAL, 0x00, 0x00, 0x00, 0x00};
 
+/* wifi_credentials_is_empty() does not exist in the wifi_credentials library
+ * bundled with NCS v2.6.4; check via wifi_credentials_for_each_ssid() instead.
+ */
+static void count_ssid_cb(void *cb_arg, const char *ssid, size_t ssid_len)
+{
+	ARG_UNUSED(ssid);
+	ARG_UNUSED(ssid_len);
+	*(bool *)cb_arg = false;
+}
+
+static bool wifi_credentials_is_empty(void)
+{
+	bool empty = true;
+
+	wifi_credentials_for_each_ssid(count_ssid_cb, &empty);
+	return empty;
+}
+
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
 	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_PROV_VAL),
@@ -83,10 +101,10 @@ static struct k_work_delayable update_adv_param_work;
 static struct k_work_delayable update_adv_data_work;
 
 static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb,
-				    uint64_t mgmt_event, struct net_if *iface)
+				    uint32_t mgmt_event, struct net_if *iface)
 {
 	ARG_UNUSED(iface);
-	if (!wifi_prov_state_get()) {
+	if (!bt_wifi_prov_state_get()) {
 		return;
 	}
 	switch (mgmt_event) {
@@ -148,12 +166,12 @@ static void wifi_connect_work_handler(struct k_work *work)
 	}
 	/*
 	 * If the provisioner just set credentials and is driving its own
-	 * internal reconnect (wifi_prov_state_get() == true), don't race it
+	 * internal reconnect (bt_wifi_prov_state_get() == true), don't race it
 	 * with a second NET_REQUEST_WIFI_CONNECT_STORED call.  Reschedule as
 	 * a fallback; the provisioner's NET_EVENT_WIFI_CONNECT_RESULT handler
 	 * will cancel this work if reconnect succeeds first.
 	 */
-	if (wifi_prov_state_get()) {
+	if (bt_wifi_prov_state_get()) {
 		LOG_INF("Provisioner active, deferring connect attempt");
 		k_work_reschedule(&wifi_connect_work,
 				  K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
@@ -189,7 +207,7 @@ static void update_wifi_status_in_adv(void)
 	bool current_prov_state;
 
 	prov_svc_data[ADV_DATA_VERSION_IDX] = PROV_SVC_VER;
-	current_prov_state = wifi_prov_state_get();
+	current_prov_state = bt_wifi_prov_state_get();
 
 	if (current_prov_state && !last_prov_state) {
 		LOG_INF("New WiFi provisioning detected");
@@ -374,7 +392,7 @@ int wifi_prov_over_ble_init(void)
 	char device_name_str[sizeof(device_name) + 1];
 
 	credentials_existed_at_boot = !wifi_credentials_is_empty();
-	last_prov_state = wifi_prov_state_get();
+	last_prov_state = bt_wifi_prov_state_get();
 	if (credentials_existed_at_boot) {
 		connection_requested_after_provisioning = true;
 		LOG_INF("WiFi credentials exist at boot, skipping BLE "
@@ -400,7 +418,7 @@ int wifi_prov_over_ble_init(void)
 	}
 	LOG_INF("Bluetooth initialized");
 
-	rc = wifi_prov_init();
+	rc = bt_wifi_prov_init();
 	if (rc == 0) {
 		LOG_INF("Wi-Fi provisioning service started");
 	} else {

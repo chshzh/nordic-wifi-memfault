@@ -35,16 +35,15 @@ ZBUS_CHAN_DEFINE(BUTTON_CHAN, struct button_msg, NULL, NULL,
  * ============================================================================
  */
 
-static enum smf_state_result button_idle_run(void *obj);
+static void button_idle_run(void *obj);
 static void button_pressed_entry(void *obj);
-static enum smf_state_result button_pressed_run(void *obj);
+static void button_pressed_run(void *obj);
 static void button_released_entry(void *obj);
 
 static const struct smf_state button_states[] = {
-	[0] = SMF_CREATE_STATE(NULL, button_idle_run, NULL, NULL, NULL),
-	[1] = SMF_CREATE_STATE(button_pressed_entry, button_pressed_run, NULL,
-			       NULL, NULL),
-	[2] = SMF_CREATE_STATE(button_released_entry, NULL, NULL, NULL, NULL),
+	[0] = SMF_CREATE_STATE(NULL, button_idle_run, NULL),
+	[1] = SMF_CREATE_STATE(button_pressed_entry, button_pressed_run, NULL),
+	[2] = SMF_CREATE_STATE(button_released_entry, NULL, NULL),
 };
 
 struct button_sm_object {
@@ -63,7 +62,7 @@ static struct button_sm_object button_sm[BUTTON_COUNT];
  * ============================================================================
  */
 
-static enum smf_state_result button_idle_run(void *obj)
+static void button_idle_run(void *obj)
 {
 	struct button_sm_object *sm = (struct button_sm_object *)obj;
 
@@ -71,7 +70,6 @@ static enum smf_state_result button_idle_run(void *obj)
 		smf_set_state(SMF_CTX(sm), &button_states[1]);
 	}
 	sm->previous_state = sm->current_state;
-	return SMF_EVENT_HANDLED;
 }
 
 static void button_pressed_entry(void *obj)
@@ -82,7 +80,7 @@ static void button_pressed_entry(void *obj)
 	sm->press_timestamp_ms = k_uptime_get();
 }
 
-static enum smf_state_result button_pressed_run(void *obj)
+static void button_pressed_run(void *obj)
 {
 	struct button_sm_object *sm = (struct button_sm_object *)obj;
 
@@ -90,7 +88,6 @@ static enum smf_state_result button_pressed_run(void *obj)
 		smf_set_state(SMF_CTX(sm), &button_states[2]);
 	}
 	sm->previous_state = sm->current_state;
-	return SMF_EVENT_HANDLED;
 }
 
 static void button_released_entry(void *obj)

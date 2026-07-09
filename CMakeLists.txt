@@ -49,8 +49,7 @@ if(CONFIG_APP_MQTT_CLIENT_MODULE)
     add_subdirectory(src/modules/app_mqtt_client)
 endif()
 
-# Add BLE provisioning library when enabled
-if(CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED)
-    zephyr_library_include_directories($<TARGET_PROPERTY:wifi_prov_core,BINARY_DIR>)
-    target_link_libraries(app PRIVATE wifi_prov_ble)
-endif()
+# BLE provisioning (CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED) is provided by
+# NCS v2.6.4's self-contained CONFIG_BT_WIFI_PROV service
+# (nrf/subsys/bluetooth/services/wifi_prov), auto-added by the SDK when
+# enabled; no extra target linkage is needed here.

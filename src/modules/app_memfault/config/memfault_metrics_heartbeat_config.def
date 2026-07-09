@@ -24,6 +24,17 @@ MEMFAULT_METRICS_KEY_DEFINE(ncs_wifi_hostap_handler_unused_stack, kMemfaultMetri
 MEMFAULT_METRICS_KEY_DEFINE(ncs_wifi_intr_unused_stack, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(ncs_wifi_bh_unused_stack, kMemfaultMetricType_Unsigned)
 
+/* WiFi connection metrics (see metrics/wifi_metrics.c) */
+MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_standard_version, 16)
+MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_security_type, 20)
+MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_frequency_band, 4)
+MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_ap_oui, 9)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_primary_channel, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_sta_rssi, kMemfaultMetricType_Signed)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_beacon_interval, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_dtim_interval, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_twt_capable, kMemfaultMetricType_Unsigned)
+
 /* Network thread metrics - stack usage monitoring */
 MEMFAULT_METRICS_KEY_DEFINE(ncs_mflt_http_unused_stack, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(ncs_mqtt_helper_unused_stack, kMemfaultMetricType_Unsigned)

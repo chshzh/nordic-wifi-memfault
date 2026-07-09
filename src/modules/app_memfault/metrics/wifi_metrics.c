@@ -80,11 +80,11 @@ void mflt_wifi_metrics_collect(void)
 	MEMFAULT_METRIC_SET_UNSIGNED(wifi_dtim_interval, status.dtim_period);
 	MEMFAULT_METRIC_SET_UNSIGNED(wifi_twt_capable, status.twt_capable);
 
-	if (status.current_phy_tx_rate > 0.0f) {
-		MEMFAULT_METRIC_SET_UNSIGNED(wifi_tx_rate_mbps,
-					     (uint32_t)status.current_phy_tx_rate);
-	}
+	/* status.current_phy_tx_rate does not exist in the wifi_iface_status
+	 * struct on the Zephyr version bundled with NCS v2.6.4; TX rate is
+	 * not reported here on this SDK version.
+	 */
 
-	LOG_INF("WiFi metrics collected: RSSI=%d dBm, Channel=%u, TX rate=%.1f Mbps, OUI=%s",
-		status.rssi, status.channel, (double)status.current_phy_tx_rate, oui);
+	LOG_INF("WiFi metrics collected: RSSI=%d dBm, Channel=%u, OUI=%s",
+		status.rssi, status.channel, oui);
 }

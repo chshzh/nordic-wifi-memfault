@@ -19,7 +19,7 @@ source "subsys/logging/Kconfig.template.log_config"
 config NRF70_FW_STATS_CDR_ENABLED
 	bool "Enable nRF70 firmware statistics CDR upload to Memfault"
 	depends on MEMFAULT_CDR_ENABLE
-	depends on WIFI_NRF70
+	depends on WIFI_NRF700X
 	help
 	  Collect and upload nRF70 WiFi firmware statistics (PHY, LMAC, UMAC)
 	  as Custom Data Recording. Trigger: Button 1 short press.

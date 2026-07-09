@@ -24,6 +24,8 @@
 #if defined(CONFIG_POSIX_API)
 #include <zephyr/posix/netdb.h>
 #include <zephyr/posix/sys/socket.h>
+#else
+#include <zephyr/net/socket.h>
 #endif
 
 LOG_MODULE_REGISTER(app_mqtt_client, CONFIG_APP_MQTT_CLIENT_LOG_LEVEL);
@@ -46,6 +48,16 @@ enum app_mqtt_client_state {
 static enum app_mqtt_client_state current_state = APP_MQTT_STATE_DISCONNECTED;
 static bool mqtt_client_running;
 static bool network_ready;
+
+/* mqtt_helper_msg_id_get() does not exist in the mqtt_helper library bundled
+ * with NCS v2.6.4; use a local monotonic counter instead.
+ */
+static uint16_t next_msg_id(void)
+{
+	static uint16_t msg_id;
+
+	return ++msg_id;
+}
 static uint32_t message_count;
 static uint32_t mqtt_echo_total;
 static uint32_t mqtt_echo_failures;
@@ -102,7 +114,7 @@ static void on_mqtt_connack(enum mqtt_conn_return_code return_code, bool session
 		struct mqtt_subscription_list sub_list = {
 			.list = &sub_topic,
 			.list_count = 1,
-			.message_id = mqtt_helper_msg_id_get(),
+			.message_id = next_msg_id(),
 		};
 		int err = mqtt_helper_subscribe(&sub_list);
 		if (err) {
@@ -283,7 +295,7 @@ static int mqtt_publish_message(void)
 		.message.payload.data = payload,
 		.message.payload.len = strlen(payload),
 		.message.topic.qos = MQTT_QOS_1_AT_LEAST_ONCE,
-		.message_id = mqtt_helper_msg_id_get(),
+		.message_id = next_msg_id(),
 		.message.topic.topic.utf8 = pub_topic,
 		.message.topic.topic.size = strlen(pub_topic),
 	};
@@ -533,7 +545,7 @@ int app_mqtt_client_publish(const char *payload)
 		.message.payload.data = (uint8_t *)payload,
 		.message.payload.len = strlen(payload),
 		.message.topic.qos = MQTT_QOS_1_AT_LEAST_ONCE,
-		.message_id = mqtt_helper_msg_id_get(),
+		.message_id = next_msg_id(),
 		.message.topic.topic.utf8 = pub_topic,
 		.message.topic.topic.size = strlen(pub_topic),
 	};
