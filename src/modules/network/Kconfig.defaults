@@ -99,6 +99,21 @@ config WIFI_CREDENTIALS
 config NETWORKING
 	default y if WIFI_MODULE
 
+# Required for the nRF70 driver to register a proper net_if: without this,
+# fmac_main.c's ETH_NET_DEVICE_DT_INST_DEFINE() (which creates the WiFi
+# net_if) is compiled out in favor of a plain DEVICE_DT_INST_DEFINE() with no
+# associated net_if at all. This silently breaks every net_if lookup in the
+# whole stack: net_if_get_default() falls through to a NULL/empty list, and
+# net_if_is_wifi()/net_if_get_first_wifi() are hard-compiled to always
+# return false/NULL (their real logic is itself gated on
+# "#if defined(CONFIG_NET_L2_ETHERNET)" in zephyr/subsys/net/ip/net_if.c).
+# Symptom without this: any code path calling net_mgmt() with a
+# net_if_get_default()/net_if_get_first_wifi() iface (e.g. BLE WiFi
+# provisioning's scan/status handlers) hits a NULL-iface NET_ASSERT in
+# net_if_get_device() (net_if.h) and crashes with a USAGE FAULT.
+config NET_L2_ETHERNET
+	default y if WIFI_MODULE
+
 config NET_IPV4
 	default y if WIFI_MODULE
 
