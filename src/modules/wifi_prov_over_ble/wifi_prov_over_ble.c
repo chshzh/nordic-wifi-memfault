@@ -52,7 +52,14 @@ LOG_MODULE_REGISTER(wifi_prov_over_ble, CONFIG_WIFI_PROV_OVER_BLE_LOG_LEVEL);
 	BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, BT_GAP_ADV_SLOW_INT_MIN,     \
 			BT_GAP_ADV_SLOW_INT_MAX, NULL)
 
-#define ADV_DAEMON_STACK_SIZE 4096
+/* Sized to accommodate WIFI_REQUEST_CONNECT_STORED's full connect chain
+ * (net_mgmt -> wifi mgmt handler -> nrf700x driver -> hostap/wpa_supplicant
+ * event loop, which itself calls zsock_select()/poll() internally) - this
+ * needs comparable headroom to CONFIG_WPA_SUPP_THREAD_STACK_SIZE elsewhere
+ * in this project. 4096 B overflowed with "Stack overflow (context area not
+ * valid)" inside zsock_poll_internal() when wifi_connect_work ran on it.
+ */
+#define ADV_DAEMON_STACK_SIZE 8192
 #define ADV_DAEMON_PRIORITY   5
 
 static struct k_work_delayable wifi_connect_work;
@@ -126,7 +133,8 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb,
 		}
 		if (!wifi_reconnect_pending) {
 			wifi_reconnect_pending = true;
-			k_work_reschedule(&wifi_connect_work,
+			k_work_reschedule_for_queue(&adv_daemon_work_q,
+						    &wifi_connect_work,
 					  K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
 			LOG_INF("WiFi disconnected, scheduling reconnect");
 		}
@@ -165,15 +173,22 @@ static void wifi_connect_work_handler(struct k_work *work)
 		return;
 	}
 	/*
-	 * If the provisioner just set credentials and is driving its own
-	 * internal reconnect (bt_wifi_prov_state_get() == true), don't race it
-	 * with a second NET_REQUEST_WIFI_CONNECT_STORED call.  Reschedule as
-	 * a fallback; the provisioner's NET_EVENT_WIFI_CONNECT_RESULT handler
+	 * If a BLE client is actively connected, it may be in the middle of
+	 * provisioning and driving its own internal reconnect - don't race it
+	 * with a second NET_REQUEST_WIFI_CONNECT_STORED call. Reschedule as a
+	 * fallback; the provisioner's NET_EVENT_WIFI_CONNECT_RESULT handler
 	 * will cancel this work if reconnect succeeds first.
+	 *
+	 * NOTE: bt_wifi_prov_state_get() is NOT the right check here - it
+	 * returns true whenever ANY WiFi credentials are stored (i.e. "this
+	 * device has been provisioned at some point"), not "a BLE client is
+	 * actively provisioning right now". Since credentials always exist
+	 * by the time this boot-time auto-connect path runs, using it here
+	 * would defer forever and auto-connect would never actually happen.
 	 */
-	if (bt_wifi_prov_state_get()) {
-		LOG_INF("Provisioner active, deferring connect attempt");
-		k_work_reschedule(&wifi_connect_work,
+	if (current_conn != NULL) {
+		LOG_INF("BLE client connected, deferring connect attempt");
+		k_work_reschedule_for_queue(&adv_daemon_work_q, &wifi_connect_work,
 				  K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
 		return;
 	}
@@ -192,7 +207,7 @@ static void wifi_connect_work_handler(struct k_work *work)
 		}
 	}
 	if (reconnect_cycle_active) {
-		k_work_reschedule(&wifi_connect_work,
+		k_work_reschedule_for_queue(&adv_daemon_work_q, &wifi_connect_work,
 				  K_SECONDS(WIFI_RECONNECT_RETRY_SEC));
 		LOG_INF("WiFi still disconnected, retrying in %d seconds",
 			WIFI_RECONNECT_RETRY_SEC);
@@ -232,7 +247,8 @@ static void update_wifi_status_in_adv(void)
 				 status.state >= WIFI_STATE_ASSOCIATED);
 			if (!wifi_is_connected) {
 				connection_requested_after_provisioning = true;
-				k_work_reschedule(&wifi_connect_work,
+				k_work_reschedule_for_queue(&adv_daemon_work_q,
+							    &wifi_connect_work,
 						  K_SECONDS(2));
 				LOG_INF("WiFi credentials provisioned, "
 					"scheduling connection");
@@ -402,7 +418,7 @@ int wifi_prov_over_ble_init(void)
 	last_prov_state = bt_wifi_prov_state_get();
 	if (credentials_existed_at_boot) {
 		connection_requested_after_provisioning = true;
-		LOG_INF("WiFi credentials exist at boot, skipping BLE "
+		LOG_INF("WiFi credentials exist at boot, scheduling "
 			"auto-connect");
 	}
 
@@ -414,6 +430,17 @@ int wifi_prov_over_ble_init(void)
 	k_work_init_delayable(&wifi_connect_work, wifi_connect_work_handler);
 	k_work_init_delayable(&update_adv_param_work, update_adv_param_task);
 	k_work_init_delayable(&update_adv_data_work, update_adv_data_task);
+
+	if (credentials_existed_at_boot) {
+		/* Delayed boot connect (1s, per docs/dev-specs wifi-module spec):
+		 * gives BLE/Memfault/other subsystems time to finish their own
+		 * SYS_INIT before we attempt a WiFi connection using stored
+		 * credentials. wifi_connect_work_handler() issues the actual
+		 * NET_REQUEST_WIFI_CONNECT_STORED request.
+		 */
+		k_work_reschedule_for_queue(&adv_daemon_work_q,
+					    &wifi_connect_work, K_SECONDS(1));
+	}
 
 	bt_conn_auth_cb_register(&auth_cb_display);
 	bt_conn_auth_info_cb_register(&auth_info_cb_display);
