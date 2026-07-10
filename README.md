@@ -56,20 +56,36 @@ cp overlay-app-memfault-project-info.conf.template overlay-app-memfault-project-
 
 ### 2. Build and flash
 
+> **This `ncs264` branch targets NCS v2.6.4** (not v3.2.4 like `main`). Two
+> things differ from the commands you may be used to on newer NCS versions:
+> - Board targets use the legacy underscore format (`nrf7002dk_nrf5340_cpuapp`),
+>   not the newer `nrf7002dk/nrf5340/cpuapp` hardware model format.
+> - `--sysbuild` must be passed explicitly. NCS v2.6.4 does not default to
+>   sysbuild the way v2.7+ does — without it, MCUboot silently never gets
+>   built even though `sysbuild.conf` requests it, and the board will boot
+>   into a hardfault with zero UART output.
+
 **nRF7002DK:**
 ```bash
-west build -b nrf7002dk/nrf5340/cpuapp -p -- \
+west build -b nrf7002dk_nrf5340_cpuapp -d build_nrf7002dk -p --sysbuild -- \
   -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
-west flash --erase
+west flash -d build_nrf7002dk --erase
 ```
 
 **nRF54LM20DK + nRF7002EB II:**
 ```bash
-west build -b nrf54lm20dk/nrf54lm20a/cpuapp -p -- \
+west build -b nrf54lm20dk_nrf54lm20a_cpuapp -d build_nrf54lm20dk -p --sysbuild -- \
   -DSHIELD=nrf7002eb2 \
   -DEXTRA_CONF_FILE="overlay-app-memfault-project-info.conf"
-west flash --recover
+west flash -d build_nrf54lm20dk --recover
 ```
+
+> If the build fails with `Failed to import nanopb_pb2.py` /
+> `AttributeError: module 'google.protobuf.reflection' has no attribute
+> 'MakeClass'`, your Python environment's `protobuf`/`grpcio-tools`
+> user-site-packages are shadowing the toolchain's bundled `nanopb` generator.
+> Fix: `export PYTHONNOUSERSITE=1` before building (or add it to your shell
+> profile and restart your terminal/VS Code so it takes effect).
 
 ### 3. Provision WiFi
 
