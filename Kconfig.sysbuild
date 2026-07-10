@@ -5,6 +5,7 @@
 #
 
 config WIFI_NRF70
+	bool
 	default y if BOARD_NRF7002DK_NRF5340_CPUAPP
 	default y if BOARD_NRF54LM20DK_NRF54LM20A_CPUAPP
 
