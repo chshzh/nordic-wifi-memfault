@@ -14,18 +14,8 @@ endif()
 
 if(CONFIG_NRF70_FW_STATS_CDR_ENABLED)
 	target_sources(app PRIVATE cdr/nrf70_fw_stats_cdr.c)
-	set(NRF_WIFI_DIR ${ZEPHYR_BASE}/../modules/lib/nrf_wifi)
-	target_include_directories(app PRIVATE
-		${ZEPHYR_BASE}/drivers/wifi/nrf_wifi/inc
-		${ZEPHYR_BASE}/drivers/wifi/nrf_wifi/src
-		${NRF_WIFI_DIR}/fw_if/umac_if/inc
-		${NRF_WIFI_DIR}/fw_if/umac_if/inc/fw
-		${NRF_WIFI_DIR}/fw_if/umac_if/inc/fw/stats
-		${NRF_WIFI_DIR}/fw_if/umac_if/inc/fw/stats/system
-		${NRF_WIFI_DIR}/hw_if/hal/inc
-		${NRF_WIFI_DIR}/hw_if/hal/inc/common
-		${NRF_WIFI_DIR}/os_if/inc
-		${NRF_WIFI_DIR}/utils/inc
-		${NRF_WIFI_DIR}/bus_if/bal/inc
-	)
+	# On NCS v2.6.4 the nrf700x driver (nrf/drivers/wifi/nrf700x/CMakeLists.txt)
+	# already exposes its internal headers (fmac_api.h, host_rpu_umac_if.h,
+	# fmac_main.h, etc.) via a global zephyr_include_directories() call, so no
+	# extra include dirs are needed here.
 endif()

@@ -17,10 +17,8 @@
 #include <zephyr/init.h>
 
 #include "host_rpu_umac_if.h"
-#include "system/fmac_api.h"
+#include "fmac_api.h"
 #include "fmac_main.h"
-#include "rpu_lmac_phy_stats.h"
-#include "rpu_umac_stats.h"
 #include "memfault/components.h"
 #include "memfault/core/data_packetizer.h"
 
@@ -94,7 +92,7 @@ static int collect_nrf70_fw_stats(void)
 {
 	struct nrf_wifi_ctx_zep *ctx = &rpu_drv_priv_zep.rpu_ctx_zep;
 	struct nrf_wifi_fmac_dev_ctx *fmac_dev_ctx = NULL;
-	struct rpu_sys_op_stats stats;
+	struct rpu_op_stats stats;
 	enum nrf_wifi_status status;
 	int ret = 0;
 
@@ -105,8 +103,8 @@ static int collect_nrf70_fw_stats(void)
 		goto unlock;
 	}
 	fmac_dev_ctx = ctx->rpu_ctx;
-	memset(&stats, 0, sizeof(struct rpu_sys_op_stats));
-	status = nrf_wifi_sys_fmac_stats_get(fmac_dev_ctx, 0, &stats);
+	memset(&stats, 0, sizeof(struct rpu_op_stats));
+	status = nrf_wifi_fmac_stats_get(fmac_dev_ctx, 0, &stats);
 
 	if (status != NRF_WIFI_STATUS_SUCCESS) {
 		ret = -EIO;
