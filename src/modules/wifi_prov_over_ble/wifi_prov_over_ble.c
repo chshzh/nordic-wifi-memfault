@@ -222,7 +222,7 @@ static void update_wifi_status_in_adv(void)
 	} else {
 		prov_svc_data[ADV_DATA_FLAG_IDX] |=
 			ADV_DATA_FLAG_PROV_STATUS_BIT;
-		if (!connection_requested_after_provisioning &&
+		if (iface && !connection_requested_after_provisioning &&
 		    !wifi_credentials_is_empty() &&
 		    !credentials_existed_at_boot) {
 			rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface,
@@ -240,8 +240,15 @@ static void update_wifi_status_in_adv(void)
 		}
 	}
 
-	rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status,
-		      sizeof(struct wifi_iface_status));
+	/* iface may still be NULL very early at boot (this function is called
+	 * once synchronously from wifi_prov_over_ble_init(), a SYS_INIT hook
+	 * that can run before the nrf700x net_if is ready) - net_mgmt()
+	 * dereferences iface internally, so treat "no iface yet" the same as
+	 * "not connected" rather than calling net_mgmt() with iface == NULL.
+	 */
+	rc = iface ? net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status,
+			      sizeof(struct wifi_iface_status))
+		   : -ENODEV;
 	if ((rc != 0) || (status.state < WIFI_STATE_ASSOCIATED)) {
 		prov_svc_data[ADV_DATA_FLAG_IDX] &=
 			~ADV_DATA_FLAG_CONN_STATUS_BIT;
