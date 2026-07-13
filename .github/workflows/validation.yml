@@ -61,6 +61,16 @@ jobs:
             app-workspace/bootloader
           key: west-${{ env.NCS_VERSION }}-${{ hashFiles('app-workspace/nordic-wifi-memfault/west.yml') }}
 
+      - name: Ensure west CLI is available
+        run: |
+          if command -v west >/dev/null 2>&1; then
+            echo "west already on PATH: $(command -v west)"
+          else
+            echo "west not found on PATH in this toolchain image — installing via pip"
+            pip3 install --user -U west
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
+
       - name: Prepare west workspace
         working-directory: app-workspace
         run: |
@@ -91,6 +101,7 @@ jobs:
         run: |
           BUILD_LOG="${{ matrix.config.build_dir }}/build.log"
           USAGE_SUMMARY="${{ matrix.config.build_dir }}/usage-summary.txt"
+          mkdir -p "${{ matrix.config.build_dir }}"
 
           if [ -f "$BUILD_LOG" ]; then
             ROM_USAGE="$(awk '/^[[:space:]]*FLASH:/ {print $2 " " $3 " / " $4 " " $5 " (" $6 ")"}' "$BUILD_LOG" | tail -n 1)"
@@ -118,6 +129,7 @@ jobs:
           ELF_PATH="${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.elf"
           SIZE_REPORT="${{ matrix.config.build_dir }}/size-report.txt"
           SIZE_TOOL="$(command -v arm-zephyr-eabi-size || command -v llvm-size || command -v size)"
+          mkdir -p "${{ matrix.config.build_dir }}"
 
           echo "ELF: ${ELF_PATH}" > "$SIZE_REPORT"
           echo "Tool: ${SIZE_TOOL}" >> "$SIZE_REPORT"

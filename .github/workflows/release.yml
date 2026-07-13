@@ -62,6 +62,16 @@ jobs:
             app-workspace/bootloader
           key: west-${{ env.NCS_VERSION }}-${{ hashFiles('app-workspace/nordic-wifi-memfault/west.yml') }}
 
+      - name: Ensure west CLI is available
+        run: |
+          if command -v west >/dev/null 2>&1; then
+            echo "west already on PATH: $(command -v west)"
+          else
+            echo "west not found on PATH in this toolchain image — installing via pip"
+            pip3 install --user -U west
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
+
       - name: Prepare west workspace
         working-directory: app-workspace
         run: |
@@ -152,12 +162,17 @@ jobs:
         working-directory: app-workspace/nordic-wifi-memfault
         run: |
           BUILD_LOG="${{ matrix.config.build_dir }}/build.log"
-          ROM_USAGE="$(awk '/^[[:space:]]*FLASH:/ {
-            n=$2+0; if (n>max_f) { max_f=n; line_f=$2 " " $3 " / " $4 " " $5 " (" $6 ")" }
-          } END { print line_f }' "$BUILD_LOG")"
-          RAM_USAGE="$(awk '/^[[:space:]]*RAM:/ {
-            n=$2+0; if (n>max_r) { max_r=n; line_r=$2 " " $3 " / " $4 " " $5 " (" $6 ")" }
-          } END { print line_r }' "$BUILD_LOG")"
+          if [ -f "$BUILD_LOG" ]; then
+            ROM_USAGE="$(awk '/^[[:space:]]*FLASH:/ {
+              n=$2+0; if (n>max_f) { max_f=n; line_f=$2 " " $3 " / " $4 " " $5 " (" $6 ")" }
+            } END { print line_f }' "$BUILD_LOG")"
+            RAM_USAGE="$(awk '/^[[:space:]]*RAM:/ {
+              n=$2+0; if (n>max_r) { max_r=n; line_r=$2 " " $3 " / " $4 " " $5 " (" $6 ")" }
+            } END { print line_r }' "$BUILD_LOG")"
+          else
+            ROM_USAGE=""
+            RAM_USAGE=""
+          fi
           : "${ROM_USAGE:=n/a}"
           : "${RAM_USAGE:=n/a}"
           printf "ROM_USAGE=%s\nRAM_USAGE=%s\n" "$ROM_USAGE" "$RAM_USAGE" > usage.txt
