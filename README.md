@@ -149,7 +149,7 @@ nordic-wifi-memfault/
 
 ### Workspace Setup
 
-West workspace is driven by [west.yml](west.yml). This `ncs264` branch is developed and built directly inside an existing **NCS v2.6.4** installation (`/opt/nordic/ncs/v2.6.4/`) rather than via a fresh `west init`; `west.yml` itself still pins `sdk-nrf` to `v3.2.4` (inherited from the `main` branch's newer-NCS target) and is not consulted when building this way. Release tags (e.g. `3.2.0`, `3.1.3`) follow project semantic versioning, independent of the NCS version — check the branch/README, not the tag, to know which NCS version a build targets.
+West workspace is driven by [west.yml](west.yml), which correctly pins `sdk-nrf` to `v2.6.4` on this branch. This `ncs264` branch is typically developed and built directly inside an existing **NCS v2.6.4** installation (`/opt/nordic/ncs/v2.6.4/`), but a fresh `west init` (Method 2 below) also works and fetches the matching v2.6.4 sources. Release tags (e.g. `3.2.0`, `3.1.3`) follow project semantic versioning, independent of the NCS version — check the branch/README, not the tag, to know which NCS version a build targets.
 
 Use nRF Connect for VS Code or a shell initialized with the NCS toolchain.
 
@@ -181,8 +181,6 @@ west init -m https://github.com/chshzh/nordic-wifi-memfault.git --mr ncs264 <wor
 cd <workspace-dir>
 west update
 ```
-
-> Building this way pulls `sdk-nrf` per `west.yml` (currently `v3.2.4`), which does **not** match this branch's actual v2.6.4 target — Method 1 (an existing v2.6.4 install) is strongly preferred until `west.yml` is corrected for this branch.
 
 ### Build
 

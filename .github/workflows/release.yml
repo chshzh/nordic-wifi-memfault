@@ -14,8 +14,8 @@ permissions:
   contents: write
 
 env:
-  # See validation.yml: west.yml is not authoritative for the toolchain
-  # version on this branch — this branch always builds against NCS v2.6.4.
+  # See validation.yml: west.yml correctly pins sdk-nrf to v2.6.4 on this
+  # branch.
   NCS_VERSION: v2.6.4
   # Zephyr SDK version bundled with NCS v2.6.4 (confirmed from a local
   # v2.6.4 toolchain install: opt/zephyr-sdk/sdk_version). The

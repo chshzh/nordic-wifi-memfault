@@ -8,8 +8,8 @@ manifest:
   projects:
     - name: sdk-nrf
       path: nrf
-      revision: v3.2.4
+      revision: v2.6.4
       import: true
       remote: ncs
   self:
-    path: memfault-nrf7002dk
+    path: nordic-wifi-memfault

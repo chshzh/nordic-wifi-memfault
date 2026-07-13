@@ -15,10 +15,8 @@ permissions:
   contents: read
 
 env:
-  # This branch (ncs264) is built directly inside an existing NCS v2.6.4
-  # installation; west.yml still pins sdk-nrf to v3.2.4 (inherited from the
-  # `main` branch's newer-NCS target) and is NOT authoritative here — do not
-  # parse the toolchain version from west.yml on this branch.
+  # This branch (ncs264) targets NCS v2.6.4; west.yml correctly pins
+  # sdk-nrf to v2.6.4 so CI's `west update` fetches matching sources.
   NCS_VERSION: v2.6.4
   # Zephyr SDK version bundled with NCS v2.6.4 (confirmed from a local
   # v2.6.4 toolchain install: opt/zephyr-sdk/sdk_version). The
