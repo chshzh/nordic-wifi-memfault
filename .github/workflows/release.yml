@@ -151,16 +151,47 @@ jobs:
           #!/usr/bin/env bash
           set -euo pipefail
           BUILD_DIR="$1"
-          MERGED="${BUILD_DIR}/merged.hex"
-          if [ -f "${MERGED}" ]; then
-            echo "merged.hex already exists"
-            exit 0
-          fi
+          FULL="${BUILD_DIR}/full.hex"
+
+          # Case 1: sysbuild already produced a single hex covering every domain
+          # (both cores + mcuboot) — some NCS versions generate this directly.
           if [ -f "${BUILD_DIR}/merged_domains.hex" ]; then
-            cp "${BUILD_DIR}/merged_domains.hex" "${MERGED}"
-            echo "Using merged_domains.hex"
+            cp "${BUILD_DIR}/merged_domains.hex" "${FULL}"
+            echo "Using merged_domains.hex (already contains all domains)"
             exit 0
           fi
+
+          # Case 2 (NCS v2.6.4 sysbuild): app core (mcuboot+app) and network
+          # core (hci_ipc/BLE controller) are merged separately into
+          # merged.hex and merged_CPUNET.hex. Neither alone is a full-chip
+          # image — merge both into one combined hex so a single
+          # `nrfutil device program --core All` flashes both cores.
+          APP_MERGED="${BUILD_DIR}/merged.hex"
+          NET_MERGED="${BUILD_DIR}/merged_CPUNET.hex"
+          if [ -f "${APP_MERGED}" ] && [ -f "${NET_MERGED}" ]; then
+            python3 - "${APP_MERGED}" "${NET_MERGED}" "${FULL}" <<'PYEOF'
+          import sys
+          from intelhex import IntelHex
+          app_hex, net_hex, out_hex = sys.argv[1:4]
+          out = IntelHex()
+          for f in (app_hex, net_hex):
+              ih = IntelHex()
+              ih.loadhex(f)
+              out.merge(ih, overlap="replace")
+          out.write_hex_file(out_hex)
+          print(f"full.hex created from: {app_hex} + {net_hex}")
+          PYEOF
+            exit 0
+          fi
+
+          # Case 3: no netcore image was built (e.g. BT disabled) — app-only
+          # merged.hex is the full image for this board.
+          if [ -f "${APP_MERGED}" ]; then
+            cp "${APP_MERGED}" "${FULL}"
+            echo "No network-core image found — using app-only merged.hex"
+            exit 0
+          fi
+
           echo "merged.hex not found — creating from component hex files"
           MCUBOOT="${BUILD_DIR}/mcuboot/zephyr/zephyr.hex"
           APP_S="${BUILD_DIR}/nordic-wifi-memfault/zephyr/zephyr.signed.hex"
@@ -173,7 +204,7 @@ jobs:
           fi
           [ -f "${CPUNET}" ] && PARTS="${PARTS} ${CPUNET}"
           if [ -n "${PARTS}" ]; then
-            python3 - "${PARTS}" "${MERGED}" <<'PYEOF'
+            python3 - "${PARTS}" "${FULL}" <<'PYEOF'
           import sys
           from intelhex import IntelHex
           parts = sys.argv[1].split()
@@ -183,7 +214,7 @@ jobs:
               ih.loadhex(f)
               out.merge(ih, overlap="replace")
           out.write_hex_file(sys.argv[2])
-          print("merged.hex created from: " + " ".join(parts))
+          print("full.hex created from: " + " ".join(parts))
           PYEOF
           else
             echo "ERROR: no hex files found in ${BUILD_DIR}"
@@ -246,7 +277,7 @@ jobs:
              "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.elf"
           cp ${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.signed.bin \
              "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.signed.bin"
-          cp ${{ matrix.config.build_dir }}/merged.hex \
+          cp ${{ matrix.config.build_dir }}/full.hex \
              "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.hex"
           cp usage.txt "$STAGE/usage.txt"
 

@@ -9,4 +9,24 @@ config WIFI_NRF70
 	default y if BOARD_NRF7002DK_NRF5340_CPUAPP
 	default y if BOARD_NRF54LM20DK_NRF54LM20A_CPUAPP
 
+# Tells sysbuild's netcore-image choice (nrf/sysbuild/Kconfig.netcore) to
+# default to NETCORE_HCI_IPC on boards with a separate network core
+# (nRF7002DK/nRF5340). Without this, sysbuild silently falls back to
+# NETCORE_NONE and no BLE controller firmware is built for the network
+# core, even though the app enables CONFIG_BT_HCI_IPC for BLE Wi-Fi
+# provisioning — every reference NCS Bluetooth sample sets this in its
+# own Kconfig.sysbuild (e.g. nrf/samples/bluetooth/peripheral_uart).
+config NRF_DEFAULT_BLUETOOTH
+	default y
+
+# nrf/sysbuild/Kconfig.netcore only ships a built-in NETCORE_REMOTE_BOARD_NAME
+# default for nrf5340dk/thingy53 — not nrf7002dk, even though nrf7002dk's
+# nRF5340 is netcore-capable (SUPPORT_NETCORE already defaults to y for it).
+# Without this, NETCORE_REMOTE_BOARD_NAME stays "" so the NETCORE choice's
+# "if NRF_DEFAULT_BLUETOOTH && NETCORE_REMOTE_BOARD_NAME != \"\"" guard never
+# matches and sysbuild falls back to NETCORE_NONE. This symbol has no Kconfig
+# prompt, so it can only be set via a `default`, not a sysbuild.conf fragment.
+config NETCORE_REMOTE_BOARD_NAME
+	default "nrf7002dk_nrf5340_cpunet" if $(BOARD) = "nrf7002dk_nrf5340_cpuapp"
+
 source "share/sysbuild/Kconfig"
