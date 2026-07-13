@@ -24,10 +24,9 @@
 
 LOG_MODULE_REGISTER(net_event_mgmt, CONFIG_WIFI_MODULE_LOG_LEVEL);
 
-ZBUS_CHAN_DEFINE(WIFI_CHAN, struct wifi_msg, NULL, NULL, ZBUS_OBSERVERS_EMPTY,
+ZBUS_CHAN_DEFINE(WIFI_CHAN, struct wifi_msg, NULL, NULL, ZBUS_OBSERVERS_EMPTY, ZBUS_MSG_INIT(0));
+ZBUS_CHAN_DEFINE(NETWORK_CHAN, struct network_msg, NULL, NULL, ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0));
-ZBUS_CHAN_DEFINE(NETWORK_CHAN, struct network_msg, NULL, NULL,
-		 ZBUS_OBSERVERS_EMPTY, ZBUS_MSG_INIT(0));
 
 static void publish_wifi_event(enum wifi_msg_type type, int error_code)
 {
@@ -58,23 +57,18 @@ static void publish_network_ready(bool ready)
 
 /* Event masks for different network layers */
 #define L2_IF_EVENT_MASK ((uint32_t)(NET_EVENT_IF_DOWN | NET_EVENT_IF_UP))
-#define L2_WIFI_CONN_EVENT_MASK                                                \
-	((uint32_t)(NET_EVENT_WIFI_CONNECT_RESULT |                            \
-		    NET_EVENT_WIFI_DISCONNECT_RESULT))
-#define L2_WIFI_SOFTAP_EVENT_MASK                                              \
-	((uint32_t)(NET_EVENT_WIFI_AP_ENABLE_RESULT |                          \
-		    NET_EVENT_WIFI_AP_STA_CONNECTED |                          \
+#define L2_WIFI_CONN_EVENT_MASK                                                                    \
+	((uint32_t)(NET_EVENT_WIFI_CONNECT_RESULT | NET_EVENT_WIFI_DISCONNECT_RESULT))
+#define L2_WIFI_SOFTAP_EVENT_MASK                                                                  \
+	((uint32_t)(NET_EVENT_WIFI_AP_ENABLE_RESULT | NET_EVENT_WIFI_AP_STA_CONNECTED |            \
 		    NET_EVENT_WIFI_AP_STA_DISCONNECTED))
 /* NCS v2.6.4 names these NET_EVENT_WPA_SUPP_READY/NOT_READY (renamed to
  * NET_EVENT_SUPPLICANT_READY/NOT_READY in a later NCS release). */
-#define L3_WPA_SUPP_EVENT_MASK                                                 \
-	((uint32_t)(NET_EVENT_WPA_SUPP_READY |                                 \
-		    NET_EVENT_WPA_SUPP_NOT_READY))
+#define L3_WPA_SUPP_EVENT_MASK ((uint32_t)(NET_EVENT_WPA_SUPP_READY | NET_EVENT_WPA_SUPP_NOT_READY))
 /* Comprehensive IPv4/DHCP event mask for complete lifecycle tracking */
-#define L3_IPV4_EVENT_MASK                                                     \
-	((uint32_t)(NET_EVENT_IPV4_DHCP_START | NET_EVENT_IPV4_DHCP_BOUND |    \
-		    NET_EVENT_IPV4_DHCP_STOP | NET_EVENT_IPV4_ADDR_ADD |       \
-		    NET_EVENT_IPV4_ADDR_DEL))
+#define L3_IPV4_EVENT_MASK                                                                         \
+	((uint32_t)(NET_EVENT_IPV4_DHCP_START | NET_EVENT_IPV4_DHCP_BOUND |                        \
+		    NET_EVENT_IPV4_DHCP_STOP | NET_EVENT_IPV4_ADDR_ADD | NET_EVENT_IPV4_ADDR_DEL))
 
 /* Define network event semaphores */
 K_SEM_DEFINE(iface_up_sem, 0, 1);
@@ -95,8 +89,7 @@ static struct net_mgmt_event_callback softap_event_cb;
 
 /* SoftAP support */
 static K_MUTEX_DEFINE(softap_mutex);
-K_SEM_DEFINE(station_connected_sem, 0,
-	     1); /* Semaphore to wait for station connection */
+K_SEM_DEFINE(station_connected_sem, 0, 1); /* Semaphore to wait for station connection */
 
 struct softap_station {
 	bool valid;
@@ -108,8 +101,8 @@ struct softap_station {
 static struct softap_station connected_stations[MAX_SOFTAP_STATIONS];
 #endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_AP */
 
-static void l2_iface_event_handler(struct net_mgmt_event_callback *cb,
-				   uint32_t mgmt_event, struct net_if *iface)
+static void l2_iface_event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event,
+				   struct net_if *iface)
 {
 	char ifname[IFNAMSIZ + 1] = {0};
 	int ret;
@@ -132,8 +125,7 @@ static void l2_iface_event_handler(struct net_mgmt_event_callback *cb,
 		LOG_INF("[IF] Network interface %s is down", ifname);
 		break;
 	default:
-		LOG_DBG("[IF] Unhandled network event: 0x%08" PRIx32,
-			mgmt_event);
+		LOG_DBG("[IF] Unhandled network event: 0x%08" PRIx32, mgmt_event);
 		break;
 	}
 }
@@ -153,8 +145,7 @@ static int get_station_ip_address(const uint8_t *mac, struct in_addr *ip_addr)
 	/* Count existing stations to assign next sequential IP */
 	k_mutex_lock(&softap_mutex, K_FOREVER);
 	for (int i = 0; i < MAX_SOFTAP_STATIONS; i++) {
-		if (connected_stations[i].valid &&
-		    connected_stations[i].ip_addr.s_addr != 0) {
+		if (connected_stations[i].valid && connected_stations[i].ip_addr.s_addr != 0) {
 			station_count++;
 		}
 	}
@@ -162,14 +153,13 @@ static int get_station_ip_address(const uint8_t *mac, struct in_addr *ip_addr)
 
 	/* Assign IP based on DHCP pool logic: 192.168.1.2, 192.168.1.3, etc. */
 	/* DHCP server starts from 192.168.1.2, so assign sequentially */
-	uint32_t base_ip =
-		0xC0A80102; /* 192.168.1.2 in network byte order (host order) */
+	uint32_t base_ip = 0xC0A80102; /* 192.168.1.2 in network byte order (host order) */
 	uint32_t assigned_ip = base_ip + station_count;
 
 	ip_addr->s_addr = htonl(assigned_ip);
 
-	LOG_DBG("Assigned IP for station: 192.168.1.%d (station count: %d)",
-		2 + station_count, station_count + 1);
+	LOG_DBG("Assigned IP for station: 192.168.1.%d (station count: %d)", 2 + station_count,
+		station_count + 1);
 
 	return 0;
 }
@@ -189,8 +179,7 @@ static void handle_softap_enable_result(struct net_mgmt_event_callback *cb)
 
 static void handle_station_connected(struct net_mgmt_event_callback *cb)
 {
-	const struct wifi_ap_sta_info *sta_info =
-		(const struct wifi_ap_sta_info *)cb->info;
+	const struct wifi_ap_sta_info *sta_info = (const struct wifi_ap_sta_info *)cb->info;
 	int station_slot = -1;
 
 	k_mutex_lock(&softap_mutex, K_FOREVER);
@@ -200,8 +189,7 @@ static void handle_station_connected(struct net_mgmt_event_callback *cb)
 		if (!connected_stations[i].valid) {
 			connected_stations[i].valid = true;
 			connected_stations[i].info = *sta_info;
-			connected_stations[i].ip_addr.s_addr =
-				0; /* Initialize as unassigned */
+			connected_stations[i].ip_addr.s_addr = 0; /* Initialize as unassigned */
 			station_slot = i;
 			break;
 		}
@@ -210,9 +198,9 @@ static void handle_station_connected(struct net_mgmt_event_callback *cb)
 	k_mutex_unlock(&softap_mutex);
 
 	uint8_t mac_str[18];
-	snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-		 sta_info->mac[0], sta_info->mac[1], sta_info->mac[2],
-		 sta_info->mac[3], sta_info->mac[4], sta_info->mac[5]);
+	snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x", sta_info->mac[0],
+		 sta_info->mac[1], sta_info->mac[2], sta_info->mac[3], sta_info->mac[4],
+		 sta_info->mac[5]);
 
 	/* Try to get IP address after a short delay for DHCP assignment */
 	k_sleep(K_MSEC(1000)); /* Wait 1 second for DHCP to assign IP */
@@ -228,8 +216,7 @@ static void handle_station_connected(struct net_mgmt_event_callback *cb)
 			inet_ntop(AF_INET, &ip_addr, ip_str, sizeof(ip_str));
 			LOG_INF("Station %s assigned IP: %s", mac_str, ip_str);
 		} else {
-			LOG_WRN("Could not determine IP address for station %s",
-				mac_str);
+			LOG_WRN("Could not determine IP address for station %s", mac_str);
 		}
 	}
 
@@ -240,28 +227,25 @@ static void handle_station_connected(struct net_mgmt_event_callback *cb)
 
 static void handle_station_disconnected(struct net_mgmt_event_callback *cb)
 {
-	const struct wifi_ap_sta_info *sta_info =
-		(const struct wifi_ap_sta_info *)cb->info;
+	const struct wifi_ap_sta_info *sta_info = (const struct wifi_ap_sta_info *)cb->info;
 	char mac_str[18];
 	char ip_str[INET_ADDRSTRLEN] = "Unknown";
 
-	snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x",
-		 sta_info->mac[0], sta_info->mac[1], sta_info->mac[2],
-		 sta_info->mac[3], sta_info->mac[4], sta_info->mac[5]);
+	snprintf(mac_str, sizeof(mac_str), "%02x:%02x:%02x:%02x:%02x:%02x", sta_info->mac[0],
+		 sta_info->mac[1], sta_info->mac[2], sta_info->mac[3], sta_info->mac[4],
+		 sta_info->mac[5]);
 
 	k_mutex_lock(&softap_mutex, K_FOREVER);
 
 	/* Find and remove station from list, also get its IP address */
 	for (int i = 0; i < MAX_SOFTAP_STATIONS; i++) {
 		if (connected_stations[i].valid &&
-		    memcmp(connected_stations[i].info.mac, sta_info->mac, 6) ==
-			    0) {
+		    memcmp(connected_stations[i].info.mac, sta_info->mac, 6) == 0) {
 
 			/* Get IP address before removing */
 			if (connected_stations[i].ip_addr.s_addr != 0) {
-				inet_ntop(AF_INET,
-					  &connected_stations[i].ip_addr,
-					  ip_str, sizeof(ip_str));
+				inet_ntop(AF_INET, &connected_stations[i].ip_addr, ip_str,
+					  sizeof(ip_str));
 			}
 
 			connected_stations[i].valid = false;
@@ -290,8 +274,7 @@ static void handle_station_disconnected(struct net_mgmt_event_callback *cb)
 	}
 }
 
-static void l2_wifi_softap_event_handler(struct net_mgmt_event_callback *cb,
-					 uint32_t mgmt_event,
+static void l2_wifi_softap_event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event,
 					 struct net_if *iface)
 {
 	switch (mgmt_event) {
@@ -311,14 +294,12 @@ static void l2_wifi_softap_event_handler(struct net_mgmt_event_callback *cb,
 #endif /* CONFIG_WIFI_NM_WPA_SUPPLICANT_AP */
 
 /* Enhanced WiFi management event handler for L2 events */
-static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb,
-				       uint32_t mgmt_event,
+static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event,
 				       struct net_if *iface)
 {
 	switch (mgmt_event) {
 	case NET_EVENT_WIFI_CONNECT_RESULT: {
-		const struct wifi_status *status =
-			(const struct wifi_status *)cb->info;
+		const struct wifi_status *status = (const struct wifi_status *)cb->info;
 
 		if (status->status == 0) {
 			/* Connection successful */
@@ -356,8 +337,7 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb,
 					"available");
 				break;
 			default:
-				LOG_ERR("[WiFi] Reason: Unknown error code %d",
-					status->status);
+				LOG_ERR("[WiFi] Reason: Unknown error code %d", status->status);
 				break;
 			}
 
@@ -366,12 +346,10 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb,
 	} break;
 
 	case NET_EVENT_WIFI_DISCONNECT_RESULT: {
-		const struct wifi_status *status =
-			(const struct wifi_status *)cb->info;
+		const struct wifi_status *status = (const struct wifi_status *)cb->info;
 
 		if (status) {
-			LOG_WRN("=== WiFi DISCONNECTED (reason: %d) ===",
-				status->status);
+			LOG_WRN("=== WiFi DISCONNECTED (reason: %d) ===", status->status);
 
 			/* Common disconnect reasons (from WiFi spec) */
 			switch (status->status) {
@@ -419,8 +397,7 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb,
 					"failed");
 				break;
 			default:
-				LOG_WRN("[WiFi] Reason: Unknown (%d)",
-					status->status);
+				LOG_WRN("[WiFi] Reason: Unknown (%d)", status->status);
 				break;
 			}
 		} else {
@@ -428,8 +405,7 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb,
 		}
 
 		network_connected = false;
-		publish_wifi_event(WIFI_STA_DISCONNECTED,
-				   status ? status->status : -1);
+		publish_wifi_event(WIFI_STA_DISCONNECTED, status ? status->status : -1);
 		publish_network_ready(false);
 	} break;
 
@@ -440,8 +416,8 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb,
 }
 
 /* wpa supplicant events */
-static void l3_wpa_supp_event_handler(struct net_mgmt_event_callback *cb,
-				      uint32_t mgmt_event, struct net_if *iface)
+static void l3_wpa_supp_event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event,
+				      struct net_if *iface)
 {
 	switch (mgmt_event) {
 	case NET_EVENT_WPA_SUPP_READY:
@@ -460,8 +436,8 @@ static void l3_wpa_supp_event_handler(struct net_mgmt_event_callback *cb,
 }
 
 /* Enhanced network management event handler for L3 events */
-static void l3_ipv4_event_handler(struct net_mgmt_event_callback *cb,
-				  uint32_t mgmt_event, struct net_if *iface)
+static void l3_ipv4_event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event,
+				  struct net_if *iface)
 {
 	if ((mgmt_event & L3_IPV4_EVENT_MASK) != mgmt_event) {
 		return;
@@ -515,8 +491,7 @@ int init_network_events(void)
 	LOG_INF("Initializing network event handlers");
 
 	/* Initialize network event callbacks */
-	net_mgmt_init_event_callback(&iface_event_cb, l2_iface_event_handler,
-				     L2_IF_EVENT_MASK);
+	net_mgmt_init_event_callback(&iface_event_cb, l2_iface_event_handler, L2_IF_EVENT_MASK);
 	net_mgmt_add_event_callback(&iface_event_cb);
 	LOG_DBG("Network interface event handler registered");
 
@@ -528,8 +503,7 @@ int init_network_events(void)
 
 #if IS_ENABLED(CONFIG_WIFI_NM_WPA_SUPPLICANT_AP)
 	/* Initialize SoftAP event callbacks */
-	net_mgmt_init_event_callback(&softap_event_cb,
-				     l2_wifi_softap_event_handler,
+	net_mgmt_init_event_callback(&softap_event_cb, l2_wifi_softap_event_handler,
 				     L2_WIFI_SOFTAP_EVENT_MASK);
 	net_mgmt_add_event_callback(&softap_event_cb);
 	LOG_DBG("SoftAP event handler registered");
@@ -542,8 +516,7 @@ int init_network_events(void)
 	LOG_DBG("WPA Supplicant event handler registered");
 
 	/* Initialize and add the callback function for network events (L3) */
-	net_mgmt_init_event_callback(&ipv4_event_cb, l3_ipv4_event_handler,
-				     L3_IPV4_EVENT_MASK);
+	net_mgmt_init_event_callback(&ipv4_event_cb, l3_ipv4_event_handler, L3_IPV4_EVENT_MASK);
 	net_mgmt_add_event_callback(&ipv4_event_cb);
 	LOG_DBG("Network L3 event handler registered");
 

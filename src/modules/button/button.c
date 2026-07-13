@@ -18,17 +18,15 @@ LOG_MODULE_REGISTER(button_module, CONFIG_BUTTON_MODULE_LOG_LEVEL);
 #define BUTTON_COUNT 4
 
 /* Map DK mask to button number (1-based) */
-static const uint32_t button_masks[] = {
-	DK_BTN1_MSK, DK_BTN2_MSK, DK_BTN3_MSK, DK_BTN4_MSK
-};
+static const uint32_t button_masks[] = {DK_BTN1_MSK, DK_BTN2_MSK, DK_BTN3_MSK, DK_BTN4_MSK};
 
 /* ============================================================================
  * ZBUS CHANNEL DEFINITION
  * ============================================================================
  */
 
-ZBUS_CHAN_DEFINE(BUTTON_CHAN, struct button_msg, NULL, NULL,
-		 ZBUS_OBSERVERS_EMPTY, ZBUS_MSG_INIT(0));
+ZBUS_CHAN_DEFINE(BUTTON_CHAN, struct button_msg, NULL, NULL, ZBUS_OBSERVERS_EMPTY,
+		 ZBUS_MSG_INIT(0));
 
 /* ============================================================================
  * STATE MACHINE CONTEXT

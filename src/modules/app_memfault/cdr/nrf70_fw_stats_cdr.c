@@ -190,7 +190,8 @@ static void cdr_button_listener(const struct zbus_channel *chan)
 	if (err) {
 		LOG_WRN("nRF70 FW stats CDR collection failed: %d", err);
 	} else {
-		LOG_INF("nRF70 FW stats CDR collected (%zu bytes)", mflt_nrf70_fw_stats_cdr_get_size());
+		LOG_INF("nRF70 FW stats CDR collected (%zu bytes)",
+			mflt_nrf70_fw_stats_cdr_get_size());
 	}
 }
 

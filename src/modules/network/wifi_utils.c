@@ -42,16 +42,15 @@ int wifi_utils_ensure_gateway_softap_credentials(void)
 #else
 	struct wifi_credentials_personal creds = {0};
 	size_t ssid_len = strlen(CONFIG_SOFTAP_SSID);
-	int ret = wifi_credentials_get_by_ssid_personal_struct(
-		CONFIG_SOFTAP_SSID, ssid_len, &creds);
+	int ret =
+		wifi_credentials_get_by_ssid_personal_struct(CONFIG_SOFTAP_SSID, ssid_len, &creds);
 
 	if (ret == 0) {
 		return 0;
 	}
 
 	if (ret != -ENOENT) {
-		LOG_ERR("Failed to read stored credentials for %s: %d",
-			CONFIG_SOFTAP_SSID, ret);
+		LOG_ERR("Failed to read stored credentials for %s: %d", CONFIG_SOFTAP_SSID, ret);
 		return ret;
 	}
 
@@ -64,11 +63,9 @@ int wifi_utils_ensure_gateway_softap_credentials(void)
 
 	ret = wifi_credentials_set_personal_struct(&creds);
 	if (ret == 0) {
-		LOG_INF("Stored default Wi-Fi credentials for %s",
-			CONFIG_SOFTAP_SSID);
+		LOG_INF("Stored default Wi-Fi credentials for %s", CONFIG_SOFTAP_SSID);
 	} else {
-		LOG_ERR("Failed to store default credentials for %s: %d",
-			CONFIG_SOFTAP_SSID, ret);
+		LOG_ERR("Failed to store default credentials for %s: %d", CONFIG_SOFTAP_SSID, ret);
 	}
 
 	return ret;
@@ -116,8 +113,7 @@ int wifi_set_mode(int mode)
 	mode_info.if_index = net_if_get_by_iface(iface);
 	mode_info.mode = mode;
 
-	ret = net_mgmt(NET_REQUEST_WIFI_MODE, iface, &mode_info,
-		       sizeof(mode_info));
+	ret = net_mgmt(NET_REQUEST_WIFI_MODE, iface, &mode_info, sizeof(mode_info));
 	if (ret) {
 		LOG_ERR("Mode setting failed: %d", ret);
 		return ret;
@@ -145,13 +141,12 @@ int wifi_set_channel(int channel)
 
 	if ((channel_info.channel < WIFI_CHANNEL_MIN) ||
 	    (channel_info.channel > WIFI_CHANNEL_MAX)) {
-		LOG_ERR("Invalid channel number: %d. Range is (%d-%d)", channel,
-			WIFI_CHANNEL_MIN, WIFI_CHANNEL_MAX);
+		LOG_ERR("Invalid channel number: %d. Range is (%d-%d)", channel, WIFI_CHANNEL_MIN,
+			WIFI_CHANNEL_MAX);
 		return -EINVAL;
 	}
 
-	ret = net_mgmt(NET_REQUEST_WIFI_CHANNEL, iface, &channel_info,
-		       sizeof(channel_info));
+	ret = net_mgmt(NET_REQUEST_WIFI_CHANNEL, iface, &channel_info, sizeof(channel_info));
 	if (ret) {
 		LOG_ERR("Channel setting failed: %d", ret);
 		return ret;
@@ -195,8 +190,7 @@ int wifi_set_reg_domain(void)
 
 	regd.oper = WIFI_MGMT_SET;
 #ifdef CONFIG_SOFTAP_REG_DOMAIN
-	strncpy(regd.country_code, CONFIG_SOFTAP_REG_DOMAIN,
-		(WIFI_COUNTRY_CODE_LEN + 1));
+	strncpy(regd.country_code, CONFIG_SOFTAP_REG_DOMAIN, (WIFI_COUNTRY_CODE_LEN + 1));
 #else
 	strncpy(regd.country_code, "US", (WIFI_COUNTRY_CODE_LEN + 1));
 #endif
@@ -206,8 +200,7 @@ int wifi_set_reg_domain(void)
 		LOG_ERR("Cannot %s Regulatory domain: %d", "SET", ret);
 	} else {
 #ifdef CONFIG_SOFTAP_REG_DOMAIN
-		LOG_INF("Regulatory domain set to %s",
-			CONFIG_SOFTAP_REG_DOMAIN);
+		LOG_INF("Regulatory domain set to %s", CONFIG_SOFTAP_REG_DOMAIN);
 #else
 		LOG_INF("Regulatory domain set to US");
 #endif
@@ -247,8 +240,7 @@ static int wifi_set_softap(const char *ssid, const char *psk)
 	params.channel = CONFIG_SOFTAP_CHANNEL;
 
 	if (!wifi_utils_validate_chan(params.band, params.channel)) {
-		LOG_ERR("Invalid SoftAP channel %d for Wi-Fi band %d",
-			params.channel, params.band);
+		LOG_ERR("Invalid SoftAP channel %d for Wi-Fi band %d", params.channel, params.band);
 		return -EINVAL;
 	}
 	params.security = WIFI_SECURITY_TYPE_PSK;
@@ -261,8 +253,7 @@ static int wifi_set_softap(const char *ssid, const char *psk)
 		return ret;
 	}
 
-	LOG_INF("AP mode enabled (band %d, channel %d)", params.band,
-		params.channel);
+	LOG_INF("AP mode enabled (band %d, channel %d)", params.band, params.channel);
 	return 0;
 }
 
@@ -366,9 +357,8 @@ int wifi_print_status(void)
 		last_connected_ssid[WIFI_SSID_MAX_LEN] = '\0';
 		LOG_INF("Interface Mode: %s", wifi_mode_txt(status.iface_mode));
 		LOG_INF("SSID: %.32s", status.ssid);
-		LOG_INF("BSSID: %02x:%02x:%02x:%02x:%02x:%02x", status.bssid[0],
-			status.bssid[1], status.bssid[2], status.bssid[3],
-			status.bssid[4], status.bssid[5]);
+		LOG_INF("BSSID: %02x:%02x:%02x:%02x:%02x:%02x", status.bssid[0], status.bssid[1],
+			status.bssid[2], status.bssid[3], status.bssid[4], status.bssid[5]);
 		LOG_INF("Band: %s", wifi_band_txt(status.band));
 		LOG_INF("Channel: %d", status.channel);
 		LOG_INF("Security: %s", wifi_security_txt(status.security));
@@ -399,12 +389,11 @@ void wifi_print_dhcp_ip(struct net_if *iface, struct net_mgmt_event_callback *cb
 	struct in_addr netmask = net_if_ipv4_get_netmask(iface);
 	net_addr_ntop(AF_INET, &netmask, netmask_info, sizeof(netmask_info));
 
-	struct in_addr gw = iface->config.ip.ipv4 ? iface->config.ip.ipv4->gw
-						   : (struct in_addr){0};
+	struct in_addr gw = iface->config.ip.ipv4 ? iface->config.ip.ipv4->gw : (struct in_addr){0};
 	net_addr_ntop(AF_INET, &gw, gw_info, sizeof(gw_info));
 
-	LOG_INF("\r\n\r\nDevice IP address: %s\r\nSubnet mask: %s\r\nGateway: %s\r\n", 
-		dhcp_info, netmask_info, gw_info);
+	LOG_INF("\r\n\r\nDevice IP address: %s\r\nSubnet mask: %s\r\nGateway: %s\r\n", dhcp_info,
+		netmask_info, gw_info);
 }
 #else
 void wifi_print_dhcp_ip(struct net_if *iface, struct net_mgmt_event_callback *cb)
