@@ -35,9 +35,19 @@ mcuboot_secondary:
   size: 0xe4000
   device: MX25R64
   region: external_flash
+mflt_log_state_partition:
+  address: 0x7fd000
+  size: 0x3000
+  device: MX25R64
+  region: external_flash
+mflt_cdr_state_partition:
+  address: 0x7fb000
+  size: 0x2000
+  device: MX25R64
+  region: external_flash
 external_flash:
   address: 0xe4000
-  size: 0x71c000
+  size: 0x717000
   device: MX25R64
   region: external_flash
 

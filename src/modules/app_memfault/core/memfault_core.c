@@ -13,6 +13,13 @@
 #include "../metrics/wifi_metrics.h"
 #include "../metrics/stack_metrics.h"
 
+#if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE
+#include "memfault_log_state_restore.h"
+#endif
+#if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+#include "../cdr/nrf70_fw_stats_cdr.h"
+#endif
+
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
@@ -43,6 +50,46 @@ LOG_MODULE_REGISTER(memfault_core, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 
 static K_SEM_DEFINE(upload_sem, 0, 1);
 static volatile bool wifi_connected;
+
+#if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE || CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+/* Delay log/CDR persist after disconnect so post-disconnect logs are captured */
+#define LOG_FREEZE_DELAY_SEC 10
+
+/* Guard: ensures only the first disconnect event schedules the persist work.
+ * Cleared when the work fires or when WiFi reconnects.
+ */
+static bool log_freeze_scheduled;
+
+/* Guard: true once the device has completed a real WIFI_STA_CONNECTED at
+ * least once. The boot-time "no stored credentials" state also publishes a
+ * disconnect notification (WIFI_STA_DISCONNECTED / NETWORK_NOT_READY) even
+ * though nothing was ever connected or lost -- this guard prevents that from
+ * scheduling a pointless persist to flash.
+ */
+static bool network_ever_connected;
+
+static void log_freeze_work_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	log_freeze_scheduled = false;
+#if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE
+	int err = memfault_log_state_persist_now();
+
+	if (err) {
+		LOG_WRN("Memfault log-state persist failed: %d", err);
+	}
+#endif
+#if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+	int cdr_err = mflt_nrf70_fw_stats_cdr_persist_to_flash();
+
+	if (cdr_err) {
+		LOG_WRN("Memfault CDR state persist failed: %d", cdr_err);
+	}
+#endif
+}
+
+static K_WORK_DELAYABLE_DEFINE(log_freeze_work, log_freeze_work_fn);
+#endif /* CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE || CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE */
 
 /* Recursive Fibonacci for stack overflow demo */
 static int fib(int n)
@@ -92,6 +139,23 @@ static void on_connect(void)
 	    memfault_coredump_has_valid_coredump(NULL)) {
 		return;
 	}
+
+#if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE
+	int restore_err = memfault_log_state_restore_on_connect();
+
+	if (restore_err == 0) {
+		LOG_INF("Disconnect-time log state restored - uploading to Memfault");
+	}
+#endif
+
+#if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+	int cdr_restore_err = mflt_nrf70_fw_stats_cdr_restore_from_flash();
+
+	if (cdr_restore_err == 0) {
+		LOG_INF("Disconnect-time CDR state restored - uploading to Memfault");
+	}
+#endif
+
 	LOG_INF("Sending already captured data to Memfault");
 	memfault_metrics_heartbeat_debug_trigger();
 	if (!memfault_packetizer_data_available()) {
@@ -154,10 +218,24 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 		mflt_stack_metrics_init();
 		LOG_INF("Stack metrics monitoring initialized");
 #endif
+#if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE || CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+		network_ever_connected = true;
+		log_freeze_scheduled = false;
+		k_work_cancel_delayable(&log_freeze_work);
+#endif
 		k_sem_give(&upload_sem);
 		break;
 	case WIFI_STA_DISCONNECTED:
 		wifi_connected = false;
+#if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE || CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+		if (network_ever_connected && !log_freeze_scheduled) {
+			log_freeze_scheduled = true;
+			k_work_schedule(&log_freeze_work, K_SECONDS(LOG_FREEZE_DELAY_SEC));
+			LOG_WRN("Network connectivity lost - scheduling Memfault log/CDR "
+				"persist in %d s",
+				LOG_FREEZE_DELAY_SEC);
+		}
+#endif
 		break;
 	default:
 		break;
@@ -166,6 +244,31 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 
 ZBUS_LISTENER_DEFINE(memfault_wifi_listener_def, memfault_wifi_listener);
 ZBUS_CHAN_ADD_OBS(WIFI_CHAN, memfault_wifi_listener_def, 0);
+
+#if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE || CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+/* NETWORK_CHAN listener -- catches IP-layer loss (DHCP expiry, addr removal)
+ * independently of WiFi association state.
+ */
+extern const struct zbus_channel NETWORK_CHAN;
+
+static void memfault_network_listener(const struct zbus_channel *chan)
+{
+	const struct network_msg *msg = zbus_chan_const_msg(chan);
+
+	if (msg->type == NETWORK_NOT_READY) {
+		if (network_ever_connected && !log_freeze_scheduled) {
+			log_freeze_scheduled = true;
+			k_work_schedule(&log_freeze_work, K_SECONDS(LOG_FREEZE_DELAY_SEC));
+			LOG_WRN("Network connectivity lost - scheduling Memfault log/CDR "
+				"persist in %d s",
+				LOG_FREEZE_DELAY_SEC);
+		}
+	}
+}
+
+ZBUS_LISTENER_DEFINE(memfault_network_listener_def, memfault_network_listener);
+ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, memfault_network_listener_def, 0);
+#endif /* CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE || CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE */
 
 /* BUTTON_CHAN listener: heartbeat, crash demos, metric, trace */
 extern const struct zbus_channel BUTTON_CHAN;

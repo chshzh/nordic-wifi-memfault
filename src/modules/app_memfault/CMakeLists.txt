@@ -7,6 +7,10 @@ target_sources(app PRIVATE
 )
 endif()
 
+if(CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE)
+	target_sources(app PRIVATE core/memfault_log_state_restore.c)
+endif()
+
 if(CONFIG_MEMFAULT_NCS_STACK_METRICS)
 	target_sources(app PRIVATE metrics/stack_metrics.c)
 	target_include_directories(app PRIVATE ${ZEPHYR_NRF_MODULE_DIR}/modules/memfault-firmware-sdk/include)

@@ -58,4 +58,34 @@ config MEMFAULT_OTA_THREAD_STACK_SIZE
 	  4096 bytes is sufficient as the Memfault NCS port spawns its own
 	  HTTPS transfer internally.  Override in prj.conf if needed.
 
+config APP_MEMFAULT_LOG_STATE_RESTORE
+	bool "Persist disconnect-time Memfault log entries; restore and upload on next WiFi connect"
+	depends on FLASH_MAP
+	help
+	  On connectivity loss, drains unread entries from the live Memfault log
+	  ring buffer (via memfault_log_read()) and serializes them to a
+	  dedicated partition on the external SPI/QSPI NOR flash
+	  ("mflt_log_state_partition", MX25R64).  On the next WiFi reconnect,
+	  the entries are replayed back into the ring buffer (via
+	  memfault_log_save_preformatted()) before upload, and
+	  memfault_log_trigger_collection() marks them for upload.  The
+	  partition is erased after the restore.
+	  Note: the Memfault SDK version bundled with NCS v2.6.4 has no raw
+	  ring-buffer save/restore API (memfault_log_get_state() /
+	  memfault_log_restore_state()), so this drain-and-replay approach is
+	  used instead of a raw memory copy. Replayed entries carry the
+	  restore-time timestamp, not the original disconnect-time timestamp.
+
+config APP_MEMFAULT_CDR_STATE_RESTORE
+	bool "Persist disconnect-time nRF70 CDR (WiFi stats) to flash; restore and upload on reconnect"
+	depends on FLASH_MAP
+	depends on NRF70_FW_STATS_CDR_ENABLED
+	help
+	  When the log-persist work fires 10 s after connectivity loss, collects
+	  fresh nRF70 firmware statistics (PHY/LMAC/UMAC) and writes the raw CDR
+	  blob to a dedicated partition on the external SPI/QSPI NOR flash
+	  ("mflt_cdr_state_partition", MX25R64).  On the next WiFi reconnect the
+	  blob is restored into the CDR source buffer and uploaded to Memfault
+	  cloud.  The partition is erased after restore.
+
 endif # APP_MEMFAULT_MODULE
