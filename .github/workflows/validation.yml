@@ -20,12 +20,18 @@ env:
   # `main` branch's newer-NCS target) and is NOT authoritative here — do not
   # parse the toolchain version from west.yml on this branch.
   NCS_VERSION: v2.6.4
+  # Zephyr SDK version bundled with NCS v2.6.4 (confirmed from a local
+  # v2.6.4 toolchain install: opt/zephyr-sdk/sdk_version). The
+  # ghcr.io/nrfconnect/sdk-nrf-toolchain:v2.6.4 container image is missing
+  # west/python entirely (a known packaging defect around this tag — see
+  # the v2.6.4-NCSDK-34113 follow-up tags on ghcr.io), so this workflow
+  # installs the toolchain directly on the runner instead of using that
+  # container.
+  ZEPHYR_SDK_VERSION: "0.16.5"
 
 jobs:
   build-and-test:
     runs-on: ubuntu-24.04
-    # container: does not support the `env` context (only github/inputs/matrix/needs/strategy/vars) — hardcode here.
-    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:v2.6.4
     defaults:
       run:
         shell: bash
@@ -49,6 +55,36 @@ jobs:
         with:
           path: app-workspace/nordic-wifi-memfault
 
+      - name: Install build dependencies (apt)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git cmake ninja-build gperf ccache dfu-util device-tree-compiler wget \
+            python3-dev python3-pip python3-setuptools python3-venv python3-wheel \
+            xz-utils file make libsdl2-dev libmagic1
+
+      - name: Cache Zephyr SDK
+        id: cache-sdk
+        uses: actions/cache@v4
+        with:
+          path: ~/zephyr-sdk-${{ env.ZEPHYR_SDK_VERSION }}
+          key: zephyr-sdk-${{ env.ZEPHYR_SDK_VERSION }}-arm-zephyr-eabi
+
+      - name: Install Zephyr SDK (arm-zephyr-eabi only)
+        if: steps.cache-sdk.outputs.cache-hit != 'true'
+        run: |
+          wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${{ env.ZEPHYR_SDK_VERSION }}/zephyr-sdk-${{ env.ZEPHYR_SDK_VERSION }}_linux-x86_64_minimal.tar.xz
+          tar xf zephyr-sdk-${{ env.ZEPHYR_SDK_VERSION }}_linux-x86_64_minimal.tar.xz -C "$HOME"
+          rm zephyr-sdk-${{ env.ZEPHYR_SDK_VERSION }}_linux-x86_64_minimal.tar.xz
+
+      - name: Register Zephyr SDK CMake packages
+        run: "$HOME/zephyr-sdk-${{ env.ZEPHYR_SDK_VERSION }}/setup.sh -c -t arm-zephyr-eabi"
+
+      - name: Install west
+        run: |
+          pip3 install --user -U west
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Cache west workspace
         uses: actions/cache@v4
         with:
@@ -61,46 +97,22 @@ jobs:
             app-workspace/bootloader
           key: west-${{ env.NCS_VERSION }}-${{ hashFiles('app-workspace/nordic-wifi-memfault/west.yml') }}
 
-      - name: Ensure west CLI is available
-        run: |
-          echo "PATH=$PATH"
-          for c in west python3 python pip3 pip; do
-            if command -v "$c" >/dev/null 2>&1; then
-              echo "$c -> $(command -v "$c")"
-            else
-              echo "$c -> not found"
-            fi
-          done
-
-          if command -v west >/dev/null 2>&1; then
-            echo "west already on PATH"
-            exit 0
-          fi
-
-          echo "west not found on PATH in this toolchain image — installing via python's pip module"
-          if command -v python3 >/dev/null 2>&1; then
-            PY=python3
-          elif command -v python >/dev/null 2>&1; then
-            PY=python
-          else
-            echo "::error::No python interpreter found in this container — cannot install west"
-            echo "Searching filesystem for west/python binaries (diagnostic):"
-            find / -xdev -maxdepth 6 \( -iname 'west' -o -iname 'python3*' \) -type f 2>/dev/null | head -50
-            exit 1
-          fi
-
-          "$PY" -m ensurepip --user >/dev/null 2>&1 || true
-          "$PY" -m pip install --user -U west
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.local/bin:$PATH"
-          west --version
-
       - name: Prepare west workspace
         working-directory: app-workspace
         run: |
           grep -q 'base = zephyr' .west/config 2>/dev/null || \
             west init -l nordic-wifi-memfault
           west update -o=--depth=1 -n
+
+      - name: Install west Python requirements
+        working-directory: app-workspace
+        run: |
+          if [ -f nrf/scripts/requirements.txt ]; then
+            pip3 install --user -r nrf/scripts/requirements.txt
+          else
+            pip3 install --user -r zephyr/scripts/requirements.txt
+          fi
+          pip3 install --user intelhex
 
       - name: Create Memfault project key overlay
         working-directory: app-workspace/nordic-wifi-memfault
