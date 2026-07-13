@@ -41,12 +41,6 @@ jobs:
             build_dir: "build_nrf7002dk"
             board: "nrf7002dk_nrf5340_cpuapp"
             cmake_args: ""
-            allow_failure: false
-          - name: "nRF54LM20DK + nRF7002EB2 (not actively maintained)"
-            build_dir: "build_nrf54lm20dk_wifi"
-            board: "nrf54lm20dk_nrf54lm20a_cpuapp"
-            cmake_args: "-DSHIELD=nrf7002eb2"
-            allow_failure: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -105,17 +99,17 @@ jobs:
       - name: Install west Python requirements
         working-directory: app-workspace
         run: |
-          # requirements-fixed.txt is NCS's own pip-compile-locked superset of
-          # zephyr + nrf + mcuboot requirements (used to build Nordic's official
-          # toolchain Docker image) — covers packages individual requirements
-          # files miss when combined manually (e.g. click, needed by imgtool).
-          if [ -f nrf/scripts/requirements-fixed.txt ]; then
-            pip3 install --user -r nrf/scripts/requirements-fixed.txt
-          else
-            pip3 install --user -r zephyr/scripts/requirements.txt
-            if [ -f nrf/scripts/requirements.txt ]; then
-              pip3 install --user -r nrf/scripts/requirements.txt
-            fi
+          # Combine zephyr + nrf + mcuboot requirements with flexible version
+          # specifiers. nrf/scripts/requirements-fixed.txt (NCS's pip-compile
+          # lock) is more complete but hard-pins packages for Python 3.9 and
+          # fails to build on this runner's Python 3.12 (e.g. editdistance's
+          # old sdist doesn't build under 3.12) — use the flexible files instead.
+          pip3 install --user -r zephyr/scripts/requirements.txt
+          if [ -f nrf/scripts/requirements.txt ]; then
+            pip3 install --user -r nrf/scripts/requirements.txt
+          fi
+          if [ -f bootloader/mcuboot/scripts/requirements.txt ]; then
+            pip3 install --user -r bootloader/mcuboot/scripts/requirements.txt
           fi
           pip3 install --user intelhex
 
@@ -126,7 +120,6 @@ jobs:
           echo 'CONFIG_MEMFAULT_NCS_PROJECT_KEY="ci-build-dummy-key"' > overlay-ci-key.conf
 
       - name: Build ${{ matrix.config.name }}
-        continue-on-error: ${{ matrix.config.allow_failure }}
         working-directory: app-workspace/nordic-wifi-memfault
         run: |
           BUILD_LOG="${{ matrix.config.build_dir }}/build.log"

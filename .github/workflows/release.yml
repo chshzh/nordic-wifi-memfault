@@ -43,12 +43,6 @@ jobs:
             build_dir: "build_nrf7002dk"
             board: "nrf7002dk_nrf5340_cpuapp"
             cmake_args: ""
-            allow_failure: false
-          - name: "nRF54LM20DK + nRF7002EB2 (not actively maintained)"
-            build_dir: "build_nrf54lm20dk_wifi"
-            board: "nrf54lm20dk_nrf54lm20a_cpuapp"
-            cmake_args: "-DSHIELD=nrf7002eb2"
-            allow_failure: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -108,17 +102,17 @@ jobs:
       - name: Install west Python requirements
         working-directory: app-workspace
         run: |
-          # requirements-fixed.txt is NCS's own pip-compile-locked superset of
-          # zephyr + nrf + mcuboot requirements (used to build Nordic's official
-          # toolchain Docker image) — covers packages individual requirements
-          # files miss when combined manually (e.g. click, needed by imgtool).
-          if [ -f nrf/scripts/requirements-fixed.txt ]; then
-            pip3 install --user -r nrf/scripts/requirements-fixed.txt
-          else
-            pip3 install --user -r zephyr/scripts/requirements.txt
-            if [ -f nrf/scripts/requirements.txt ]; then
-              pip3 install --user -r nrf/scripts/requirements.txt
-            fi
+          # Combine zephyr + nrf + mcuboot requirements with flexible version
+          # specifiers. nrf/scripts/requirements-fixed.txt (NCS's pip-compile
+          # lock) is more complete but hard-pins packages for Python 3.9 and
+          # fails to build on this runner's Python 3.12 (e.g. editdistance's
+          # old sdist doesn't build under 3.12) — use the flexible files instead.
+          pip3 install --user -r zephyr/scripts/requirements.txt
+          if [ -f nrf/scripts/requirements.txt ]; then
+            pip3 install --user -r nrf/scripts/requirements.txt
+          fi
+          if [ -f bootloader/mcuboot/scripts/requirements.txt ]; then
+            pip3 install --user -r bootloader/mcuboot/scripts/requirements.txt
           fi
           pip3 install --user intelhex
 
@@ -188,7 +182,6 @@ jobs:
           echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
 
       - name: Build ${{ matrix.config.name }} — nord_project
-        continue-on-error: ${{ matrix.config.allow_failure }}
         working-directory: app-workspace/nordic-wifi-memfault
         run: |
           mkdir -p ${{ matrix.config.build_dir }}
@@ -226,7 +219,7 @@ jobs:
         env:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
-          BOARD_TAG="$(echo '${{ matrix.config.board }}' | sed 's/_nrf5340_cpuapp$//; s/_nrf54lm20a_cpuapp$//')"
+          BOARD_TAG="$(echo '${{ matrix.config.board }}' | sed 's/_nrf5340_cpuapp$//')"
           mkdir -p release
           cp ${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.elf \
              release/nord_project_${VER}_${BOARD_TAG}_zephyr.elf
@@ -245,7 +238,6 @@ jobs:
           echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
 
       - name: Build ${{ matrix.config.name }} — terr_project
-        continue-on-error: ${{ matrix.config.allow_failure }}
         working-directory: app-workspace/nordic-wifi-memfault
         run: |
           set -o pipefail
@@ -262,7 +254,7 @@ jobs:
         env:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
-          BOARD_TAG="$(echo '${{ matrix.config.board }}' | sed 's/_nrf5340_cpuapp$//; s/_nrf54lm20a_cpuapp$//')"
+          BOARD_TAG="$(echo '${{ matrix.config.board }}' | sed 's/_nrf5340_cpuapp$//')"
           cp ${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.elf \
              release/terr_project_${VER}_${BOARD_TAG}_zephyr.elf
           cp ${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.signed.bin \
@@ -346,20 +338,17 @@ jobs:
           cat > /tmp/release-body.txt <<EOF
           ## nordic-wifi-memfault Release ${VER}
 
-          > Built with NCS ${{ env.NCS_VERSION }} on the \`ncs264\` branch. Project focus is nRF7002DK; nRF54LM20DK + nRF7002EB II artifacts are best-effort (not actively maintained).
+          > Built with NCS ${{ env.NCS_VERSION }} on the \`ncs264\` branch. CI targets nRF7002DK only — nRF54LM20DK + nRF7002EB II is not actively maintained and is no longer built here.
 
           ### Firmware Files
 
-          Each Memfault project (\`nord_project\`, \`terr_project\`) ships **6 files** across two hardware targets.
+          Each Memfault project (\`nord_project\`, \`terr_project\`) ships **3 files** for nRF7002DK.
 
           | File suffix | Purpose | How to use |
           |---|---|---|
           | \`*_nrf7002dk_zephyr.elf\` | Debug symbol file | Upload to **Memfault → Fleet → Symbol Files** to decode stack traces and coredumps |
           | \`*_nrf7002dk_zephyr.signed.bin\` | OTA update image | Upload to **Memfault → Software → OTA Releases** to deploy over-the-air via MCUboot |
           | \`*_nrf7002dk_full.hex\` | Full board image (CPUAPP + CPUNET) | \`nrfutil device program --firmware *_nrf7002dk_full.hex --core All --erase-all\` |
-          | \`*_nrf54lm20dk_zephyr.elf\` | Debug symbol file (best-effort board) | Upload to **Memfault → Fleet → Symbol Files** |
-          | \`*_nrf54lm20dk_zephyr.signed.bin\` | OTA update image (best-effort board) | Upload to **Memfault → Software → OTA Releases** |
-          | \`*_nrf54lm20dk_full.hex\` | Full board image (best-effort board) | \`nrfutil device program --firmware *_nrf54lm20dk_full.hex --recover\` |
 
           > \`nord_project\` artifacts are built with the Memfault project key for the Nord project.
           > \`terr_project\` artifacts are built with the Memfault project key for the Terr project.
@@ -382,14 +371,8 @@ jobs:
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_full.hex
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.elf
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.signed.bin
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_full.hex
             release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
             release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
             release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_full.hex
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.elf
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_zephyr.signed.bin
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf54lm20dk_full.hex
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
