@@ -3,7 +3,8 @@ name: Release
 on:
   push:
     tags:
-      - '[0-9]*'  # This branch's tags are plain semantic versions, e.g. 3.2.0 (not v-prefixed)
+      - '[0-9]*'   # legacy plain semantic versions, e.g. 3.2.0
+      - 'v[0-9]*'  # v-prefixed NCS-version-aligned tags, e.g. v2.6.4.0 (matches main branch convention)
 
 # Cancel any in-progress run for the same tag.
 concurrency:
