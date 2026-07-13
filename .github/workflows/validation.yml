@@ -1,0 +1,213 @@
+name: Validation
+
+on:
+  push:
+    branches: [ ncs264 ]
+  pull_request:
+    branches: [ ncs264 ]
+
+# Cancel any in-progress run for the same branch/PR to avoid wasting CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # This branch (ncs264) is built directly inside an existing NCS v2.6.4
+  # installation; west.yml still pins sdk-nrf to v3.2.4 (inherited from the
+  # `main` branch's newer-NCS target) and is NOT authoritative here — do not
+  # parse the toolchain version from west.yml on this branch.
+  NCS_VERSION: v2.6.4
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ env.NCS_VERSION }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: "nRF7002DK"
+            build_dir: "build_nrf7002dk"
+            board: "nrf7002dk_nrf5340_cpuapp"
+            cmake_args: ""
+            allow_failure: false
+          - name: "nRF54LM20DK + nRF7002EB2 (not actively maintained)"
+            build_dir: "build_nrf54lm20dk_wifi"
+            board: "nrf54lm20dk_nrf54lm20a_cpuapp"
+            cmake_args: "-DSHIELD=nrf7002eb2"
+            allow_failure: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: app-workspace/nordic-wifi-memfault
+
+      - name: Cache west workspace
+        uses: actions/cache@v4
+        with:
+          path: |
+            app-workspace/.west
+            app-workspace/nrf
+            app-workspace/zephyr
+            app-workspace/modules
+            app-workspace/nrfxlib
+            app-workspace/bootloader
+          key: west-${{ env.NCS_VERSION }}-${{ hashFiles('app-workspace/nordic-wifi-memfault/west.yml') }}
+
+      - name: Prepare west workspace
+        working-directory: app-workspace
+        run: |
+          grep -q 'base = zephyr' .west/config 2>/dev/null || \
+            west init -l nordic-wifi-memfault
+          west update -o=--depth=1 -n
+
+      - name: Create Memfault project key overlay
+        working-directory: app-workspace/nordic-wifi-memfault
+        run: |
+          # CI only verifies the build compiles; a non-empty dummy key satisfies BUILD_ASSERT
+          echo 'CONFIG_MEMFAULT_NCS_PROJECT_KEY="ci-build-dummy-key"' > overlay-ci-key.conf
+
+      - name: Build ${{ matrix.config.name }}
+        continue-on-error: ${{ matrix.config.allow_failure }}
+        working-directory: app-workspace/nordic-wifi-memfault
+        run: |
+          BUILD_LOG="${{ matrix.config.build_dir }}/build.log"
+          mkdir -p "${{ matrix.config.build_dir }}"
+          set -o pipefail
+          west build -p -b ${{ matrix.config.board }} -d ${{ matrix.config.build_dir }} --sysbuild -- \
+            ${{ matrix.config.cmake_args }} \
+            -DEXTRA_CONF_FILE="overlay-ci-key.conf" 2>&1 | tee "$BUILD_LOG"
+
+      - name: Extract memory usage for ${{ matrix.config.name }}
+        if: always()
+        working-directory: app-workspace/nordic-wifi-memfault
+        run: |
+          BUILD_LOG="${{ matrix.config.build_dir }}/build.log"
+          USAGE_SUMMARY="${{ matrix.config.build_dir }}/usage-summary.txt"
+
+          if [ -f "$BUILD_LOG" ]; then
+            ROM_USAGE="$(awk '/^[[:space:]]*FLASH:/ {print $2 " " $3 " / " $4 " " $5 " (" $6 ")"}' "$BUILD_LOG" | tail -n 1)"
+            RAM_USAGE="$(awk '/^[[:space:]]*RAM:/ {print $2 " " $3 " / " $4 " " $5 " (" $6 ")"}' "$BUILD_LOG" | tail -n 1)"
+          else
+            ROM_USAGE="n/a"
+            RAM_USAGE="n/a"
+          fi
+
+          : "${ROM_USAGE:=n/a}"
+          : "${RAM_USAGE:=n/a}"
+
+          {
+            echo "ROM_USAGE=$ROM_USAGE"
+            echo "RAM_USAGE=$RAM_USAGE"
+          } > "$USAGE_SUMMARY"
+
+          echo "ROM usage: $ROM_USAGE"
+          echo "RAM usage: $RAM_USAGE"
+
+      - name: Capture size report for ${{ matrix.config.name }}
+        if: always()
+        working-directory: app-workspace/nordic-wifi-memfault
+        run: |
+          ELF_PATH="${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.elf"
+          SIZE_REPORT="${{ matrix.config.build_dir }}/size-report.txt"
+          SIZE_TOOL="$(command -v arm-zephyr-eabi-size || command -v llvm-size || command -v size)"
+
+          echo "ELF: ${ELF_PATH}" > "$SIZE_REPORT"
+          echo "Tool: ${SIZE_TOOL}" >> "$SIZE_REPORT"
+          echo >> "$SIZE_REPORT"
+
+          if [ -f "$ELF_PATH" ] && [ -n "$SIZE_TOOL" ]; then
+            "$SIZE_TOOL" "$ELF_PATH" >> "$SIZE_REPORT"
+          else
+            echo "size data unavailable" >> "$SIZE_REPORT"
+          fi
+
+          echo "Generated size report: $SIZE_REPORT"
+
+      - name: Stage artifacts for ${{ matrix.config.name }}
+        if: always()
+        working-directory: app-workspace/nordic-wifi-memfault
+        run: |
+          STAGE="artifact-staging-${{ matrix.config.build_dir }}"
+          mkdir -p "$STAGE"
+          for f in build.log usage-summary.txt size-report.txt; do
+            cp "${{ matrix.config.build_dir }}/$f" "$STAGE/" 2>/dev/null || true
+          done
+          ELF="${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.elf"
+          [ -f "$ELF" ] && cp "$ELF" "$STAGE/" || true
+          MERGED="${{ matrix.config.build_dir }}/merged.hex"
+          [ -f "$MERGED" ] && cp "$MERGED" "$STAGE/" || true
+
+      - name: Upload artifacts for ${{ matrix.config.name }}
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: warn
+          name: build-${{ matrix.config.build_dir }}
+          path: app-workspace/nordic-wifi-memfault/artifact-staging-${{ matrix.config.build_dir }}/
+
+  static-analysis:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch Zephyr checkpatch
+        run: |
+          git clone --depth=1 https://github.com/zephyrproject-rtos/zephyr.git /tmp/zephyr
+          chmod +x /tmp/zephyr/scripts/checkpatch.pl
+
+      - name: Run Zephyr checkpatch
+        run: |
+          echo "Running Zephyr checkpatch on source files..."
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            git diff HEAD~1 | /tmp/zephyr/scripts/checkpatch.pl --no-tree -
+          else
+            echo "Single commit — checking all source files..."
+            if [ -d src/ ]; then
+              find src/ \( -name "*.c" -o -name "*.h" \) | while read -r file; do
+                echo "Checking $file..."
+                /tmp/zephyr/scripts/checkpatch.pl --no-tree --file "$file" || true
+              done
+            fi
+          fi
+          echo "Checkpatch analysis completed ✓"
+
+  validate-documentation:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate README structure
+        run: |
+          echo "Validating README.md structure..."
+          grep -q "Project Overview" README.md || (echo "Missing Project Overview section" && exit 1)
+          grep -q "Evaluator Quick Start" README.md || (echo "Missing Evaluator Quick Start section" && exit 1)
+          grep -q "Developer Guide" README.md || (echo "Missing Developer Guide section" && exit 1)
+          grep -q "west build" README.md || (echo "Missing build commands" && exit 1)
+          grep -q "Documentation" README.md || (echo "Missing Documentation section" && exit 1)
+          echo "README.md validation passed"
+
+      - name: Validate configuration files
+        run: |
+          echo "Checking configuration files..."
+          [ -f prj.conf ] || (echo "Missing prj.conf" && exit 1)
+          [ -f west.yml ] || (echo "Missing west.yml" && exit 1)
+          [ -f CMakeLists.txt ] || (echo "Missing CMakeLists.txt" && exit 1)
+          [ -f Kconfig ] || (echo "Missing Kconfig" && exit 1)
+          [ -f LICENSE ] || (echo "Missing LICENSE" && exit 1)
+          echo "Configuration files validation passed"
+
+      - name: Validate design docs
+        run: |
+          echo "Checking docs/ structure..."
+          [ -f docs/pm-prd/PRD.md ] || (echo "Missing docs/pm-prd/PRD.md" && exit 1)
+          [ -f docs/dev-specs/0-overview.md ] || (echo "Missing docs/dev-specs/0-overview.md" && exit 1)
+          echo "Docs validation passed"

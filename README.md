@@ -1,11 +1,10 @@
 # nordic-wifi-memfault sample
 
-[![Build and Test](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml/badge.svg)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/build.yml)
+[![Validation](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/validation.yml/badge.svg?branch=ncs264)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/validation.yml)
 [![Latest Release](https://img.shields.io/github/v/release/chshzh/nordic-wifi-memfault?label=Release&color=brightgreen)](https://github.com/chshzh/nordic-wifi-memfault/releases/latest)
 [![License](https://img.shields.io/badge/License-LicenseRef--Nordic--5--Clause-blue.svg)](LICENSE)
 [![NCS Version](https://img.shields.io/badge/NCS-v2.6.4-green.svg)](https://www.nordicsemi.com/Products/Development-software/nRF-Connect-SDK)
 ![Nordic Semiconductor](https://img.shields.io/badge/Nordic%20Semiconductor-nRF7002DK-blue)
-![Nordic Semiconductor](https://img.shields.io/badge/Nordic%20Semiconductor-nRF54LM20DK-red)
 
 ## Project Overview
 
