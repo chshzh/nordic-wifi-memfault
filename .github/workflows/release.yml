@@ -35,7 +35,10 @@ jobs:
         shell: bash
     env:
       NORD_KEY: ${{ secrets.NORD_PROJECT_KEY }}
-      TERR_KEY: ${{ secrets.TERR_PROJECT_KEY }}
+      # Note: this branch does not build terr_project. That build requires
+      # TERR_PROJECT_KEY, which intentionally lives only in the private
+      # nordic-wifi-memfault-terraforma repo's secrets (never in this public
+      # repo). See that repo's README for the Terraforma release flow.
     strategy:
       fail-fast: false
       matrix:
@@ -245,40 +248,6 @@ jobs:
           cp ${{ matrix.config.build_dir }}/merged.hex \
              release/nord_project_${VER}_${BOARD_TAG}_full.hex
 
-      # ── terr_project build ──────────────────────────────────
-      - name: Create overlay — terr_project
-        working-directory: app-workspace/nordic-wifi-memfault
-        env:
-          VER: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          echo "CONFIG_MEMFAULT_NCS_PROJECT_KEY=\"${TERR_KEY}\"" > overlay-release-key.conf
-          echo "CONFIG_MEMFAULT_NCS_FW_VERSION=\"${VER}\""      >> overlay-release-key.conf
-
-      - name: Build ${{ matrix.config.name }} — terr_project
-        working-directory: app-workspace/nordic-wifi-memfault
-        run: |
-          set -o pipefail
-          west build -p -b ${{ matrix.config.board }} -d ${{ matrix.config.build_dir }} --sysbuild -- \
-            ${{ matrix.config.cmake_args }} \
-            -DEXTRA_CONF_FILE="overlay-release-key.conf" 2>&1 | tee ${{ matrix.config.build_dir }}/build.log
-
-      - name: Resolve merged hex — ${{ matrix.config.name }} (terr_project)
-        working-directory: app-workspace/nordic-wifi-memfault
-        run: ./resolve_merged_hex.sh "${{ matrix.config.build_dir }}"
-
-      - name: Stage terr_project artifacts — ${{ matrix.config.name }}
-        working-directory: app-workspace/nordic-wifi-memfault
-        env:
-          VER: ${{ steps.ver.outputs.VERSION }}
-        run: |
-          BOARD_TAG="$(echo '${{ matrix.config.board }}' | sed 's/_nrf5340_cpuapp$//')"
-          cp ${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.elf \
-             release/terr_project_${VER}_${BOARD_TAG}_zephyr.elf
-          cp ${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.signed.bin \
-             release/terr_project_${VER}_${BOARD_TAG}_zephyr.signed.bin
-          cp ${{ matrix.config.build_dir }}/merged.hex \
-             release/terr_project_${VER}_${BOARD_TAG}_full.hex
-
       - name: Upload release artifacts — ${{ matrix.config.name }}
         uses: actions/upload-artifact@v4
         with:
@@ -359,7 +328,7 @@ jobs:
 
           ### Firmware Files
 
-          Each Memfault project (\`nord_project\`, \`terr_project\`) ships **3 files** for nRF7002DK.
+          This release ships **3 files** for nRF7002DK, built with the Nord project's Memfault key.
 
           | File suffix | Purpose | How to use |
           |---|---|---|
@@ -367,8 +336,7 @@ jobs:
           | \`*_nrf7002dk_zephyr.signed.bin\` | OTA update image | Upload to **Memfault → Software → OTA Releases** to deploy over-the-air via MCUboot |
           | \`*_nrf7002dk_full.hex\` | Full board image (CPUAPP + CPUNET) | \`nrfutil device program --firmware *_nrf7002dk_full.hex --core All --erase-all\` |
 
-          > \`nord_project\` artifacts are built with the Memfault project key for the Nord project.
-          > \`terr_project\` artifacts are built with the Memfault project key for the Terr project.
+          > Terraforma-project builds are not yet available on the \`ncs264\` branch — see [nordic-wifi-memfault-terraforma](https://github.com/chshzh/nordic-wifi-memfault-terraforma) for the (currently NCS v3.x-only) Terraforma release flow.
 
           See the [Evaluator Quick Start](https://github.com/chshzh/nordic-wifi-memfault/blob/ncs264/README.md#evaluator-quick-start) for flashing and provisioning steps.
 
@@ -388,8 +356,5 @@ jobs:
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
             release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_full.hex
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
-            release/terr_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_full.hex
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
