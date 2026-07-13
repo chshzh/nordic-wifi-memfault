@@ -47,6 +47,7 @@ jobs:
             build_dir: "build_nrf7002dk"
             board: "nrf7002dk_nrf5340_cpuapp"
             cmake_args: ""
+            artifact_suffix: "nrf7002dk"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -234,27 +235,26 @@ jobs:
           printf "ROM_USAGE=%s\nRAM_USAGE=%s\n" "$ROM_USAGE" "$RAM_USAGE" > usage.txt
           echo "${{ matrix.config.name }}  ROM: $ROM_USAGE | RAM: $RAM_USAGE"
 
-      - name: Stage nord_project artifacts — ${{ matrix.config.name }}
+      - name: Stage artifacts — ${{ matrix.config.name }}
         working-directory: app-workspace/nordic-wifi-memfault
         env:
           VER: ${{ steps.ver.outputs.VERSION }}
         run: |
-          BOARD_TAG="$(echo '${{ matrix.config.board }}' | sed 's/_nrf5340_cpuapp$//')"
-          mkdir -p release
+          STAGE="stage-${{ matrix.config.artifact_suffix }}"
+          mkdir -p "$STAGE"
           cp ${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.elf \
-             release/nord_project_${VER}_${BOARD_TAG}_zephyr.elf
+             "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.elf"
           cp ${{ matrix.config.build_dir }}/nordic-wifi-memfault/zephyr/zephyr.signed.bin \
-             release/nord_project_${VER}_${BOARD_TAG}_zephyr.signed.bin
+             "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.signed.bin"
           cp ${{ matrix.config.build_dir }}/merged.hex \
-             release/nord_project_${VER}_${BOARD_TAG}_full.hex
+             "$STAGE/nordic-wifi-memfault-${{ matrix.config.artifact_suffix }}-nord-project-${VER}.hex"
+          cp usage.txt "$STAGE/usage.txt"
 
       - name: Upload release artifacts — ${{ matrix.config.name }}
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.config.build_dir }}
-          path: |
-            app-workspace/nordic-wifi-memfault/release/
-            app-workspace/nordic-wifi-memfault/usage.txt
+          name: release-${{ matrix.config.artifact_suffix }}
+          path: app-workspace/nordic-wifi-memfault/stage-${{ matrix.config.artifact_suffix }}/
 
   static-analysis:
     runs-on: ubuntu-22.04
@@ -300,7 +300,7 @@ jobs:
         with:
           pattern: release-*
           path: release/
-          merge-multiple: true
+          merge-multiple: false
 
       - name: Generate release notes
         id: release-notes
@@ -317,30 +317,42 @@ jobs:
       - name: Prepare release body
         run: |
           read_usage() {
-            grep "^${2}=" "release/usage.txt" 2>/dev/null | cut -d= -f2- || echo "n/a"
+            local dir="$1"
+            local key="$2"
+            grep "^${key}=" "release/${dir}/usage.txt" 2>/dev/null | cut -d= -f2-
           }
+
           VER="${{ steps.ver.outputs.VERSION }}"
+          REPO="${{ github.server_url }}/${{ github.repository }}"
+          DL_BASE="${REPO}/releases/download/${VER}"
+
+          NRF7002DK_ROM="$(read_usage "release-nrf7002dk" ROM_USAGE)"
+          NRF7002DK_RAM="$(read_usage "release-nrf7002dk" RAM_USAGE)"
+
+          : "${NRF7002DK_ROM:=n/a}"
+          : "${NRF7002DK_RAM:=n/a}"
 
           cat > /tmp/release-body.txt <<EOF
-          ## nordic-wifi-memfault Release ${VER}
+          ## Nordic Wi-Fi Memfault Release ${VER}
 
-          > Built with NCS ${{ env.NCS_VERSION }} on the \`ncs264\` branch. CI targets nRF7002DK only — nRF54LM20DK + nRF7002EB II is not actively maintained and is no longer built here.
+          > Built with NCS ${{ env.NCS_VERSION }} on the \`ncs264\` branch — version format is \`v<ncs-version>.<build>\` (e.g. \`v2.6.4.0\`), where the major/minor/patch matches the NCS version this firmware is based on. CI targets nRF7002DK only — nRF54LM20DK + nRF7002EB II is not actively maintained and is no longer built here.
 
-          ### Firmware Files
+          ### 📦 Firmware Files
 
-          This release ships **3 files** for nRF7002DK, built with the Nord project's Memfault key.
+          | Board | Flash image | OTA image | Symbol file | ROM Usage | RAM Usage |
+          |-------|-------------|-----------|-------------|-----------|-----------|
+          | nRF7002DK | [nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.hex) | [.signed.bin](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.signed.bin) | [.elf](${DL_BASE}/nordic-wifi-memfault-nrf7002dk-nord-project-${VER}.elf) | ${NRF7002DK_ROM} | ${NRF7002DK_RAM} |
 
-          | File suffix | Purpose | How to use |
-          |---|---|---|
-          | \`*_nrf7002dk_zephyr.elf\` | Debug symbol file | Upload to **Memfault → Fleet → Symbol Files** to decode stack traces and coredumps |
-          | \`*_nrf7002dk_zephyr.signed.bin\` | OTA update image | Upload to **Memfault → Software → OTA Releases** to deploy over-the-air via MCUboot |
-          | \`*_nrf7002dk_full.hex\` | Full board image (CPUAPP + CPUNET) | \`nrfutil device program --firmware *_nrf7002dk_full.hex --core All --erase-all\` |
+          **File types:**
+          - \`.hex\` — Full board image for initial provisioning via \`nrfutil device program\`
+          - \`.signed.bin\` — OTA image for Memfault over-the-air update via MCUboot
+          - \`.elf\` — Symbol file for Memfault crash decoding and coredump analysis
 
           > Terraforma-project builds are not yet available on the \`ncs264\` branch — see [nordic-wifi-memfault-terraforma](https://github.com/chshzh/nordic-wifi-memfault-terraforma) for the (currently NCS v3.x-only) Terraforma release flow.
 
-          See the [Evaluator Quick Start](https://github.com/chshzh/nordic-wifi-memfault/blob/ncs264/README.md#evaluator-quick-start) for flashing and provisioning steps.
+          For flashing and connection instructions, see the [Evaluator Quick Start guide](https://github.com/chshzh/nordic-wifi-memfault/blob/ncs264/README.md#evaluator-quick-start) in the README.
 
-          ### Changes Since Last Release
+          ### 📝 Changes Since Last Release
 
           EOF
           cat /tmp/changelog.txt >> /tmp/release-body.txt
@@ -348,13 +360,15 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "nordic-wifi-memfault ${{ steps.ver.outputs.VERSION }} (ncs264)"
+          name: "Nordic Wi-Fi Memfault ${{ steps.ver.outputs.VERSION }}"
           tag_name: ${{ steps.ver.outputs.VERSION }}
           body_path: /tmp/release-body.txt
           generate_release_notes: false
           files: |
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.elf
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_zephyr.signed.bin
-            release/nord_project_${{ steps.ver.outputs.VERSION }}_nrf7002dk_full.hex
+            release/**/*.elf
+            release/**/*.bin
+            release/**/*.hex
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
