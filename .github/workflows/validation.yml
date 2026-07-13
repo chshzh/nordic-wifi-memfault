@@ -24,7 +24,8 @@ env:
 jobs:
   build-and-test:
     runs-on: ubuntu-24.04
-    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:${{ env.NCS_VERSION }}
+    # container: does not support the `env` context (only github/inputs/matrix/needs/strategy/vars) — hardcode here.
+    container: ghcr.io/nrfconnect/sdk-nrf-toolchain:v2.6.4
     defaults:
       run:
         shell: bash
