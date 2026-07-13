@@ -105,10 +105,17 @@ jobs:
       - name: Install west Python requirements
         working-directory: app-workspace
         run: |
-          if [ -f nrf/scripts/requirements.txt ]; then
-            pip3 install --user -r nrf/scripts/requirements.txt
+          # requirements-fixed.txt is NCS's own pip-compile-locked superset of
+          # zephyr + nrf + mcuboot requirements (used to build Nordic's official
+          # toolchain Docker image) — covers packages individual requirements
+          # files miss when combined manually (e.g. click, needed by imgtool).
+          if [ -f nrf/scripts/requirements-fixed.txt ]; then
+            pip3 install --user -r nrf/scripts/requirements-fixed.txt
           else
             pip3 install --user -r zephyr/scripts/requirements.txt
+            if [ -f nrf/scripts/requirements.txt ]; then
+              pip3 install --user -r nrf/scripts/requirements.txt
+            fi
           fi
           pip3 install --user intelhex
 
