@@ -63,13 +63,37 @@ jobs:
 
       - name: Ensure west CLI is available
         run: |
+          echo "PATH=$PATH"
+          for c in west python3 python pip3 pip; do
+            if command -v "$c" >/dev/null 2>&1; then
+              echo "$c -> $(command -v "$c")"
+            else
+              echo "$c -> not found"
+            fi
+          done
+
           if command -v west >/dev/null 2>&1; then
-            echo "west already on PATH: $(command -v west)"
-          else
-            echo "west not found on PATH in this toolchain image — installing via pip"
-            pip3 install --user -U west
-            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+            echo "west already on PATH"
+            exit 0
           fi
+
+          echo "west not found on PATH in this toolchain image — installing via python's pip module"
+          if command -v python3 >/dev/null 2>&1; then
+            PY=python3
+          elif command -v python >/dev/null 2>&1; then
+            PY=python
+          else
+            echo "::error::No python interpreter found in this container — cannot install west"
+            echo "Searching filesystem for west/python binaries (diagnostic):"
+            find / -xdev -maxdepth 6 \( -iname 'west' -o -iname 'python3*' \) -type f 2>/dev/null | head -50
+            exit 1
+          fi
+
+          "$PY" -m ensurepip --user >/dev/null 2>&1 || true
+          "$PY" -m pip install --user -U west
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          west --version
 
       - name: Prepare west workspace
         working-directory: app-workspace
