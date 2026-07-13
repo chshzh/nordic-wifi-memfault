@@ -102,12 +102,14 @@ jobs:
       - name: Install west Python requirements
         working-directory: app-workspace
         run: |
-          # Combine zephyr + nrf + mcuboot requirements with flexible version
-          # specifiers. nrf/scripts/requirements-fixed.txt (NCS's pip-compile
-          # lock) is more complete but hard-pins packages for Python 3.9 and
-          # fails to build on this runner's Python 3.12 (e.g. editdistance's
-          # old sdist doesn't build under 3.12) — use the flexible files instead.
-          pip3 install --user -r zephyr/scripts/requirements.txt
+          # Use zephyr's requirements-base.txt, NOT the full requirements.txt.
+          # requirements.txt pulls in requirements-extras.txt, which installs
+          # a newer protobuf/grpcio-tools that shadows the Zephyr SDK's bundled
+          # nanopb generator (used by wifi_prov_over_ble/CDR modules), causing:
+          #   AttributeError: module 'google.protobuf.reflection' has no attribute 'MakeClass'
+          # base.txt has everything actually needed to build (pyelftools,
+          # pyyaml, west, etc.) without pulling in the conflicting packages.
+          pip3 install --user -r zephyr/scripts/requirements-base.txt
           if [ -f nrf/scripts/requirements.txt ]; then
             pip3 install --user -r nrf/scripts/requirements.txt
           fi
@@ -115,6 +117,11 @@ jobs:
             pip3 install --user -r bootloader/mcuboot/scripts/requirements.txt
           fi
           pip3 install --user intelhex
+          # Pinned to match the version bundled with the NCS v2.6.4 toolchain
+          # (confirmed compatible with the vendored nanopb generator used by
+          # wifi_prov_over_ble/CDR modules) — a newer, unpinned protobuf
+          # removes the 'MakeClass' API the generated _pb2.py files expect.
+          pip3 install --user protobuf==4.24.3
 
       - name: Extract version from tag
         id: ver
