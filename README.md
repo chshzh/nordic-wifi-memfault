@@ -234,9 +234,9 @@ west flash -d build_nrf54lm20dk
 
 - **Project focus is nRF7002DK** — nRF54LM20DK + nRF7002EB II support is no longer actively maintained. It builds and the code paths remain in the repo, but changes are not routinely re-verified on that board; treat it as best-effort/reference only.
 - **Single-core BLE + Wi-Fi (nRF54LM20DK, not actively maintained)** — the nRF54LM20A has no network core. Both the BLE SoftDevice Controller and the nRF70 Wi-Fi driver run on the application core; during BLE provisioning both stacks share the BT RX workqueue thread (`CONFIG_BT_RX_STACK_SIZE=22000`, set by `wifi_prov_over_ble` module defaults).
-- **Board differences** — see [docs/dev-specs/1-architecture.md](docs/dev-specs/1-architecture.md) and [docs/dev-specs/2-dts-partition.md](docs/dev-specs/2-dts-partition.md) for the full nRF7002DK vs. nRF54LM20DK comparison (SoC, BLE host, flash/RRAM layout, UART routing).
+- **Board differences** — see [docs/dev-specs/1-architecture.md](docs/dev-specs/1-architecture.md) and [docs/dev-specs/2-pm-partition.md](docs/dev-specs/2-pm-partition.md) for the full nRF7002DK vs. nRF54LM20DK comparison (SoC, BLE host, flash/RRAM layout, UART routing).
 - **Default runtime state** — with no Wi-Fi credentials stored, the device advertises as `PV<MAC>` for BLE provisioning on every boot; once credentials exist, it reconnects automatically and BLE provisioning remains available for re-provisioning.
-- **Flash/RRAM partition layout** — see [docs/dev-specs/2-dts-partition.md](docs/dev-specs/2-dts-partition.md); this project stays on the legacy Zephyr Partition Manager (`pm_static_<board>.yml`), not DTS fixed-partitions (NCS v3.3+).
+- **Flash/RRAM partition layout** — see [docs/dev-specs/2-pm-partition.md](docs/dev-specs/2-pm-partition.md); this project stays on the legacy Zephyr Partition Manager (`pm_static_<board>.yml`), not DTS fixed-partitions (NCS v3.3+).
 - **Memfault symbol files** — upload the matching `zephyr.elf` (from your own build, or the release's `*_zephyr.elf`) under **Fleet → Symbol Files** so the dashboard can decode stack traces and coredumps. Without it, coredumps and OTA-related crash traces won't symbolicate.
 - **Log interpretation** — the boot banner prints board name, firmware version (`CONFIG_MEMFAULT_NCS_FW_VERSION`), build date/time, MAC address, and the list of enabled modules — useful for confirming which optional features (HTTPS/MQTT clients, nRF70 CDR) are compiled in.
 - **Metrics reference** — key Memfault metrics: `wifi_rssi`, `wifi_sta_*` (channel/beacon/DTIM/TWT), `wifi_ap_oui_vendor`, `ncs_system_heap_*`, `ncs_mbedtls_heap_*`, `stack_free_*`, `app_https_req_total_count`/`app_https_req_fail_count`, `app_mqtt_echo_total_count`/`app_mqtt_echo_fail_count` — see [docs/dev-specs/app-memfault-module.md](docs/dev-specs/app-memfault-module.md), [docs/dev-specs/heap-monitor-module.md](docs/dev-specs/heap-monitor-module.md).
@@ -253,7 +253,7 @@ The full design documentation lives under `docs/`. Start with [docs/dev-specs/0-
 | [docs/pm-prd/PRD.md](docs/pm-prd/PRD.md) | Product Requirements — user perspective features, behavior, acceptance criteria, changelog |
 | [docs/dev-specs/0-overview.md](docs/dev-specs/0-overview.md) | **Start here** — technical spec index, PRD-to-spec mapping, architecture summary, design decisions |
 | [docs/dev-specs/1-architecture.md](docs/dev-specs/1-architecture.md) | System architecture — module map, Zbus channels, boot sequence, memory budget |
-| [docs/dev-specs/2-dts-partition.md](docs/dev-specs/2-dts-partition.md) | Flash/RRAM partition layout per board (legacy Partition Manager) |
+| [docs/dev-specs/2-pm-partition.md](docs/dev-specs/2-pm-partition.md) | Flash/RRAM partition layout per board (legacy Partition Manager) |
 | [docs/dev-specs/3-memopt.md](docs/dev-specs/3-memopt.md) | Memory optimization — stack watermarks, heap budget, headroom |
 | [docs/dev-specs/button-module.md](docs/dev-specs/button-module.md) | Button SMF state machine, press actions |
 | [docs/dev-specs/network-module.md](docs/dev-specs/network-module.md) | Wi-Fi STA connectivity, L2/L3 event management |

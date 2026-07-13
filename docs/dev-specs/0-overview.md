@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-13-11-08 |
-| PRD Version | 2026-07-13-11-07 |
+| Version | 2026-07-13-13-31 |
+| PRD Version | 2026-07-13-12-22 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
 | Status | Implemented |
@@ -21,6 +21,8 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-07-13-11-08 | Migrated from `pm/openspec/specs/*.md` and reverse-designed against current `src/` on the `ncs264` branch (NCS v2.6.4, dual-board, `network` module replacing `wifi` module, `heap_monitor` added) |
+| 2026-07-13-12-22 | Updated to PRD v2026-07-13-12-22: added FR-102/FR-103 (log-state and nRF70 CDR persist/restore across power cycle, ported from `nordic-wifi-memfault-main`'s FR-007/FR-008) to `app-memfault-module.md` and `2-pm-partition.md`. Design only — not yet implemented. |
+| 2026-07-13-13-31 | FR-102/FR-103 implemented and build-verified on nRF7002DK (FLASH 90.26%, RAM 98.75%). See `app-memfault-module.md` and `2-pm-partition.md` changelogs for implementation details and the FR-102 design deviation (drain-and-replay vs. raw ring-buffer copy). |
 
 ---
 
@@ -38,12 +40,12 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 | Spec file | Covers | PRD sections |
 |-----------|--------|--------------|
 | [1-architecture.md](1-architecture.md) | System overview, module map, Zbus channels, boot sequence, memory budget | All |
-| [2-dts-partition.md](2-dts-partition.md) | Flash partition layout per board (legacy Partition Manager, NCS v2.6.4) | FR-006, NFR flash/OTA |
+| [2-pm-partition.md](2-pm-partition.md) | Flash partition layout per board (legacy Partition Manager, NCS v2.6.4) | FR-006, NFR flash/OTA |
 | [3-memopt.md](3-memopt.md) | Memory optimization — stack watermarks, heap budget, headroom | NFR memory |
 | [button-module.md](button-module.md) | Button SMF state machine, press actions | FR-003, FR-004 |
 | [network-module.md](network-module.md) | Wi-Fi STA connectivity, L2/L3 event management, SoftAP groundwork | FR-001, FR-006 |
 | [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) | Wi-Fi credential provisioning via BLE | FR-001 |
-| [app-memfault-module.md](app-memfault-module.md) | Memfault core (upload/DNS-wait), metrics, OTA triggers, nRF70 stats CDR | FR-002, FR-003, FR-004, FR-101 |
+| [app-memfault-module.md](app-memfault-module.md) | Memfault core (upload/DNS-wait), metrics, OTA triggers, nRF70 stats CDR, log-state/CDR persist-restore | FR-002, FR-003, FR-004, FR-101, FR-102, FR-103 |
 | [app-https-client-module.md](app-https-client-module.md) | Always-on periodic HTTPS client | FR-005 |
 | [app-mqtt-client-module.md](app-mqtt-client-module.md) | Always-on TLS MQTT echo client | FR-005 |
 | [heap-monitor-module.md](heap-monitor-module.md) | System/mbedTLS heap tracking, Memfault heap metrics | FR-007 |
@@ -76,9 +78,11 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 | FR-003 Button 1 heartbeat / stack-overflow demo | button-module.md, app-memfault-module.md | Specified |
 | FR-004 Button 2 OTA / division-by-zero demo | button-module.md, app-memfault-module.md | Specified |
 | FR-005 Always-on HTTPS/MQTT clients | app-https-client-module.md, app-mqtt-client-module.md | Specified |
-| FR-006 Dual-board support | 1-architecture.md, 2-dts-partition.md | Specified |
+| FR-006 Dual-board support | 1-architecture.md, 2-pm-partition.md | Specified |
 | FR-007 Heap monitor → Memfault metrics | heap-monitor-module.md | Specified |
 | FR-101 nRF70 stats CDR | app-memfault-module.md | Specified |
+| FR-102 Log-state persist/restore across power cycle | app-memfault-module.md, 2-pm-partition.md | Implemented |
+| FR-103 nRF70 CDR persist/restore across power cycle | app-memfault-module.md, 2-pm-partition.md | Implemented |
 | FR-201 SoftAP/P2P (P2, not implemented) | — | Out of scope (see PRD §8) |
 
 ---
@@ -91,7 +95,7 @@ network        ──Zbus(WIFI_CHAN)──▶  app_memfault (ota_triggers)
 network        ──Zbus(WIFI_CHAN)──▶  app_wifi_prov_over_ble
 network        ──Zbus(WIFI_CHAN)──▶  app_https_client
 network        ──Zbus(WIFI_CHAN)──▶  app_mqtt_client
-network        ──Zbus(NETWORK_CHAN)─▶ (reserved, no subscribers yet)
+network        ──Zbus(NETWORK_CHAN)─▶ app_memfault (core) [planned, FR-102/FR-103]
 button         ──Zbus(BUTTON_CHAN)──▶ app_memfault (core)
 button         ──Zbus(BUTTON_CHAN)──▶ app_memfault (ota_triggers)
 heap_monitor   ──direct call────────▶ Memfault metrics API (no Zbus)
@@ -105,8 +109,9 @@ heap_monitor   ──direct call────────▶ Memfault metrics API
 
 | # | Description | Owner | Target |
 |---|-------------|-------|--------|
-| 1 | `NETWORK_CHAN` has no subscribers yet — reserved for future IP-layer-readiness consumers | — | — |
+| 1 | `NETWORK_CHAN` currently has no subscribers — `app_memfault` will become its first subscriber once FR-102/FR-103 (log-state/CDR persist-restore) are implemented | — | Phase 3 (FR-102/FR-103) |
 | 2 | SoftAP/P2P Kconfig and event-handler scaffolding present in `network` module but unused; decide whether to finish or remove | — | — |
 | 3 | 24-hour soak test and full ZView-based memory measurement pass not yet run on either board (see [3-memopt.md](3-memopt.md)) | — | Next hardware validation pass |
+| 4 | FR-102/FR-103 design ports `nordic-wifi-memfault-main`'s log-state/CDR restore feature; must verify the bundled NCS v2.6.4 Memfault SDK exposes `memfault_log_get_state()`/`MEMFAULT_LOG_RESTORE_STATE` before implementation (see app-memfault-module.md Open Issues) | — | Phase 3 (FR-102/FR-103) |
 
 *(Changelog is maintained at the top of this document.)*
