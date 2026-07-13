@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault (Memfault Wi-Fi Observability Sample) |
-| Version | 2026-07-13-11-07 |
+| Version | 2026-07-13-12-22 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
 | Status | Implemented |
@@ -23,6 +23,7 @@
 | 2026-02-06-00-00 | Initial draft (legacy `pm/PRD.md`, single-board nRF7002DK, wifi/button module split) |
 | 2026-03-03-00-00 | Refactoring pass — SMF+Zbus modular architecture, HTTPS/MQTT clients always-on, WiFi provisioning over BLE |
 | 2026-07-13-11-07 | Migrated from `pm/PRD.md` to `docs/pm-prd/PRD.md` (new template) and synced to current `src/` on the `ncs264` branch: dual-board support (nRF7002DK + nRF54LM20DK+nRF7002EB II), `wifi` module renamed/split into `network` module (net event mgmt + wifi utils), new `heap_monitor` module, port from NCS v3.2.4 → v2.6.4 (legacy Partition Manager, sysbuild `--sysbuild` flag required, underscore board targets) |
+| 2026-07-13-12-22 | Added FR-102 and FR-103 (P1) — ported from `nordic-wifi-memfault-main`'s FR-007/FR-008: disconnect-time log-state and nRF70 CDR persistence across a power cycle, restored and uploaded to Memfault on the next Wi-Fi reconnect. Not yet implemented on this branch — Phase 2 spec + Phase 3 coding required. |
 
 ---
 
@@ -142,6 +143,8 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 | ID | As a… | I want to… | So that… | Acceptance Criteria | Engineering Spec |
 |---|---|---|---|---|---|
 | FR-101 | developer | have nRF70 Wi-Fi firmware PHY/LMAC/UMAC statistics uploaded to Memfault as CDR | I can diagnose Wi-Fi link-quality issues remotely | - Triggered by Button 1 short press (bundled with heartbeat)<br>- Limited to 1 upload per device per 24 h (Memfault CDR limit)<br>- Data parseable with `script/nrf70_fw_stats_parser.py` | [app-memfault-module.md](../dev-specs/app-memfault-module.md) |
+| FR-102 | developer | have disconnect-time log diagnostics survive a power cycle and appear in the Memfault platform after the device reconnects | I can root-cause field connectivity failures without physical access to the device | - On Wi-Fi disconnect / network-not-ready, the current Memfault ring-buffer log state is saved exactly once to a dedicated partition on the external SPI NOR flash (persist-once guard prevents duplicate saves when multiple network layers fire)<br>- On the next Wi-Fi reconnect, the saved state is restored into the live Memfault log ring buffer and uploaded to the dashboard, then erased from external flash<br>- A visible separator line marks the boundary between restored and live log content in the Memfault cloud log view<br>- If the saved blob size doesn't match the live ring-buffer size (e.g. after a firmware update), it is discarded with no crash<br>- Feature is Kconfig-gated (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`); ported from `nordic-wifi-memfault-main` FR-007, not yet implemented on this branch | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [2-dts-partition.md](../dev-specs/2-dts-partition.md) |
+| FR-103 | developer | have disconnect-time nRF70 Wi-Fi firmware statistics (CDR) survive a power cycle and be uploaded to Memfault after the device reconnects | I can diagnose Wi-Fi radio/LMAC/UMAC state at the moment of disconnection without physical access to the device | - A short time after Wi-Fi disconnect / network-not-ready, firmware collects fresh nRF70 firmware statistics and saves the raw CDR blob to a dedicated partition on the external SPI NOR flash<br>- On the next Wi-Fi reconnect, the blob is restored so the existing CDR upload path (FR-101) picks it up and uploads it to Memfault, then the partition is erased<br>- Oversized blobs are discarded with a warning, no crash<br>- Feature is Kconfig-gated (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`), depends on `CONFIG_NRF70_FW_STATS_CDR_ENABLED`; ported from `nordic-wifi-memfault-main` FR-008, not yet implemented on this branch | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [2-dts-partition.md](../dev-specs/2-dts-partition.md) |
 
 ### P2 — Nice to Have
 
