@@ -32,7 +32,24 @@
 LOG_MODULE_REGISTER(wifi_prov_over_ble, CONFIG_WIFI_PROV_OVER_BLE_LOG_LEVEL);
 
 #define WIFI_RECONNECT_DELAY_SEC 5
-#define WIFI_RECONNECT_RETRY_SEC 180
+
+/* Capped exponential backoff for the WiFi reconnect fallback retry, mirroring
+ * the MQTT reconnect backoff pattern used elsewhere in this app.
+ * Retries 1-3: 5 s quick retries (transient AP reboot/short outage).
+ * Retry 4+:    30 s -> 60 s -> 120 s -> 300 s cap (persistent failures).
+ */
+#define WIFI_RECONNECT_BACKOFF_BASE_SEC 30U
+#define WIFI_RECONNECT_BACKOFF_MAX_SEC  300U
+
+static uint32_t wifi_reconnect_backoff_sec(int retry_count)
+{
+	if (retry_count <= 3) {
+		return WIFI_RECONNECT_DELAY_SEC;
+	}
+	uint32_t b = WIFI_RECONNECT_BACKOFF_BASE_SEC << (uint32_t)(retry_count - 4);
+
+	return MIN(b, WIFI_RECONNECT_BACKOFF_MAX_SEC);
+}
 
 #ifdef CONFIG_WIFI_PROV_ADV_DATA_UPDATE
 #define ADV_DATA_UPDATE_INTERVAL CONFIG_WIFI_PROV_ADV_DATA_UPDATE_INTERVAL
@@ -66,6 +83,7 @@ static struct k_work_delayable wifi_connect_work;
 static bool wifi_connect_requested = false;
 static struct bt_conn *current_conn = NULL;
 static bool wifi_reconnect_pending = false;
+static int wifi_reconnect_retry_count = 0;
 static struct net_mgmt_event_callback wifi_mgmt_cb;
 static bool connection_requested_after_provisioning = false;
 static bool credentials_existed_at_boot = false;
@@ -132,6 +150,7 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint32_t
 		}
 		if (!wifi_reconnect_pending) {
 			wifi_reconnect_pending = true;
+			wifi_reconnect_retry_count = 0;
 			k_work_reschedule_for_queue(&adv_daemon_work_q, &wifi_connect_work,
 						    K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
 			LOG_INF("WiFi disconnected, scheduling reconnect");
@@ -140,6 +159,7 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint32_t
 	}
 	case NET_EVENT_WIFI_CONNECT_RESULT:
 		wifi_reconnect_pending = false;
+		wifi_reconnect_retry_count = 0;
 		k_work_cancel_delayable(&wifi_connect_work);
 		break;
 	default:
@@ -160,11 +180,13 @@ static void wifi_connect_work_handler(struct k_work *work)
 
 	if (wifi_is_connected) {
 		wifi_reconnect_pending = false;
+		wifi_reconnect_retry_count = 0;
 		return;
 	}
 	if (wifi_credentials_is_empty()) {
 		LOG_WRN("No stored WiFi credentials, skipping reconnect");
 		wifi_reconnect_pending = false;
+		wifi_reconnect_retry_count = 0;
 		return;
 	}
 	/*
@@ -202,10 +224,12 @@ static void wifi_connect_work_handler(struct k_work *work)
 		}
 	}
 	if (reconnect_cycle_active) {
+		wifi_reconnect_retry_count++;
+		uint32_t delay = wifi_reconnect_backoff_sec(wifi_reconnect_retry_count);
+
 		k_work_reschedule_for_queue(&adv_daemon_work_q, &wifi_connect_work,
-					    K_SECONDS(WIFI_RECONNECT_RETRY_SEC));
-		LOG_INF("WiFi still disconnected, retrying in %d seconds",
-			WIFI_RECONNECT_RETRY_SEC);
+					    K_SECONDS(delay));
+		LOG_INF("WiFi still disconnected, retrying in %u seconds", delay);
 	}
 }
 
