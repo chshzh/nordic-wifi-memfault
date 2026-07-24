@@ -51,6 +51,34 @@ LOG_MODULE_REGISTER(memfault_core, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 static K_SEM_DEFINE(upload_sem, 0, 1);
 static volatile bool wifi_connected;
 
+#if CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC > 0
+/* Testing/debugging aid: the Memfault SDK version bundled with NCS v2.6.4 has
+ * a fixed 3600 s metrics heartbeat interval (no MEMFAULT_METRICS_HEARTBEAT_
+ * INTERVAL_SECS Kconfig to shorten it), and log entries are never uploaded at
+ * all unless something calls memfault_log_trigger_collection() -- normally
+ * only done here after a disconnect/reconnect restore. When enabled, this
+ * periodically forces an immediate heartbeat + marks accumulated logs for
+ * collection + uploads both, so metrics AND logs show up on the Memfault
+ * dashboard without needing an hour to pass or a disconnect to happen.
+ * Disabled (0) by default; leave disabled for production builds.
+ */
+static void heartbeat_force_work_fn(struct k_work *work);
+
+static K_WORK_DELAYABLE_DEFINE(heartbeat_force_work, heartbeat_force_work_fn);
+
+static void heartbeat_force_work_fn(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	if (wifi_connected) {
+		memfault_metrics_heartbeat_debug_trigger();
+		memfault_log_trigger_collection();
+		memfault_zephyr_port_post_data();
+	}
+	k_work_schedule(&heartbeat_force_work,
+			K_SECONDS(CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC));
+}
+#endif /* CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC > 0 */
+
 #if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE || CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
 /* Delay log/CDR persist after disconnect so post-disconnect logs are captured */
 #define LOG_FREEZE_DELAY_SEC 10
@@ -230,10 +258,17 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 		log_freeze_scheduled = false;
 		k_work_cancel_delayable(&log_freeze_work);
 #endif
+#if CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC > 0
+		k_work_schedule(&heartbeat_force_work,
+				K_SECONDS(CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC));
+#endif
 		k_sem_give(&upload_sem);
 		break;
 	case WIFI_STA_DISCONNECTED:
 		wifi_connected = false;
+#if CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC > 0
+		k_work_cancel_delayable(&heartbeat_force_work);
+#endif
 #if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE || CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
 		if (network_ever_connected && !log_freeze_scheduled) {
 			log_freeze_scheduled = true;

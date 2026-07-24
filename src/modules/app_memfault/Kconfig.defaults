@@ -27,6 +27,9 @@ config MEMFAULT_OTA_CONNECT_DELAY_SEC
 config MEMFAULT_OTA_THREAD_STACK_SIZE
 	default 4096 if APP_MEMFAULT_MODULE
 
+config APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC
+	default 0 if APP_MEMFAULT_MODULE
+
 # ---------------------------------------------------------------------------
 # Memfault SDK logging
 # ---------------------------------------------------------------------------
