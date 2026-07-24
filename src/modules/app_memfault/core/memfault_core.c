@@ -20,6 +20,8 @@
 #include "../cdr/nrf70_fw_stats_cdr.h"
 #endif
 
+#include <errno.h>
+
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/zbus/zbus.h>
@@ -103,7 +105,7 @@ static void log_freeze_work_fn(struct k_work *work)
 #if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE
 	int err = memfault_log_state_persist_now();
 
-	if (err) {
+	if (err && (err != -EALREADY)) {
 		LOG_WRN("Memfault log-state persist failed: %d", err);
 	}
 #endif

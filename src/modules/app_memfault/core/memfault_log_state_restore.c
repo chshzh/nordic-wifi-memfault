@@ -104,6 +104,30 @@ int memfault_log_state_persist_now(void)
 	uint16_t entry_count = 0;
 	int err;
 
+	/* Guard against clobbering a still-unrestored blob from an earlier
+	 * disconnect: on a flapping AP, the device can disconnect again before
+	 * memfault_log_state_restore_on_connect() ever runs (restore only
+	 * happens after a full, DNS-ready reconnect). Since this is a single
+	 * flash partition (not a queue), persisting again here would silently
+	 * overwrite -- and permanently lose -- the previous disconnect's log
+	 * trail. The existing blob is kept until it is actually restored.
+	 */
+	err = flash_area_open(LOG_STATE_FA_ID, &fa);
+	if (err == 0) {
+		struct log_state_hdr existing_hdr;
+		int read_err = flash_area_read(fa, 0, &existing_hdr, sizeof(existing_hdr));
+
+		flash_area_close(fa);
+
+		if ((read_err == 0) && (existing_hdr.magic == LOG_STATE_MAGIC) &&
+		    (existing_hdr.version == LOG_STATE_VER) && (existing_hdr.entry_count > 0u)) {
+			LOG_WRN("Unrestored log-state already present in flash (%u entries) -- "
+				"skipping persist to avoid losing it",
+				existing_hdr.entry_count);
+			return -EALREADY;
+		}
+	}
+
 	LOG_INF("Draining Memfault log ring buffer for disconnect-time persist...");
 
 	uint32_t total_read = 0;
