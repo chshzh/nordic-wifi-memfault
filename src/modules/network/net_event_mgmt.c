@@ -77,6 +77,58 @@ K_SEM_DEFINE(ipv4_dhcp_bond_sem, 0, 1);
 
 /* Track network connectivity state (WiFi connected + IP assigned) */
 static bool network_connected;
+
+#if CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC > 0
+/* L3 connectivity watchdog: NET_EVENT_WIFI_CONNECT_RESULT success only means
+ * the link is up at L2 (802.11 association) -- it does NOT mean an IP was
+ * obtained. Without this, a STA that associates but never gets a DHCP lease
+ * (or whose lease is later lost while the link stays associated) sits
+ * "associated, no IP" forever, since nothing else re-triggers a reconnect.
+ * Armed on L2 connect success and on lease loss (ADDR_DEL); cancelled on
+ * DHCP_BOUND and on DISCONNECT_RESULT. On expiry it issues
+ * NET_REQUEST_WIFI_DISCONNECT, which produces a DISCONNECT_RESULT that
+ * re-arms whichever module owns STA reconnect (wifi_prov_over_ble).
+ */
+static void l3_dhcp_watchdog_handler(struct k_work *work);
+
+static K_WORK_DELAYABLE_DEFINE(l3_dhcp_watchdog_work, l3_dhcp_watchdog_handler);
+
+static void l3_dhcp_watchdog_handler(struct k_work *work)
+{
+	struct net_if *iface = net_if_get_default();
+
+	if (network_connected || iface == NULL) {
+		return;
+	}
+
+	LOG_WRN("L3 watchdog: associated but no IP after %d s - forcing reconnect",
+		CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC);
+
+	int rc = net_mgmt(NET_REQUEST_WIFI_DISCONNECT, iface, NULL, 0);
+
+	if (rc) {
+		LOG_ERR("L3 watchdog: NET_REQUEST_WIFI_DISCONNECT failed (%d)", rc);
+	}
+}
+
+static void l3_dhcp_watchdog_arm(void)
+{
+	k_work_reschedule(&l3_dhcp_watchdog_work, K_SECONDS(CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC));
+}
+
+static void l3_dhcp_watchdog_cancel(void)
+{
+	k_work_cancel_delayable(&l3_dhcp_watchdog_work);
+}
+#else
+static inline void l3_dhcp_watchdog_arm(void)
+{
+}
+static inline void l3_dhcp_watchdog_cancel(void)
+{
+}
+#endif /* CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC > 0 */
+
 /* Function declarations */
 
 /* Declare the callback structures for Wi-Fi and network events */
@@ -306,6 +358,10 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb, uint3
 			LOG_INF("[WiFi] WiFi is connected!");
 			/* Print detailed WiFi status when connected */
 			wifi_print_status();
+			/* Associated at L2 - arm the watchdog; it is cancelled when
+			 * DHCP binds.
+			 */
+			l3_dhcp_watchdog_arm();
 		} else {
 			/* Decode common error codes */
 			switch (status->status) {
@@ -404,6 +460,10 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb, uint3
 			LOG_WRN("[WiFi] WiFi disconnected: status=NULL");
 		}
 
+		/* Link is down - stand the watchdog down so it does not
+		 * double-trigger against the reconnect path taking over.
+		 */
+		l3_dhcp_watchdog_cancel();
 		network_connected = false;
 		publish_wifi_event(WIFI_STA_DISCONNECTED, status ? status->status : -1);
 		publish_network_ready(false);
@@ -450,6 +510,7 @@ static void l3_ipv4_event_handler(struct net_mgmt_event_callback *cb, uint32_t m
 
 	case NET_EVENT_IPV4_DHCP_BOUND:
 		LOG_INF("[DHCP] DHCP bound - IP address assigned");
+		l3_dhcp_watchdog_cancel();
 		network_connected = true;
 		/* Print IP address information */
 		wifi_print_dhcp_ip(iface, cb);
@@ -473,6 +534,13 @@ static void l3_ipv4_event_handler(struct net_mgmt_event_callback *cb, uint32_t m
 		LOG_WRN("[IPv4] IP address removed from interface");
 		network_connected = false;
 		publish_network_ready(false);
+		/* Lease lost while the link may still be associated - re-arm the
+		 * watchdog to escape a "have link, no IP" zombie. Harmless if the
+		 * link is actually down too: DISCONNECT_RESULT will cancel it, or
+		 * on expiry NET_REQUEST_WIFI_DISCONNECT is a no-op when already
+		 * disconnected.
+		 */
+		l3_dhcp_watchdog_arm();
 		break;
 
 	default:

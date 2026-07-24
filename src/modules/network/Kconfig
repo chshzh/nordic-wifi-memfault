@@ -20,6 +20,26 @@ config WIFI_MODULE_INIT_PRIORITY
 	  Set the initialization priority for the WiFi module.
 	  Must be high enough to ensure network stack is ready.
 
+config WIFI_MODULE_STA_DHCP_TIMEOUT_SEC
+	int "STA: DHCP-bound watchdog timeout (s, 0 = disabled)"
+	default 30
+	range 0 300
+	help
+	  L3 connectivity watchdog for STA mode. A successful Wi-Fi association
+	  (NET_EVENT_WIFI_CONNECT_RESULT) only means the link is up at L2 -- it
+	  does NOT mean an IP was obtained. If DHCP never binds
+	  (NET_EVENT_IPV4_DHCP_BOUND) within this many seconds of association,
+	  or a bound lease is later lost while the link stays associated, the
+	  device is stuck "associated but no IP" with no usable connectivity
+	  and no event that would otherwise trigger a reconnect.
+
+	  When this timer expires the module issues NET_REQUEST_WIFI_DISCONNECT,
+	  which produces a DISCONNECT_RESULT and re-arms the normal reconnect
+	  path (wifi_prov_over_ble), breaking the device out of the
+	  half-connected state instead of waiting for a manual reset.
+
+	  Set to 0 to disable the watchdog.
+
 module = WIFI_MODULE
 module-str = wifi_module
 source "subsys/logging/Kconfig.template.log_config"
