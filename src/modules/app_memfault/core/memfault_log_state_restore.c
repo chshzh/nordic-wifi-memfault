@@ -106,6 +106,9 @@ int memfault_log_state_persist_now(void)
 
 	LOG_INF("Draining Memfault log ring buffer for disconnect-time persist...");
 
+	uint32_t total_read = 0;
+	uint32_t evicted = 0;
+
 	while (true) {
 		sMemfaultLog log = {0};
 
@@ -120,12 +123,36 @@ int memfault_log_state_persist_now(void)
 			continue;
 		}
 
+		total_read++;
+
 		size_t entry_size = sizeof(struct log_entry_hdr) + log.msg_len;
 
-		if ((offset + entry_size) > sizeof(s_log_state_blob)) {
-			LOG_WRN("Log-state blob full, stopping drain early (%u entries)",
-				entry_count);
-			break;
+		if (entry_size > sizeof(s_log_state_blob)) {
+			/* Single entry larger than the whole scratch buffer -- can
+			 * never fit, skip it rather than evicting everything for it.
+			 */
+			continue;
+		}
+
+		/* Keep the entries closest to the disconnect event: if the ring
+		 * buffer holds more unread backlog than this 4 KB budget (e.g.
+		 * because periodic Memfault uploads have been failing, so old
+		 * entries were never marked collected), evict from the front
+		 * (oldest retained entry) rather than stopping the drain -- the
+		 * disconnect-time log trail is most valuable near the disconnect
+		 * itself, not at whatever old entries happened to be queued first.
+		 */
+		while ((offset + entry_size) > sizeof(s_log_state_blob)) {
+			struct log_entry_hdr front_hdr;
+
+			memcpy(&front_hdr, &s_log_state_blob[0], sizeof(front_hdr));
+			size_t front_size = sizeof(front_hdr) + front_hdr.msg_len;
+
+			memmove(&s_log_state_blob[0], &s_log_state_blob[front_size],
+				offset - front_size);
+			offset -= front_size;
+			entry_count--;
+			evicted++;
 		}
 
 		struct log_entry_hdr ehdr = {
@@ -139,6 +166,11 @@ int memfault_log_state_persist_now(void)
 		memcpy(&s_log_state_blob[offset], log.msg, log.msg_len);
 		offset += log.msg_len;
 		entry_count++;
+	}
+
+	if (evicted > 0) {
+		LOG_WRN("Log-state blob full, kept newest %u of %u entries",
+			entry_count, total_read);
 	}
 
 	if (entry_count == 0) {
