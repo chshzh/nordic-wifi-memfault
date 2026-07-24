@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-13-11-08 |
-| PRD Version | 2026-07-13-11-07 |
+| Version | 2026-07-24-11-30 |
+| PRD Version | 2026-07-24-11-30 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
 | Status | Implemented |
@@ -21,6 +21,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-07-13-11-08 | New standalone spec — the legacy `pm/PRD.md` described this as "Module 6" inline but `pm/openspec/specs/` had no dedicated file for it. Reverse-designed from current `app_https_client.c`. |
+| 2026-07-24-11-30 | Ported a `DNS_EAI_CANCELED` retry from `nordic-wifi-memfault-main`: `getaddrinfo()` can return `DNS_EAI_CANCELED` (-101) when DHCPv4 lease renewal calls `dns_resolve_reconfigure()` and cancels in-flight DNS queries mid-flight; `send_http_request()` now waits 2 s and retries once, and the error log shows the EAI code alongside `errno` (previously `errno` alone, which is stale/misleading for DNS failures). |
 
 ---
 
@@ -133,6 +134,7 @@ by `app_https_client.c`. The module is self-starting via `K_THREAD_DEFINE`.
 | Error Condition | Detection | Response |
 |----------------|-----------|----------|
 | DNS never resolves | `check_dns_ready()` loop | Logs and retries every 10 s (bounded loop with its own timeout inside the function) |
+| DNS query canceled mid-flight | `getaddrinfo()` returns `DNS_EAI_CANCELED` (DHCPv4 lease renewal reconfigured the resolver) | Single retry after a 2 s delay in `send_http_request()`; logs both the EAI code and `errno` |
 | Cert provisioning fails | Return code from `modem_key_mgmt_write` (only relevant with `CONFIG_MODEM_KEY_MGMT`; not used on this Wi-Fi-only target) or `tls_credential_add` | Logged; request attempt still proceeds and typically fails at TLS handshake, counted as a failure |
 | Socket/connect/send/recv failure | Return codes checked at each step | `https_req_failures` incremented; `app_https_req_fail_count` Memfault metric updated |
 | Certificate too large | `BUILD_ASSERT(sizeof(cert) < KB(4), ...)` | Compile-time failure, not a runtime condition |

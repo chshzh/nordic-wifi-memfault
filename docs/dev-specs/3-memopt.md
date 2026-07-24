@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-13-11-08 |
+| Version | 2026-07-24-11-30 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
 | Method | Not yet re-measured on this branch — see Open Issues. Figures below are carried over from the pre-migration `pm/QA.md` review (NCS v3.2.4, nRF7002DK only) for continuity. |
@@ -21,6 +21,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-07-13-11-08 | Migrated from `pm/QA.md` (2026-03-03 review, NCS v3.2.4, nRF7002DK). No live measurement pass yet performed on the current NCS v2.6.4 / dual-board code — flagged as an Open Issue for `chsh-sk-ncs-3.3-memopt`. |
+| 2026-07-24-11-30 | `tcp_work` stack overflow found via a symbolicated Memfault coredump trace (issue "Assert at k_spin_unlock [Stack Overflow in tcp_work, ...]"): `CONFIG_NET_TCP_WORKQ_STACK_SIZE` was left at the Zephyr default (1024 B, never overridden in `prj.conf`); the faulting PSP was `work_q_stack+920` — within ~104 B of the top — when HTTPS/TLS and MQTT both resumed traffic concurrently right after a Wi-Fi reconnect. The overflow corrupted the adjacent `struct k_work_q tcp_work_q`'s work-item handler pointer, producing `ASSERTION FAIL [handler != ((void *)0)] @ zephyr/kernel/work.c:669` → USAGE FAULT. Fixed by setting `CONFIG_NET_TCP_WORKQ_STACK_SIZE=2048`. |
 
 ---
 
@@ -66,6 +67,7 @@ of measurement to absorb network burst spikes.
 | `app_mqtt_client` | `APP_MQTT_CLIENT_STACK_SIZE` | — | — | — | ÷0.9 | | | |
 | `rx_q` | `NET_RX_STACK_SIZE` | — | — | — | kept | 2048 | 2048 | 0 |
 | `tx_q` | `NET_TX_STACK_SIZE` | — | — | — | kept | 2048 | 2048 | 0 |
+| `tcp_work` | `NET_TCP_WORKQ_STACK_SIZE` | 920 (coredump PSP offset, not a full watermark pass) | — | crashed (USAGE FAULT, stack overflow) | doubled after crash | 2048 | 1024 | +1024 |
 
 ---
 
@@ -110,7 +112,7 @@ of measurement to absorb network burst spikes.
 
 | Kconfig | Old | New | Δ (B) | Reason |
 |---------|-----|-----|-------|--------|
-| — | — | — | — | No changes applied yet in this migration pass |
+| `CONFIG_NET_TCP_WORKQ_STACK_SIZE` | 1024 | 2048 | +1024 | `tcp_work` stack overflow diagnosed via symbolicated Memfault coredump trace (see Changelog 2026-07-24-11-30) |
 
 ---
 

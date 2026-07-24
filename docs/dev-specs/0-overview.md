@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-13-13-31 |
-| PRD Version | 2026-07-13-12-22 |
+| Version | 2026-07-24-11-30 |
+| PRD Version | 2026-07-24-11-30 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
 | Status | Implemented |
@@ -23,6 +23,7 @@
 | 2026-07-13-11-08 | Migrated from `pm/openspec/specs/*.md` and reverse-designed against current `src/` on the `ncs264` branch (NCS v2.6.4, dual-board, `network` module replacing `wifi` module, `heap_monitor` added) |
 | 2026-07-13-12-22 | Updated to PRD v2026-07-13-12-22: added FR-102/FR-103 (log-state and nRF70 CDR persist/restore across power cycle, ported from `nordic-wifi-memfault-main`'s FR-007/FR-008) to `app-memfault-module.md` and `2-pm-partition.md`. Design only — not yet implemented. |
 | 2026-07-13-13-31 | FR-102/FR-103 implemented and build-verified on nRF7002DK (FLASH 90.26%, RAM 98.75%). See `app-memfault-module.md` and `2-pm-partition.md` changelogs for implementation details and the FR-102 design deviation (drain-and-replay vs. raw ring-buffer copy). |
+| 2026-07-24-11-30 | Updated to PRD v2026-07-24-11-30 (reliability hardening pass). Cross-cutting fixes distributed across module specs — see each file's own Changelog for detail: FR-102 keep-newest eviction fix (`app-memfault-module.md`); Wi-Fi reconnect backoff + L3 DHCP-bound watchdog (`network-module.md`, `app-wifi-prov-ble-module.md`); ported DNS-reliability fixes (`app-memfault-module.md`, `app-https-client-module.md`); `tcp_work` stack-overflow fix diagnosed via a symbolicated Memfault coredump trace (`3-memopt.md`). |
 
 ---
 

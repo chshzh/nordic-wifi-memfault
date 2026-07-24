@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-13-13-31 |
-| PRD Version | 2026-07-13-12-22 |
+| Version | 2026-07-24-11-30 |
+| PRD Version | 2026-07-24-11-30 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
 | Status | Implemented |
@@ -23,6 +23,7 @@
 | 2026-07-13-11-08 | Replaces `pm/openspec/specs/memfault-integration.md`. Confirmed unchanged core upload/DNS-wait/button-action behavior in `core/memfault_core.c`. Documented NCS v2.6.4-specific API differences: `memfault_metrics_connectivity_connected_state_change()` and `CONFIG_MEMFAULT_METRICS_HEARTBEAT_INTERVAL_SECS` do not exist in the bundled Memfault SDK version; `mflt_nrf70_fw_stats_cdr.c` renamed `nrf70_fw_stats_cdr.c` and ported to `struct rpu_op_stats` / `nrf_wifi_fmac_stats_get()` API. |
 | 2026-07-13-12-22 | Updated to PRD v2026-07-13-12-22: added design for FR-102 (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) and FR-103 (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`), ported from `nordic-wifi-memfault-main`'s FR-007/FR-008. Design only — not yet implemented on this branch; see Open Issues. |
 | 2026-07-13-13-31 | FR-102/FR-103 implemented and build-verified (nRF7002DK: FLASH 90.26%, RAM 98.75%). FR-102's design changed from the original raw-ring-buffer-copy plan to a drain-and-replay approach (`memfault_log_read()` on disconnect + `memfault_log_save_preformatted()` on reconnect) because `memfault_log_get_state()`/`memfault_log_restore_state()` do not exist in the Memfault SDK v1.6.0 bundled with NCS v2.6.4. Scratch buffer capped at 4 KB (not the full 12 KB partition) to fit the RAM budget. FR-103 implemented as originally designed. New files: `core/memfault_log_state_restore.c(.h)`. |
+| 2026-07-24-11-30 | **FR-102 correctness fix**: the drain in `memfault_log_state_persist_now()` used to stop permanently once the 4 KB scratch buffer filled, keeping the *oldest* unread entries; when Memfault chunk uploads had been failing (leaving backlog), old low-value entries (e.g. heap-monitor prints) could consume the whole budget before the drain ever reached the entries generated near the actual disconnect — e.g. `=== WiFi DISCONNECTED (reason: N) ===` could go missing from the uploaded blob. Now evicts the oldest retained entry (self-describing via its own header, no extra RAM) when full instead of stopping, so a rolling window of the *newest* entries always survives regardless of backlog size. Logs `"Log-state blob full, kept newest %u of %u entries"` only when eviction occurred. **New (opt-in) `CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC`** (default `0`/disabled): periodically forces `memfault_metrics_heartbeat_debug_trigger()` + `memfault_log_trigger_collection()` + upload while connected, for testing only — this SDK version's metrics heartbeat is a fixed 3600 s timer, and Memfault logs are never uploaded at all unless something calls `memfault_log_trigger_collection()` (normally only done here after a disconnect/reconnect restore), so without a disconnect cycle neither metrics nor logs would otherwise appear on a useful timescale for manual testing. **DNS reliability**: ported `CONFIG_DNS_NUM_CONCUR_QUERIES=2` and `CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC=60` (staggered from the upload thread's own 30 s connect delay) plus a 2 s initial delay before the DNS-ready poll loop in `upload_thread_fn` from `nordic-wifi-memfault-main`, reducing `DNS lookup ... failed: -11` (EAGAIN from concurrent `getaddrinfo()` collisions) and the DHCP→resolver propagation race on first connect. |
 
 ---
 
@@ -49,8 +50,12 @@ least one real connect (`network_ever_connected`) — a 10 s delayable work item
 entries from the live Memfault log ring buffer one at a time via `memfault_log_read()` and
 serializes them (level + type + message bytes) to the dedicated external-flash
 `mflt_log_state_partition` (12 KB, see [2-pm-partition.md](2-pm-partition.md)). A 4 KB scratch
-buffer bounds how much can be drained per disconnect (RAM budget is tight on this target); the
-drain stops early with a warning if more unread data remains. On the next Wi-Fi reconnect,
+buffer bounds how much can be drained per disconnect (RAM budget is tight on this target); if the
+unread backlog exceeds the buffer, the drain evicts the oldest retained entry to make room for
+each new one, so the persisted blob is always a rolling window of the **newest** entries rather
+than whatever was queued first — this matters when Memfault uploads have been failing and old
+low-value log lines would otherwise crowd out the entries closest to the disconnect. On the next
+Wi-Fi reconnect,
 `on_connect()` calls `memfault_log_state_restore_on_connect()`, which replays each entry back into
 the live ring buffer via `memfault_log_save_preformatted()`, calls
 `memfault_log_trigger_collection()` to mark them for upload, writes a visual separator log line
@@ -213,6 +218,7 @@ Not SMF. `core` uses a Zbus-listener + dedicated-thread pattern (`memfault_uploa
 | `CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC` | int (0–300) | `60` | Delay before an OTA check after a trigger, to let DNS settle |
 | `CONFIG_MEMFAULT_OTA_THREAD_STACK_SIZE` | int | `4096` (per Kconfig help) | Stack for the OTA trigger thread |
 | `CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS` | int | `60` (`prj.conf`) | Memfault SDK's own periodic upload interval |
+| `CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC` | int (0–3600) | `0` (disabled); `60` in current test `prj.conf` | Testing aid only: periodically forces a heartbeat + log collection + upload while connected, since this SDK's metrics heartbeat is a fixed 3600 s timer and logs are never uploaded without an explicit `memfault_log_trigger_collection()` call. Leave `0` for production. |
 | `CONFIG_MEMFAULT_NCS_FW_VERSION_STATIC` | choice | selected | Firmware version source is a static string, not build-derived |
 | `CONFIG_MEMFAULT_ROOT_CERT_STORAGE_TLS_CREDENTIAL_STORAGE` | choice | selected | Cert storage backend |
 | `CONFIG_MEMFAULT_NRF_CONNECT_SDK` | bool | `y` (explicit in `prj.conf`) | Required on this target to get NCS FOTA/reboot-reason port extensions — NCS v2.6.4 does not default this to `y` for the nRF7002DK/nRF54LM20DK target class |

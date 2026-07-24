@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-13-11-08 |
-| PRD Version | 2026-07-13-11-07 |
+| Version | 2026-07-24-11-30 |
+| PRD Version | 2026-07-24-11-30 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
 | Status | Implemented |
@@ -21,6 +21,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-07-13-11-08 | Replaces `pm/openspec/specs/wifi-module.md`. The legacy `wifi/wifi.c` module was renamed/split into `network/net_event_mgmt.c` (L2/L3 event handling, Zbus publishing, SoftAP event handlers) and `network/wifi_utils.c` (mode/channel/credential helper functions). The previously-documented 1-second delayed boot connect no longer exists in `net_event_mgmt.c` — connection is now driven purely by Connection Manager / Wi-Fi mgmt events, no artificial startup delay. |
+| 2026-07-24-11-30 | Added an L3 DHCP-bound watchdog (`CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC`, default 30 s, 0 = disabled), ported from the more complete `zego/bricks/network` reference brick. A successful `NET_EVENT_WIFI_CONNECT_RESULT` only means L2 association succeeded, not that an IP was obtained — without this, a device that associates but never gets a DHCP lease (or loses its lease while still linked) sat "associated, no IP" forever with no recovering event. The watchdog is armed on L2 connect success and on lease loss (`NET_EVENT_IPV4_ADDR_DEL`), cancelled on `NET_EVENT_IPV4_DHCP_BOUND` and `NET_EVENT_WIFI_DISCONNECT_RESULT`; on expiry it issues `NET_REQUEST_WIFI_DISCONNECT`, which produces a `DISCONNECT_RESULT` that re-arms whichever module owns STA reconnect (`wifi_prov_over_ble`). |
 
 ---
 
@@ -88,7 +89,7 @@ stateDiagram-v2
     WaitWpaReady --> Associating: NET_EVENT_WPA_SUPP_READY [wpa_supplicant_ready_sem given]
     Associating --> Connected: NET_EVENT_WIFI_CONNECT_RESULT [status==0] / publish WIFI_STA_CONNECTED
     Associating --> ConnError: NET_EVENT_WIFI_CONNECT_RESULT [status!=0] / publish WIFI_ERROR
-    Connected --> DhcpBound: NET_EVENT_IPV4_DHCP_BOUND [ipv4_dhcp_bond_sem given] / publish NETWORK_READY
+    Connected --> DhcpBound: NET_EVENT_IPV4_DHCP_BOUND [ipv4_dhcp_bond_sem given] / publish NETWORK_READY, cancel L3 watchdog
     DhcpBound --> Disconnected: NET_EVENT_WIFI_DISCONNECT_RESULT / publish WIFI_STA_DISCONNECTED
     Disconnected --> Associating: reconnect (Connection Manager / stored-credential auto-connect)
     ConnError --> Associating: supplicant auto-retries (status 1, 2, 16) or app retries
@@ -101,9 +102,9 @@ stateDiagram-v2
 | WaitIfUp | Waiting for the Wi-Fi network interface to come up | `k_sem` (`iface_up_sem`) given on `NET_EVENT_IF_UP` |
 | WaitWpaReady | Waiting for the WPA supplicant to signal readiness | `wpa_supplicant_ready_sem`; NCS v2.6.4 names this event `NET_EVENT_WPA_SUPP_READY` (renamed to `NET_EVENT_SUPPLICANT_READY` in later NCS) |
 | Associating | Connection attempt in progress (via `wifi_credentials`/Connection Manager, or triggered by `wifi_prov_over_ble`) | Decodes and logs common WPA status codes (auth failure, AP not found, timeout, etc.) |
-| Connected | L2 association succeeded | `wifi_print_status()` called; `WIFI_STA_CONNECTED` published |
-| DhcpBound | IP address assigned | `ipv4_dhcp_bond_sem` given; `NETWORK_READY` published on `NETWORK_CHAN` |
-| Disconnected | L2/L4 disconnected | `WIFI_STA_DISCONNECTED` published; decodes common 802.11 disconnect reason codes |
+| Connected | L2 association succeeded | `wifi_print_status()` called; `WIFI_STA_CONNECTED` published; if `CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC > 0`, the L3 DHCP-bound watchdog is armed here |
+| DhcpBound | IP address assigned | `ipv4_dhcp_bond_sem` given; `NETWORK_READY` published on `NETWORK_CHAN`; L3 watchdog cancelled |
+| Disconnected | L2/L4 disconnected | `WIFI_STA_DISCONNECTED` published; decodes common 802.11 disconnect reason codes; L3 watchdog cancelled |
 | ConnError | Connection attempt failed | `WIFI_ERROR` published with the raw status code |
 
 > SoftAP event handling (`l2_wifi_softap_event_handler`, station connect/disconnect tracking,
@@ -119,6 +120,7 @@ stateDiagram-v2
 |--------|------|---------|--------------|
 | `CONFIG_WIFI_MODULE` | bool | `y` | Enable Wi-Fi and network event management |
 | `CONFIG_WIFI_MODULE_INIT_PRIORITY` | int | `90` | `SYS_INIT` priority for `init_network_events` |
+| `CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC` | int (0–300) | `30` (0 = disabled) | L3 connectivity watchdog: forces `NET_REQUEST_WIFI_DISCONNECT` if DHCP hasn't bound this many seconds after L2 association, or a lease is lost while still associated |
 | `CONFIG_SOFTAP_SSID` | string | `"device_AP"` | SoftAP SSID — unused while `WIFI_NM_WPA_SUPPLICANT_AP` is not selected |
 | `CONFIG_SOFTAP_PASSWORD` | string | `"password@123"` | SoftAP password — unused (also: default is a non-secret placeholder, must not be used verbatim if SoftAP is ever enabled) |
 | `CONFIG_SOFTAP_CHANNEL` | int | `1` | SoftAP channel — unused |

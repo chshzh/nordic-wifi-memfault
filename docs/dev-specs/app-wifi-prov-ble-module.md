@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-13-11-08 |
-| PRD Version | 2026-07-13-11-07 |
+| Version | 2026-07-24-11-30 |
+| PRD Version | 2026-07-24-11-30 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
 | Status | Implemented |
@@ -21,6 +21,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-07-13-11-08 | New spec (not present in legacy `pm/openspec/specs/`, which only briefly mentioned this module inside `memfault-integration.md`/`architecture.md`). Reverse-designed from current `wifi_prov_over_ble.c`. |
+| 2026-07-24-11-30 | Replaced the flat 180 s reconnect fallback retry with a capped exponential backoff (5 s ×3 quick retries, then 30 → 60 → 120 → 300 s cap), mirroring the MQTT reconnect backoff pattern already used elsewhere in this app. A flat 180 s interval meant the device could sit disconnected for up to 3 minutes after the first failed attempt before trying again; the initial 5 s retry on disconnect is unchanged. `wifi_reconnect_retry_count` is reset on any successful connect or when credentials are found empty. |
 
 ---
 
@@ -133,7 +134,7 @@ Not SMF. Event/work-queue driven:
 | Error Condition | Detection | Response |
 |----------------|-----------|----------|
 | BLE advertising start failure | Return code from `bt_le_adv_start()` | Logged; not currently retried automatically |
-| Reconnect after unintentional disconnect | `NET_EVENT_WIFI_DISCONNECT_RESULT` status != 0 | Reconnect scheduled once (`wifi_reconnect_pending` guard prevents duplicate scheduling) after `WIFI_RECONNECT_DELAY_SEC` |
+| Reconnect after unintentional disconnect | `NET_EVENT_WIFI_DISCONNECT_RESULT` status != 0 | Reconnect scheduled once (`wifi_reconnect_pending` guard prevents duplicate scheduling) after `WIFI_RECONNECT_DELAY_SEC` (5 s); if still disconnected, the fallback retry backs off 5 s ×3, then 30→60→120→300 s cap (`wifi_reconnect_backoff_sec()`) instead of a flat interval |
 | Stack overflow risk in connect chain | Historical: 4096 B stack overflowed inside `zsock_poll_internal()` | Fixed by sizing `ADV_DAEMON_STACK_SIZE` to 8192 B (documented in-code) |
 
 ---
