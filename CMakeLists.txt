@@ -48,6 +48,9 @@ endif()
 if(CONFIG_APP_MQTT_CLIENT_MODULE)
     add_subdirectory(src/modules/app_mqtt_client)
 endif()
+if(CONFIG_NTP_MODULE_ENABLED)
+    add_subdirectory(src/modules/ntp)
+endif()
 
 # BLE provisioning (CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED) is provided by
 # NCS v2.6.4's self-contained CONFIG_BT_WIFI_PROV service

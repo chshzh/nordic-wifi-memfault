@@ -1,0 +1,23 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+# Default values for ntp module symbols.
+# Override in prj.conf as needed.
+#
+
+config NTP_MODULE_ENABLED
+	default n
+
+config NTP_MODULE_SERVER
+	default "pool.ntp.org" if NTP_MODULE_ENABLED
+
+config NTP_MODULE_TIMEOUT_MS
+	default 5000 if NTP_MODULE_ENABLED
+
+config NTP_MODULE_RETRY_INTERVAL_SEC
+	default 30 if NTP_MODULE_ENABLED
+
+config NTP_MODULE_RESYNC_INTERVAL_SEC
+	default 10800 if NTP_MODULE_ENABLED

@@ -1,0 +1,53 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+config NTP_MODULE_ENABLED
+	bool "Enable NTP time synchronization module"
+	select SNTP
+	depends on ZBUS && NETWORKING && POSIX_CLOCK
+	help
+	  Queries an SNTP server and sets CLOCK_REALTIME once Wi-Fi
+	  connectivity is established (WIFI_STA_CONNECTED on WIFI_CHAN). When
+	  CONFIG_LOG_TIMESTAMP_USE_REALTIME=y is also set, Zephyr log output
+	  shows real-world wall-clock timestamps, and application code that
+	  reads CLOCK_REALTIME (e.g. Memfault event/log timestamps, including
+	  the FR-102 disconnect-time log-state restore) gets real UTC time
+	  instead of device uptime.
+
+	  Ported from zego/bricks/ntp.
+
+if NTP_MODULE_ENABLED
+
+module = NTP_MODULE
+module-str = ntp_module
+source "subsys/logging/Kconfig.template.log_config"
+
+config NTP_MODULE_SERVER
+	string "SNTP server hostname"
+	help
+	  Hostname of the SNTP server used for time synchronization.
+
+config NTP_MODULE_TIMEOUT_MS
+	int "SNTP query timeout (ms)"
+	range 1000 30000
+	help
+	  Maximum time to wait for an SNTP response, in milliseconds.
+
+config NTP_MODULE_RETRY_INTERVAL_SEC
+	int "Retry interval on failure (s)"
+	range 5 3600
+	help
+	  How long to wait before retrying a failed SNTP query.
+
+config NTP_MODULE_RESYNC_INTERVAL_SEC
+	int "Periodic re-sync interval after a successful sync (s)"
+	range 0 86400
+	help
+	  How often to re-sync after a successful query to compensate for
+	  crystal oscillator drift. Set to 0 to disable periodic re-sync
+	  (sync once per connection only).
+
+endif # NTP_MODULE_ENABLED
