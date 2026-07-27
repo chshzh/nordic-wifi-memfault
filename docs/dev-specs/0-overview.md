@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-24-11-30 |
-| PRD Version | 2026-07-24-11-30 |
+| Version | 2026-07-24-14-56 |
+| PRD Version | 2026-07-24-14-56 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
 | Status | Implemented |
@@ -24,6 +24,10 @@
 | 2026-07-13-12-22 | Updated to PRD v2026-07-13-12-22: added FR-102/FR-103 (log-state and nRF70 CDR persist/restore across power cycle, ported from `nordic-wifi-memfault-main`'s FR-007/FR-008) to `app-memfault-module.md` and `2-pm-partition.md`. Design only — not yet implemented. |
 | 2026-07-13-13-31 | FR-102/FR-103 implemented and build-verified on nRF7002DK (FLASH 90.26%, RAM 98.75%). See `app-memfault-module.md` and `2-pm-partition.md` changelogs for implementation details and the FR-102 design deviation (drain-and-replay vs. raw ring-buffer copy). |
 | 2026-07-24-11-30 | Updated to PRD v2026-07-24-11-30 (reliability hardening pass). Cross-cutting fixes distributed across module specs — see each file's own Changelog for detail: FR-102 keep-newest eviction fix (`app-memfault-module.md`); Wi-Fi reconnect backoff + L3 DHCP-bound watchdog (`network-module.md`, `app-wifi-prov-ble-module.md`); ported DNS-reliability fixes (`app-memfault-module.md`, `app-https-client-module.md`); `tcp_work` stack-overflow fix diagnosed via a symbolicated Memfault coredump trace (`3-memopt.md`). |
+| 2026-07-24-14-09 | Updated to PRD v2026-07-24-14-09: added FR-104 (NTP time sync) — new [ntp-module.md](ntp-module.md), ported from `zego/bricks/ntp`, subscribing directly to the existing `WIFI_CHAN` instead of the brick's decoupled net-state channel. Also notes in `app-memfault-module.md` that FR-102's restore-time-timestamp limitation is resolved once FR-104 has completed its first sync. |
+| 2026-07-24-14-41 | Updated to PRD v2026-07-24-14-41: two FR-104 fixes found during hardware testing — `ntp-module.md`'s `CMakeLists.txt` never actually linked the module into the app (`zephyr_library()` pattern vs. this app's `target_sources(app PRIVATE ...)` convention), and UART log timestamps now do switch to real Unix-epoch time post-sync via `log_set_timestamp_func()` (previously assumed impossible in this Zephyr version). See `ntp-module.md` changelog for detail. |
+| 2026-07-24-14-47 | Updated to PRD v2026-07-24-14-47: UART log timestamps upgraded from raw epoch seconds to a calendar UTC string via a custom Zephyr log formatter (`CONFIG_LOG_OUTPUT_FORMAT_CUSTOM_TIMESTAMP`). See `ntp-module.md` changelog for detail. |
+| 2026-07-24-14-56 | Updated to PRD v2026-07-24-14-56: bug fix for a deferred-logging race that could briefly render bogus 1970 dates around the NTP sync transition, plus `[...] ` bracket formatting to match the original log style. See `ntp-module.md` changelog for detail. |
 
 ---
 
@@ -50,6 +54,7 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 | [app-https-client-module.md](app-https-client-module.md) | Always-on periodic HTTPS client | FR-005 |
 | [app-mqtt-client-module.md](app-mqtt-client-module.md) | Always-on TLS MQTT echo client | FR-005 |
 | [heap-monitor-module.md](heap-monitor-module.md) | System/mbedTLS heap tracking, Memfault heap metrics | FR-007 |
+| [ntp-module.md](ntp-module.md) | SNTP time sync, real-world log/Memfault timestamps | FR-104 |
 
 ---
 
@@ -84,6 +89,7 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 | FR-101 nRF70 stats CDR | app-memfault-module.md | Specified |
 | FR-102 Log-state persist/restore across power cycle | app-memfault-module.md, 2-pm-partition.md | Implemented |
 | FR-103 nRF70 CDR persist/restore across power cycle | app-memfault-module.md, 2-pm-partition.md | Implemented |
+| FR-104 NTP time sync | ntp-module.md | Implemented |
 | FR-201 SoftAP/P2P (P2, not implemented) | — | Out of scope (see PRD §8) |
 
 ---
@@ -96,6 +102,7 @@ network        ──Zbus(WIFI_CHAN)──▶  app_memfault (ota_triggers)
 network        ──Zbus(WIFI_CHAN)──▶  app_wifi_prov_over_ble
 network        ──Zbus(WIFI_CHAN)──▶  app_https_client
 network        ──Zbus(WIFI_CHAN)──▶  app_mqtt_client
+network        ──Zbus(WIFI_CHAN)──▶  ntp
 network        ──Zbus(NETWORK_CHAN)─▶ app_memfault (core) [planned, FR-102/FR-103]
 button         ──Zbus(BUTTON_CHAN)──▶ app_memfault (core)
 button         ──Zbus(BUTTON_CHAN)──▶ app_memfault (ota_triggers)

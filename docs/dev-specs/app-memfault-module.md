@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-24-11-30 |
-| PRD Version | 2026-07-24-11-30 |
+| Version | 2026-07-24-14-09 |
+| PRD Version | 2026-07-24-14-09 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
 | Status | Implemented |
@@ -24,6 +24,7 @@
 | 2026-07-13-12-22 | Updated to PRD v2026-07-13-12-22: added design for FR-102 (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) and FR-103 (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`), ported from `nordic-wifi-memfault-main`'s FR-007/FR-008. Design only — not yet implemented on this branch; see Open Issues. |
 | 2026-07-13-13-31 | FR-102/FR-103 implemented and build-verified (nRF7002DK: FLASH 90.26%, RAM 98.75%). FR-102's design changed from the original raw-ring-buffer-copy plan to a drain-and-replay approach (`memfault_log_read()` on disconnect + `memfault_log_save_preformatted()` on reconnect) because `memfault_log_get_state()`/`memfault_log_restore_state()` do not exist in the Memfault SDK v1.6.0 bundled with NCS v2.6.4. Scratch buffer capped at 4 KB (not the full 12 KB partition) to fit the RAM budget. FR-103 implemented as originally designed. New files: `core/memfault_log_state_restore.c(.h)`. |
 | 2026-07-24-11-30 | **FR-102 correctness fix**: the drain in `memfault_log_state_persist_now()` used to stop permanently once the 4 KB scratch buffer filled, keeping the *oldest* unread entries; when Memfault chunk uploads had been failing (leaving backlog), old low-value entries (e.g. heap-monitor prints) could consume the whole budget before the drain ever reached the entries generated near the actual disconnect — e.g. `=== WiFi DISCONNECTED (reason: N) ===` could go missing from the uploaded blob. Now evicts the oldest retained entry (self-describing via its own header, no extra RAM) when full instead of stopping, so a rolling window of the *newest* entries always survives regardless of backlog size. Logs `"Log-state blob full, kept newest %u of %u entries"` only when eviction occurred. **New (opt-in) `CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC`** (default `0`/disabled): periodically forces `memfault_metrics_heartbeat_debug_trigger()` + `memfault_log_trigger_collection()` + upload while connected, for testing only — this SDK version's metrics heartbeat is a fixed 3600 s timer, and Memfault logs are never uploaded at all unless something calls `memfault_log_trigger_collection()` (normally only done here after a disconnect/reconnect restore), so without a disconnect cycle neither metrics nor logs would otherwise appear on a useful timescale for manual testing. **DNS reliability**: ported `CONFIG_DNS_NUM_CONCUR_QUERIES=2` and `CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC=60` (staggered from the upload thread's own 30 s connect delay) plus a 2 s initial delay before the DNS-ready poll loop in `upload_thread_fn` from `nordic-wifi-memfault-main`, reducing `DNS lookup ... failed: -11` (EAGAIN from concurrent `getaddrinfo()` collisions) and the DHCP→resolver propagation race on first connect. |
+| 2026-07-24-14-09 | **FR-102 persist-overwrite guard fix**: found via live Memfault log analysis (an actual uploaded log-file JSON cross-referenced against `mcp_memfault_device_listReboots` to correlate UART-relative timestamps to absolute UTC) — on a flapping AP, `memfault_log_state_persist_now()` could fire a second time and silently overwrite a still-unrestored blob from an earlier disconnect in the single `mflt_log_state_partition`, permanently losing it before `memfault_log_state_restore_on_connect()` ever ran (restore only happens after a full, DNS-ready reconnect, which a flapping AP may not reach for several disconnect cycles). Root cause: `WIFI_STA_CONNECTED` — which cancels the pending 10 s persist-scheduling work — is only published at `NET_EVENT_IPV4_DHCP_BOUND`, not the earlier L2 "WiFi is connected!" event, so a transient IP-loss blip during reassociation can let the persist work fire before the real reconnect cancels it. Fix: `memfault_log_state_persist_now()` now checks the flash partition header first and returns `-EALREADY` (skipping the persist, with a warning) if a valid unrestored blob is already present, instead of overwriting it. **FR-104 cross-reference**: added `ntp-module.md` (SNTP time sync) — once it completes its first sync, restored log-state entries (and the original disconnect-time entries) carry real UTC time instead of the restore-time approximation noted below. |
 
 ---
 
@@ -64,8 +65,20 @@ partition. A truncated or invalid blob is discarded silently, no crash. Ported f
 `nordic-wifi-memfault-main` FR-007, with one behavioral difference: because the Memfault SDK
 version bundled with NCS v2.6.4 (v1.6.0) has no raw ring-buffer save/restore API
 (`memfault_log_get_state()`/`memfault_log_restore_state()` do not exist), this module
-replays entries individually instead of copying raw ring-buffer memory — so restored entries
-carry the restore-time (NTP) timestamp, not the exact original disconnect-time timestamp.
+replays entries individually instead of copying raw ring-buffer memory. Separately, Memfault's
+`memfault_log_trigger_collection()` timestamps the *whole batch* of unsent logs with one shared
+value captured at trigger time (`memfault_log_data_source.c`), not a per-line timestamp — so a
+restored batch is always stamped with the restore-time, never each line's exact original time,
+regardless of NTP. Before [ntp-module.md](ntp-module.md) (FR-104) existed, this app had no other
+real-time source (`CONFIG_DATE_TIME`/`CONFIG_RTC`), so that restore-time timestamp — like every
+other Memfault event/log — was never actually attached at all; Memfault's backend fell back to
+its own ingest-time stamp. Once FR-104 has completed its first sync, restored (and all other)
+batches get a real device UTC restore-time timestamp instead of that ingest-time fallback — an
+accuracy improvement, but still not per-line original-time precision. To prevent a second
+disconnect cycle from overwriting a still-unrestored blob (observed on a flapping AP, where
+restore may not be reached for several disconnect cycles), `memfault_log_state_persist_now()`
+checks the flash partition header first and skips the persist (`-EALREADY`) if a valid
+unrestored blob is already present, rather than clobbering it.
 
 **CDR persist/restore across power cycle** (FR-103, `CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`,
 default `y` when `NRF70_FW_STATS_CDR_ENABLED`): when the same 10 s disconnect work item fires,
@@ -291,6 +304,7 @@ contract (`memfault_metrics_heartbeat_collect_data`).
 
 - [button-module.md](button-module.md) — publishes the `BUTTON_CHAN` events this module consumes
 - [network-module.md](network-module.md) — publishes the `WIFI_CHAN` events this module consumes
+- [ntp-module.md](ntp-module.md) — provides real UTC time once synced, used by restored FR-102 log-state entries
 - [heap-monitor-module.md](heap-monitor-module.md) — feeds heap metrics into the same Memfault heartbeat
 - [2-pm-partition.md](2-pm-partition.md) — coredump partition layout
 
