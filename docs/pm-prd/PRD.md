@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault (Memfault Wi-Fi Observability Sample) |
-| Version | 2026-07-24-14-56 |
+| Version | 2026-07-28-08-15 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
 | Status | Implemented |
@@ -30,6 +30,7 @@
 | 2026-07-24-14-41 | Two FR-104 corrections found while hardware-testing: (1) the initial build never actually ran — `src/modules/ntp/CMakeLists.txt` used the `zego` brick's `zephyr_library()` pattern, which this app's plain (non-west-module) build never links in; switched to `target_sources(app PRIVATE ...)`, this app's convention for every other module, confirmed via UART log (`ntp_module: NTP sync initialized` / `Querying pool.ntp.org ...` now appear). (2) UART log timestamps *can* be switched to real time after all — `CONFIG_LOG_TIMESTAMP_USE_REALTIME` doesn't exist in this Zephyr version, but its logging core exposes `log_set_timestamp_func()` to swap the timestamp source at runtime; the module now registers a `CLOCK_REALTIME`-backed one once synced. Because this project uses 32-bit log timestamps, the value is seconds (not milliseconds) to avoid overflow, rendered via `CONFIG_LOG_OUTPUT_FORMAT_LINUX_TIMESTAMP=y` as `[<epoch_seconds>.000000]` instead of the uptime `[hh:mm:ss,ms,us]` format — a real, monotonically-correct Unix timestamp, not a calendar date string. |
 | 2026-07-24-14-47 | Upgraded UART log timestamps from raw epoch seconds to a human-readable calendar UTC string: registered a custom Zephyr log formatter (`CONFIG_LOG_OUTPUT_FORMAT_CUSTOM_TIMESTAMP=y`, replacing `CONFIG_LOG_OUTPUT_FORMAT_LINUX_TIMESTAMP`) that renders the synced time via `gmtime_r()` as `"2026-07-24 14:35:33Z"` instead of `"1784896533.000000"`; before sync, the same formatter shows an elapsed `hh:mm:ss.mmm` duration. |
 | 2026-07-24-14-56 | **Bug fix**: hardware testing showed a handful of log lines briefly rendering bogus `1970-01-29` dates right around the sync transition, because the formatter checked the *live* sync flag at print time while `CONFIG_LOG_MODE_DEFERRED` formats messages asynchronously after capture. Fixed by tagging the epoch/uptime mode into the raw timestamp value itself at capture time. Also wrapped timestamps in `[...] ` brackets to match the original log style. |
+| 2026-07-28-08-15 | **Bug fix**: the `tcp_work` stack overflow (first patched 2026-07-24 by bumping `CONFIG_NET_TCP_WORKQ_STACK_SIZE` 1024→2048) recurred in the field — 7 crashes on `v2.6.4.1` over 2026-07-27/28, found via Memfault reboot history + the same (still-open) symbolicated crash issue, now faulting within ~104 B of the *2048* top instead of the *1024* top. Bumped again to 4096; RAM headroom unaffected (72.74% used, same as before). Root cause of the growing stack usage not fully isolated — see `docs/dev-specs/3-memopt.md` Open Issues. |
 
 ---
 
