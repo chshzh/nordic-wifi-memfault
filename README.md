@@ -122,16 +122,17 @@ metrics from its timeline to monitor connectivity, reboot reasons, and sensor he
 
 ### Buttons
 
-Unlike the app-template's single shared "Wi-Fi control button," each button here
-drives its own independent validation path — only Button 0 carries two gestures,
-via the same two-tier hold mechanism. Location differs by board:
+Unlike the app-template's single shared Wi-Fi control button, each button here
+drives its own independent validation path — only the **Wi-Fi control button**
+(idx 0) carries two gestures, via the same two-tier hold mechanism. It is named
+differently per board, but is always idx 0:
 
-| Board | Button 0 | Button 1 | Button 2 |
-|-------|----------|----------|----------|
+| Board | Wi-Fi control button | Button 1 | Button 2 |
+|-------|-----------------------|----------|----------|
 | nRF54LM20DK + nRF7002EB2 | BUTTON0 (idx 0) | BUTTON1 (idx 1) | BUTTON2 (idx 2) |
 | nRF7002DK | Button 1 / SW0 (idx 0) | Button 2 / SW1 (idx 1) | — |
 
-**Button 0 gestures** (same on every board):
+**Wi-Fi control button gestures** (same on every board):
 
 | Gesture | Action |
 |---------|--------|
@@ -153,7 +154,7 @@ via the same two-tier hold mechanism. Location differs by board:
 |---------|--------|
 | Single click | Increment `switch_1_toggle_count` Memfault heartbeat metric |
 
-> **Why Button 0's two hold gestures fire at different points**: the ≥ 3 s
+> **Why the Wi-Fi control button's two hold gestures fire at different points**: the ≥ 3 s
 > stack-overflow demo is a *middle* tier — the device can't know at 3 s whether
 > you meant the short action or are on your way to the 10 s one — so it waits
 > for release and only fires if you let go before 10 s. The ≥ 10 s factory
@@ -167,15 +168,16 @@ Factory reset (FR-010, `zego/bricks/factory_reset`) is also available as the
 `zego_factory_reset [list|all|wifi_cred|wifi_mode|p2p_go_mac]` shell command —
 nRF54LM20DK only (`CONFIG_SHELL=n` on nRF7002DK to save flash).
 
-Button 0's single-click and long-press are wired to this app's own demos via
-`app_memfault_core.c` and `app_memfault_nrf70_fw_stats_cdr.c`'s own `BUTTON_CHAN`
-listeners; `src/modules/ux/ux.c` overrides zego/ux's default single-click/long-press
-actions on that same button as no-ops so they don't also fire (see
-[4-ux.md](docs/dev-specs/4-ux.md)). Double-click is intentionally left at the
-zego/ux default since this app assigns no behavior of its own to it. Button 2 only
-exists on nRF54LM20DK + nRF7002EB2 (3 physical buttons vs. 2 on nRF7002DK);
-`app_memfault_core.c` also has a Button 3 handler (`switch_2_toggled` trace event)
-for future 4-button boards, but no currently supported board exposes it.
+The Wi-Fi control button's single-click and long-press are wired to this app's
+own demos via `app_memfault_core.c` and `app_memfault_nrf70_fw_stats_cdr.c`'s
+own `BUTTON_CHAN` listeners; `src/modules/ux/ux.c` overrides zego/ux's default
+single-click/long-press actions on that same button as no-ops so they don't
+also fire (see [4-ux.md](docs/dev-specs/4-ux.md)). Double-click is intentionally
+left at the zego/ux default since this app assigns no behavior of its own to it.
+Button 2 only exists on nRF54LM20DK + nRF7002EB2 (3 physical buttons vs. 2 on
+nRF7002DK); `app_memfault_core.c` also has a Button 3 handler (`switch_2_toggled`
+trace event) for future 4-button boards, but no currently supported board
+exposes it.
 
 ### LEDs
 
@@ -188,7 +190,7 @@ full state machine.
 |--------|--------------------------|-----------|------------------|
 | ROTATE | All 4 LEDs (idx 0–3) chase, 500 ms/step | Both LEDs (idx 0–1) chase, 500 ms/step | Boot / connecting; any automatic STA reconnect retry in progress after a disconnect (retries indefinitely as long as ≥ 1 Wi-Fi credential is stored) |
 | SOLID-ON | LED0 (idx 0) | LED0 (idx 0) | STA connected (DHCP-bound, has IP) |
-| BREATHE | LED0 (idx 0) | LED0 (idx 0) | BLE provisioning advertising active (auto-starts at boot; toggled by Button 0/1 double-click) |
+| BREATHE | LED0 (idx 0) | LED0 (idx 0) | BLE provisioning advertising active (auto-starts at boot; toggled by Wi-Fi control button double-click) |
 | BLINK-FAST (100 ms half-period) | LED0 (idx 0) | LED0 (idx 0) | **The only case where reconnection is not possible**: STA with zero stored Wi-Fi credentials |
 
 ---
@@ -226,7 +228,7 @@ nordic-wifi-memfault/
 │   ├── main.c
 │   └── modules/
 │       ├── network/
-│       ├── ux/             ← overrides zego/ux's Button 0 single-click/long-press hooks only
+│       ├── ux/             ← overrides zego/ux's Wi-Fi control button single-click/long-press hooks only
 │       ├── app_memfault/
 │       ├── app_https_client/
 │       ├── app_mqtt_client/
