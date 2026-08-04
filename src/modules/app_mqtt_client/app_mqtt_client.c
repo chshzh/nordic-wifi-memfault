@@ -6,6 +6,7 @@
 
 #include "app_mqtt_client.h"
 #include "../messages.h"
+#include "../../tls_heap_lock.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -262,7 +263,10 @@ static int mqtt_do_connect(void)
 
 	LOG_INF("Connecting to MQTT broker: %s", CONFIG_APP_MQTT_CLIENT_BROKER_HOSTNAME);
 
+	/* Serialize against other modules' TLS connect/close (shared mbedTLS heap) */
+	k_mutex_lock(&tls_heap_lock, K_FOREVER);
 	err = mqtt_helper_connect(&conn_params);
+	k_mutex_unlock(&tls_heap_lock);
 	if (err) {
 		LOG_ERR("Failed to connect to MQTT broker: %d", err);
 		current_state = APP_MQTT_STATE_DISCONNECTED;

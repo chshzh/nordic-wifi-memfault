@@ -6,6 +6,7 @@
 
 #include "ota_triggers.h"
 #include "../../messages.h"
+#include "../../../tls_heap_lock.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -50,7 +51,9 @@ static void schedule_ota_check(const char *context)
 {
 #if IS_ENABLED(CONFIG_MEMFAULT_FOTA)
 	LOG_INF("Starting Memfault OTA check (%s)", context);
+	k_mutex_lock(&tls_heap_lock, K_FOREVER);
 	int rv = memfault_fota_start();
+	k_mutex_unlock(&tls_heap_lock);
 
 	if (rv < 0) {
 		LOG_ERR("Memfault OTA check failed (%s), err %d", context, rv);

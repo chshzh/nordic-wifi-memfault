@@ -10,6 +10,7 @@
 
 #include "memfault_core.h"
 #include "../../messages.h"
+#include "../../../tls_heap_lock.h"
 #include "../metrics/wifi_metrics.h"
 #include "../metrics/stack_metrics.h"
 
@@ -74,7 +75,9 @@ static void heartbeat_force_work_fn(struct k_work *work)
 	if (wifi_connected) {
 		memfault_metrics_heartbeat_debug_trigger();
 		memfault_log_trigger_collection();
+		k_mutex_lock(&tls_heap_lock, K_FOREVER);
 		memfault_zephyr_port_post_data();
+		k_mutex_unlock(&tls_heap_lock);
 	}
 	k_work_schedule(&heartbeat_force_work,
 			K_SECONDS(CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC));
@@ -193,7 +196,9 @@ static void on_connect(void)
 		return;
 	}
 	LOG_DBG("Sending stored data...");
+	k_mutex_lock(&tls_heap_lock, K_FOREVER);
 	memfault_zephyr_port_post_data();
+	k_mutex_unlock(&tls_heap_lock);
 }
 
 /* Upload thread: wait for connect sem, DNS wait, then on_connect */
@@ -337,7 +342,9 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 			LOG_INF("Button 1 short press: Memfault heartbeat");
 			if (wifi_connected) {
 				memfault_metrics_heartbeat_debug_trigger();
+				k_mutex_lock(&tls_heap_lock, K_FOREVER);
 				memfault_zephyr_port_post_data();
+				k_mutex_unlock(&tls_heap_lock);
 			} else {
 				LOG_WRN("WiFi not connected, cannot collect "
 					"metrics");

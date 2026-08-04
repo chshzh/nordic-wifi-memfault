@@ -24,7 +24,7 @@ endif()
 zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/modules/app_memfault/config)
 
-target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE src/main.c src/tls_heap_lock.c)
 
 # Module subdirectories (SMF+zbus modular architecture)
 if(CONFIG_BUTTON_MODULE)

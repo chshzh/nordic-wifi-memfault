@@ -6,6 +6,7 @@
 
 #include "app_https_client.h"
 #include "../messages.h"
+#include "../../tls_heap_lock.h"
 
 #include <string.h>
 #include <zephyr/kernel.h>
@@ -224,6 +225,7 @@ static void send_http_request(void)
 	char peer_addr[INET6_ADDRSTRLEN];
 	bool request_failed = false;
 	char status_line[64] = "";
+	bool tls_lock_held = false;
 
 	if (!network_ready) {
 		LOG_WRN("Network not ready, skipping HTTPS request");
@@ -256,6 +258,10 @@ static void send_http_request(void)
 		  &((struct sockaddr_in *)(res->ai_addr))->sin_addr, peer_addr,
 		  INET6_ADDRSTRLEN);
 	LOG_DBG("Resolved %s (%s)", peer_addr, net_family2str(res->ai_family));
+
+	/* Held until the socket (and its mbedTLS heap allocations) is closed below */
+	k_mutex_lock(&tls_heap_lock, K_FOREVER);
+	tls_lock_held = true;
 
 	if (IS_ENABLED(CONFIG_SAMPLE_TFM_MBEDTLS)) {
 		fd = socket(res->ai_family, SOCK_STREAM | SOCK_NATIVE_TLS,
@@ -360,6 +366,9 @@ clean_up:
 		(void)close(fd);
 		/* Small delay to allow TCP/TLS resources to be released */
 		k_sleep(K_MSEC(100));
+	}
+	if (tls_lock_held) {
+		k_mutex_unlock(&tls_heap_lock);
 	}
 	if (res) {
 		freeaddrinfo(res);
