@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-08-00-00 |
-| PRD Version | 2026-07-07-16-32 |
+| Version | 2026-08-04-10-04 |
+| PRD Version | 2026-08-04-09-52 |
 | NCS Version | v3.4.0 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB2 |
 | Status | Implemented |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-04-10-04 | FR-010: enabled `CONFIG_ZEGO_BUTTON_LONGER_PRESS_MS=10000` so Button 0/Button 1 carries a second hold tier (`zego/bricks/factory_reset`, `CONFIG_ZEGO_FACTORY_RESET=y`). The existing 3 s stack-overflow demo (`memfault_button_listener()`'s `BUTTON_LONG_PRESS` handler, unchanged) is now "guarded": it fires at release if released before 10 s, and is superseded by a factory reset if the hold continues to 10 s. See `zego/bricks/button/docs/button-spec.md` ("Two-Tier Hold Gesture") and [0-overview.md](0-overview.md). |
 | 2026-07-08-00-00 | Added `network_ever_connected` guard: `WIFI_STA_DISCONNECTED`/`NETWORK_NOT_READY` no longer schedule the log/CDR disconnect-persist work (or log "Network connectivity lost") unless the device has completed a real `WIFI_STA_CONNECTED` at least once. Fixes a spurious flash persist + log line on first boot with no stored Wi-Fi credentials, where `zego/network`'s "no stored credentials" boot path publishes a disconnect notification even though nothing was ever connected. |
 | 2026-07-07-16-32 | PRD Version updated to 2026-07-07-16-32. NCS bumped v3.3.0→v3.4.0. Bundled Memfault SDK FOTA rework: `CONFIG_MEMFAULT_FOTA`→`CONFIG_MEMFAULT_ZEPHYR_FOTA`, `memfault_fota_start()`→`memfault_zephyr_fota_start()`; `CONFIG_MEMFAULT_COREDUMP_STORAGE_RRAM`→`CONFIG_MEMFAULT_COREDUMP_STORAGE_NRF_RRAM`. |
 | 2026-06-19-12-44 | PRD Version updated to 2026-06-19-12-31. |
@@ -330,4 +331,5 @@ MEMFAULT_METRIC_TIMER_STOP(app_wifi_connected_time);
 | Memfault event timestamp (post NTP sync) | Memfault log file captured_date matches wall clock ± 2 s | NTP sync must precede the event; `CONFIG_MEMFAULT_SYSTEM_TIME_SOURCE_CUSTOM=y` required |
 | Button 1 short | `Button 1 short press: Memfault heartbeat + upload` | heartbeat metric increment + upload triggered in upload thread |
 | Button 2 short | OTA check trigger log | Memfault OTA check invoked |
-| Button long press demos | crash trigger log | expected fault path for validation builds |
+| Button long press demos (3 s, released before 10 s) | crash trigger log | expected fault path for validation builds (fires at release — see FR-010 guarded gesture) |
+| Button 0 hold ≥ 10 s | `zego_factory_reset` shell/button log | factory reset (FR-010) — supersedes the 3 s crash demo for that press |

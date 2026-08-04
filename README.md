@@ -28,6 +28,7 @@ or subscribe through zbus channels.
 - Memfault heartbeat, metrics, coredump reporting, and OTA checks
 - Disconnect-time debug capture — Memfault log ring-buffer and nRF70 CDR firmware statistics are persisted to external flash on connectivity loss, then restored and uploaded on the next reconnect; pre-disconnect logs retain original wall-clock timestamps and a visual separator marks the boundary in the Memfault cloud log view
 - Button-driven validation paths (heartbeat/CDR, OTA check, crash demos); button input provided by standalone **[zego/button](../zego/button)** module
+- Factory reset via a 10 s button hold or shell command — erases stored Wi-Fi credentials, saved Wi-Fi mode, and P2P GO MAC, then reboots to the fresh-flash state; provided by **[zego/factory_reset](https://github.com/chshzh/zego/blob/main/bricks/factory_reset/docs/factory-reset-spec.md)**
 - LED Wi-Fi state feedback on LED 0: ROTATE while connecting, solid ON when connected, fast BLINK on error; provided by **[zego/led](../zego/led)** + local UX module
 - NTP time synchronization — syncs system clock from `pool.ntp.org` after network ready; log timestamps show real-world UTC time (e.g. `[2026-05-14 19:34:52.299,000]`)
 - Optional HTTPS periodic test module
@@ -121,29 +122,60 @@ metrics from its timeline to monitor connectivity, reboot reasons, and sensor he
 
 ### Buttons
 
-| Board | Button | Gesture | Action |
-|-------|--------|---------|--------|
-| nRF54LM20DK + nRF7002EB2 | BUTTON0 (idx 0) | Single click | Trigger heartbeat + optional nRF70 CDR collection/upload |
-| | | Double-click | Toggle BLE provisioning advertising on/off — zego/ux default, unmodified (this app is STA-only, so zego/ux's P2P-pairing double-click branch never applies) |
-| | | Long press ≥ 3 s | Stack overflow demo crash — overrides zego/ux's default (Wi-Fi mode cycle + reboot) so the two don't race |
-| | BUTTON1 (idx 1) | Single click | Trigger Memfault OTA check |
-| | | Long press ≥ 3 s | Division-by-zero demo crash |
-| | BUTTON2 (idx 2) | Single click | Increment `switch_1_toggle_count` Memfault heartbeat metric |
-| nRF7002DK | Button 1 / SW0 (idx 0) | Single click | Trigger heartbeat + optional nRF70 CDR collection/upload |
-| | | Double-click | Toggle BLE provisioning advertising on/off — zego/ux default, unmodified |
-| | | Long press ≥ 3 s | Stack overflow demo crash — overrides zego/ux's default (Wi-Fi mode cycle + reboot) so the two don't race |
-| | Button 2 / SW1 (idx 1) | Single click | Trigger Memfault OTA check |
-| | | Long press ≥ 3 s | Division-by-zero demo crash |
+Unlike the app-template's single shared "Wi-Fi control button," each button here
+drives its own independent validation path — only Button 0 carries two gestures,
+via the same two-tier hold mechanism. Location differs by board:
 
-BUTTON0/Button-1's single-click and long-press are wired to this app's own demos via
-`app_memfault_core.c` and `app_memfault_nrf70_fw_stats_cdr.c`'s own `BUTTON_CHAN` listeners;
-`src/modules/ux/ux.c` overrides zego/ux's default single-click/long-press actions on that
-same button as no-ops so they don't also fire (see [4-ux.md](docs/dev-specs/4-ux.md)).
-Double-click is intentionally left at the zego/ux default since this app assigns no
-behavior of its own to it. `BUTTON2` only exists on nRF54LM20DK + nRF7002EB2 (3 physical
-buttons vs. 2 on nRF7002DK); `app_memfault_core.c` also has a `BUTTON3` handler
-(`switch_2_toggled` trace event) for future 4-button boards, but no currently supported
-board exposes it.
+| Board | Button 0 | Button 1 | Button 2 |
+|-------|----------|----------|----------|
+| nRF54LM20DK + nRF7002EB2 | BUTTON0 (idx 0) | BUTTON1 (idx 1) | BUTTON2 (idx 2) |
+| nRF7002DK | Button 1 / SW0 (idx 0) | Button 2 / SW1 (idx 1) | — |
+
+**Button 0 gestures** (same on every board):
+
+| Gesture | Action |
+|---------|--------|
+| Single click | Trigger heartbeat + optional nRF70 CDR collection/upload |
+| Double-click | Toggle BLE provisioning advertising on/off — zego/ux default, unmodified (this app is STA-only, so zego/ux's P2P-pairing double-click branch never applies) |
+| Long press ≥ 3 s (fires at release) | Stack overflow demo crash — overrides zego/ux's default (Wi-Fi mode cycle + reboot) so the two don't race |
+| Longer press ≥ 10 s (fires at 10 s, no release needed) | Factory reset (FR-010) — erase stored Wi-Fi credentials, saved Wi-Fi mode, and P2P GO MAC, then reboot; supersedes the 3 s crash demo for that press |
+
+**Button 1 gestures** (same on every board):
+
+| Gesture | Action |
+|---------|--------|
+| Single click | Trigger Memfault OTA check |
+| Long press ≥ 3 s | Division-by-zero demo crash |
+
+**Button 2 gestures** (nRF54LM20DK + nRF7002EB2 only):
+
+| Gesture | Action |
+|---------|--------|
+| Single click | Increment `switch_1_toggle_count` Memfault heartbeat metric |
+
+> **Why Button 0's two hold gestures fire at different points**: the ≥ 3 s
+> stack-overflow demo is a *middle* tier — the device can't know at 3 s whether
+> you meant the short action or are on your way to the 10 s one — so it waits
+> for release and only fires if you let go before 10 s. The ≥ 10 s factory
+> reset is the *final* tier, so nothing can supersede it; it fires immediately
+> at 10 s while you're still holding, giving instant confirmation for a
+> destructive action. See
+> [`zego/bricks/button/docs/button-spec.md`](https://github.com/chshzh/zego/blob/main/bricks/button/docs/button-spec.md)
+> ("Two-Tier Hold Gesture").
+
+Factory reset (FR-010, `zego/bricks/factory_reset`) is also available as the
+`zego_factory_reset [list|all|wifi_cred|wifi_mode|p2p_go_mac]` shell command —
+nRF54LM20DK only (`CONFIG_SHELL=n` on nRF7002DK to save flash).
+
+Button 0's single-click and long-press are wired to this app's own demos via
+`app_memfault_core.c` and `app_memfault_nrf70_fw_stats_cdr.c`'s own `BUTTON_CHAN`
+listeners; `src/modules/ux/ux.c` overrides zego/ux's default single-click/long-press
+actions on that same button as no-ops so they don't also fire (see
+[4-ux.md](docs/dev-specs/4-ux.md)). Double-click is intentionally left at the
+zego/ux default since this app assigns no behavior of its own to it. Button 2 only
+exists on nRF54LM20DK + nRF7002EB2 (3 physical buttons vs. 2 on nRF7002DK);
+`app_memfault_core.c` also has a Button 3 handler (`switch_2_toggled` trace event)
+for future 4-button boards, but no currently supported board exposes it.
 
 ### LEDs
 

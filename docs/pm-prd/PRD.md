@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault |
-| Version | 2026-07-07-16-32 |
+| Version | 2026-08-04-09-52 |
 | Status | Implemented |
 | NCS Version | v3.4.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
@@ -16,6 +16,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-04-09-52 | Added FR-010 (P1): factory reset via a button hold (≥ 10 s on Button 0/Button 1, both boards) or shell command (`zego_factory_reset`, nRF54LM20DK only — shell disabled on nRF7002DK) — erases stored Wi-Fi credentials, saved Wi-Fi mode, and P2P GO MAC, then reboots to the fresh-flash state. `zego` bumped v3.4.0.2→v3.4.0.3 (adds `zego/bricks/factory_reset`). The 10 s hold is distinct from the existing 3 s stack-overflow/div-by-zero demo gestures on the same buttons: the 3 s gesture now fires only on release when released before 10 s (guarded), and is superseded by the 10 s hold. Added a new row to the §2.4 buttons table for the 10 s hold. |
 | 2026-07-07-16-32 | NCS bumped v3.3.0→v3.4.0. FR-009: `CONFIG_APP_UX_MODULE` replaced by `CONFIG_ZEGO_UX` — LED Wi-Fi state feedback now provided by `zego/bricks/ux` (duplicate app-local ux module removed; both were independently driving LED 0). |
 | 2026-05-14-14-13 | Reverse update: migrated canonical PRD to docs/pm-prd and reconciled requirements to currently implemented behavior |
 | 2026-05-14-15-00 | Added FR-006: NTP time synchronization for real-world timestamps in debug log |
@@ -102,7 +103,8 @@ bring-up time.
 | Input | Behavior |
 |---|---|
 | Button 1 short press | Trigger heartbeat and optional nRF70 CDR collection |
-| Button 1 long press | Trigger stack-overflow demo fault path for validation |
+| Button 1 long press (3 s, released before 10 s) | Trigger stack-overflow demo fault path for validation |
+| Button 1 hold ≥ 10 s | Factory reset — erase stored Wi-Fi credentials, saved Wi-Fi mode, and P2P GO MAC, then reboot (both boards; see FR-010) |
 | Button 2 short press | Trigger Memfault OTA check |
 | Button 2 long press | Trigger division-by-zero demo fault path |
 
@@ -143,6 +145,7 @@ bring-up time.
 | FR-007 | developer | have disconnect-time log diagnostics survive a power cycle and appear in the Memfault platform after the device reconnects | I can root-cause connectivity failures that happen in the field without physical access to the device | On WIFI_STA_DISCONNECTED or NETWORK_NOT_READY: firmware saves the full Memfault ring-buffer state to a dedicated 12 KB partition on the external SPI/QSPI NOR flash exactly once per disconnect event (persist-once guard prevents duplicate persists when multiple network layers fire simultaneously); on next WiFi reconnect the persisted state is restored directly into the live Memfault ring buffer, `memfault_log_trigger_collection()` marks it for upload, and the data is uploaded to Memfault cloud; persisted blob is erased from external flash after restore; if restore payload size does not match the live ring-buffer size (firmware update between disconnect and reconnect), the blob is silently discarded with no crash; the restored log file contains original wall-clock timestamps; a visual separator line `=== [LOG RESTORE] pre-disconnect logs above \| live session below ===` appears in the Memfault cloud log view at the boundary between restored and live content; feature is Kconfig-gated (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`); enabled on both nRF54LM20DK and nRF7002DK | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [2-dts-partition.md](../dev-specs/2-dts-partition.md) |
 | FR-008 | developer | have disconnect-time nRF70 WiFi firmware statistics (CDR) survive a power cycle and be uploaded to the Memfault platform after the device reconnects | I can diagnose WiFi radio and LMAC/UMAC state at the moment of disconnection without physical access to the device | When the log-persist work fires 10 seconds after WIFI_STA_DISCONNECTED or NETWORK_NOT_READY: firmware collects fresh nRF70 firmware statistics (PHY/LMAC/UMAC) and saves the raw CDR blob to a dedicated 8 KB partition on the external SPI/QSPI NOR flash (`mflt-cdr-state`); on next WiFi reconnect the blob is restored into the CDR source buffer so that the existing `has_cdr_cb` returns true and the next `memfault_zephyr_port_post_data()` call uploads the CDR file to Memfault cloud; the partition is erased after restore; if the blob size exceeds `NRF70_FW_STATS_BLOB_MAX_SIZE` it is discarded with a warning; feature is Kconfig-gated (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`), depends on `CONFIG_NRF70_FW_STATS_CDR_ENABLED`; enabled on both nRF54LM20DK and nRF7002DK | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [2-dts-partition.md](../dev-specs/2-dts-partition.md) |
 | FR-009 | developer | see Wi-Fi connection state on LED 0 at a glance | I can tell whether the device is connecting or connected without a UART terminal | Boot → ROTATE on all LEDs; STA connected → solid ON; disconnected/error → fast BLINK (100 ms half-period); `CONFIG_ZEGO_UX=y` required (provided by `zego/bricks/ux`, replacing the former app-local `CONFIG_APP_UX_MODULE`); **nRF54LM20DK only** — nRF7002DK omits LED module to meet 1 MB flash budget | [4-ux.md](../dev-specs/4-ux.md) |
+| FR-010 | developer | factory-reset the device back to its as-flashed state | I can recover a misconfigured device or hand it off clean without reflashing | Holding Button 0/Button 1 for ≥ 10 s (both boards), or running the `zego_factory_reset` shell command (nRF54LM20DK only, shell disabled on nRF7002DK to save flash), erases stored Wi-Fi credentials, the saved Wi-Fi mode, and the learned P2P GO MAC, then reboots; the 10 s hold is distinct from the existing 3 s crash-demo gesture on the same button — releasing before 10 s still fires the 3 s demo (now at release instead of immediately), holding to 10 s supersedes it and performs the reset instead | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [zego/factory_reset ↗](https://github.com/chshzh/zego/blob/main/bricks/factory_reset/docs/factory-reset-spec.md) |
 
 ---
 

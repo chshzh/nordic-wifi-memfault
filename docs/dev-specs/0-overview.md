@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-08-00-00 |
-| PRD Version | 2026-07-07-16-32 |
+| Version | 2026-08-04-10-04 |
+| PRD Version | 2026-08-04-09-52 |
 | NCS Version | v3.4.0 |
 | Target Board(s) | nRF54LM20DK + nRF7002EB2, nRF7002DK |
 | Status | Implemented |
@@ -17,6 +17,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-04-10-04 | Added FR-010 factory reset. `zego` bumped v3.4.0.2→v3.4.0.3 (adds `zego/bricks/factory_reset`). New design decisions: (1) `zego/bricks/factory_reset` registered as an `EXTRA_ZEPHYR_MODULE` (`CONFIG_ZEGO_FACTORY_RESET=y`) — erases stored Wi-Fi credentials, saved Wi-Fi mode, and P2P GO MAC, then reboots; (2) `CONFIG_ZEGO_BUTTON_LONGER_PRESS_MS=10000` enables the button brick's guarded two-tier hold on Button 0/Button 1, so the existing 3 s stack-overflow demo (unchanged code) now fires at release instead of immediately, and is superseded by factory reset at 10 s; (3) shell trigger (`zego_factory_reset`) is available wherever `CONFIG_SHELL=y` (nRF54LM20DK only — disabled on nRF7002DK to save flash), button trigger works on both boards. See [app-memfault-module.md](app-memfault-module.md). |
 | 2026-07-08-00-00 | Re-introduced `src/modules/ux/ux.c` (`CONFIG_ZEGO_UX`) — gesture-hook overrides only, not LED duplication. Overrides `zego/bricks/ux`'s `__weak zego_ux_on_single_click()`/`zego_ux_on_long_press()` as no-ops to stop them racing/duplicating this app's own Button 0 heartbeat-CDR and stack-overflow demos; `zego_ux_on_double_click()` intentionally left at the zego/ux default. See [4-ux.md](4-ux.md). |
 | 2026-07-07-16-32 | PRD Version updated to 2026-07-07-16-32. Removed `src/modules/ux/` (`APP_UX_MODULE`) — redundant with `zego/bricks/ux` (`CONFIG_ZEGO_UX`), already linked in for the startup banner and providing identical LED 0 Wi-Fi-state feedback (confirmed duplicate LED driving on hardware). `net_event_app.c` (renamed `net_event_mgmt.c`) now publishes `ZEGO_UX_WIFI_STATE_CHAN` directly. See [4-ux.md](4-ux.md). |
 | 2026-06-29-13-23 | 5-network-module.md: added disconnect reason callback + BSS_MAX_IDLE_TIME=30 Kconfig. app-mqtt-client-module.md: exponential backoff reconnect strategy, broker-drop delay 60 s→30 s. |
@@ -68,6 +69,7 @@ For product requirements driving this design, see [../pm-prd/PRD.md](../pm-prd/P
 | LED | `zego/modules/led` | [zego/led ↗](https://github.com/chshzh/zego/blob/main/modules/led/docs/led-spec.md) |
 | Wi-Fi BLE provisioning | `zego/modules/wifi_ble_prov` | [zego/wifi_ble_prov ↗](https://github.com/chshzh/zego/blob/main/modules/wifi_ble_prov/docs/wifi-ble-prov-spec.md) |
 | Memory + thread monitor | `zego/bricks/memonitor` | [memonitor-module.md](memonitor-module.md) (local) |
+| Factory reset | `zego/bricks/factory_reset` | [zego/factory_reset ↗](https://github.com/chshzh/zego/blob/main/bricks/factory_reset/docs/factory-reset-spec.md) |
 
 ---
 
@@ -101,6 +103,7 @@ Key design decisions:
 | FR-007 Persist disconnect-time log state across reboot; upload to Memfault on next connect | app-memfault-module.md, partition-layout.md | Specified |
 | FR-008 CDR flash persist/restore for disconnect-time nRF70 WiFi stats | app-memfault-module.md, partition-layout.md | Specified |
 | FR-009 LED Wi-Fi state feedback (nRF54LM20DK) | ux.md | Specified |
+| FR-010 Factory reset (button hold ≥ 10 s or shell command) | [app-memfault-module.md](app-memfault-module.md), [zego/factory_reset ↗](https://github.com/chshzh/zego/blob/main/bricks/factory_reset/docs/factory-reset-spec.md), [zego/button ↗](https://github.com/chshzh/zego/blob/main/bricks/button/docs/button-spec.md) | Specified |
 | NFR-001 Resource and stability constraints | architecture.md, memonitor-module.md | Specified |
 
 ---
@@ -109,6 +112,7 @@ Key design decisions:
 
 ```
 zego/button        (ext.) --> BUTTON_CHAN ------------> app_memfault (core/ota/cdr)
+zego/button        (ext.) --> BUTTON_CHAN (BUTTON_LONGER_PRESS) --> zego/factory_reset (ext.)
 zego/led           (ext.) <-- LED_CMD_CHAN <----------- zego/ux (ext.)
 zego/wifi_ble_prov (ext.) --> (credentials → NVS → network reconnect on next boot)
 network --------------------> WIFI_CHAN --------------> app_memfault, app_https_client, app_mqtt_client
