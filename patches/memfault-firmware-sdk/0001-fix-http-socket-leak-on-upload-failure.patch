@@ -1,0 +1,53 @@
+From a212b02f1999f4548aa85f87c55509746bc2ef73 Mon Sep 17 00:00:00 2001
+From: Charlie Shao <charlie.shao@nordicsemi.no>
+Date: Thu, 6 Aug 2026 13:20:59 +0200
+Subject: [PATCH] fix(zephyr): close HTTP/TLS socket on upload failure in
+ memfault_zephyr_port_post_data
+
+memfault_zephyr_port_post_data() only called
+memfault_zephyr_port_http_close_socket() when the whole operation
+succeeded (rv == 0). If memfault_zephyr_port_http_open_socket()
+succeeded but memfault_zephyr_port_http_upload_sdk_data() then failed
+(e.g. an HTTP response timeout after the TLS handshake had already
+completed), the socket fd and its mbedTLS heap allocations were never
+freed. ctx is stack-local, so the leak is permanent for the life of
+the device, not just until the next successful sync.
+
+Observed in the field via Memfault: ncs_mbedtls_heap_used jumped and
+got stuck at 2x baseline for 5+ hours immediately after a
+sync_memfault_failure event, until a later, unrelated Assert in the
+tcp_work thread rebooted the device and reset the heap back to
+baseline. Root-caused by symptom: a stack-overflow-shaped assert with
+no actual stack depletion, caused instead by heap corruption from the
+leaked/never-freed allocation.
+
+Fixed upstream in memfault-firmware-sdk v1.27.0:
+https://github.com/memfault/memfault-firmware-sdk/pull/92
+This NCS v2.6.4 tree vendors v1.6.0, which predates that fix.
+---
+ ports/zephyr/common/memfault_platform_http.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/ports/zephyr/common/memfault_platform_http.c b/ports/zephyr/common/memfault_platform_http.c
+index 0442eeb..4e30692 100644
+--- a/ports/zephyr/common/memfault_platform_http.c
++++ b/ports/zephyr/common/memfault_platform_http.c
+@@ -614,9 +614,12 @@ int memfault_zephyr_port_post_data(void) {
+     rv = memfault_zephyr_port_http_upload_sdk_data(&ctx);
+   }
+ 
+-  if (rv == 0) {
+-    memfault_zephyr_port_http_close_socket(&ctx);
+-  }
++  // Always close the socket, even on failure: memfault_zephyr_port_http_upload_sdk_data()
++  // can fail after the TLS handshake has already completed (e.g. a response timeout),
++  // and ctx is stack-local here, so skipping this on failure leaks the fd and its
++  // mbedTLS heap allocations for the life of the device. Fixed upstream in
++  // memfault-firmware-sdk v1.27.0 (https://github.com/memfault/memfault-firmware-sdk/pull/92).
++  memfault_zephyr_port_http_close_socket(&ctx);
+ 
+ #if defined(CONFIG_MEMFAULT_SYNC_MEMFAULT_METRICS)
+   if (rv == 0) {
+-- 
+2.50.1 (Apple Git-155)
+
