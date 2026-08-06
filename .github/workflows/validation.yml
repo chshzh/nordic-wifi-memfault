@@ -97,6 +97,10 @@ jobs:
             west init -l nordic-wifi-memfault
           west update -o=--depth=1 -n
 
+      - name: Apply local patches
+        working-directory: app-workspace
+        run: bash nordic-wifi-memfault/script/apply_patches.sh "$PWD"
+
       - name: Install west Python requirements
         working-directory: app-workspace
         run: |
