@@ -1,0 +1,242 @@
+From 33ef028f9c658a3321dbbb25b900a9d53d050a12 Mon Sep 17 00:00:00 2001
+From: Charlie Shao <charlie.shao@nordicsemi.no>
+Date: Fri, 14 Aug 2026 09:36:38 +0200
+Subject: [PATCH] net: tcp: Fix possible race between TCP work items and
+ context unref
+
+Backport of upstream commit 37d39425ee18ddb0424bec1a005f54b8967864c9
+(Robert Lubos, Nordic), merged into sdk-zephyr in Nov 2023 -- already
+present in NCS v3.4.0+ but missing on this v2.6.4 branch's pinned
+Zephyr revision.
+
+Fix the possible race between TCP work items already scheduled for
+execution, and tcp_conn_unref(), by moving the actual TCP context
+releasing to the workqueue itself. That way we can be certain, that
+when the work items are cancelled, they won't execute. It could be
+the case, that the work item was already being processed by the work
+queue, so clearing the context could lead to a crash.
+
+Observed in the field via Memfault (Issue 1805239018, trace
+10634676128): device F4CE36006DC9 hit
+"ASSERTION FAIL [handler != ((void *)0)] @ zephyr/kernel/work.c:671"
+on the tcp_work thread after running v2.6.4.4 (which already includes
+two unrelated Memfault-SDK TLS-heap fixes) stably for 6 days --
+mbedTLS heap was flat/normal at crash time, ruling out heap
+corruption as the cause here. This matches upstream Zephyr issue
+zephyrproject-rtos/zephyr#59752 exactly: a TCP connection freed via
+tcp_conn_unref() while one of its k_work_delayable timers was already
+mid-execution on tcp_work_q, leaving a zeroed/freed struct tcp behind
+with a NULL work->handler for the next dequeue to call.
+
+Upstream commit message:
+> Remove the comments around the mutex lock in the work handlers
+> regarding the race, as it's not the case anymore. I've kept the
+> locks however, as they do make sense in those places.
+---
+ subsys/net/ip/tcp.c         | 82 +++++++++++++++----------------------
+ subsys/net/ip/tcp_private.h |  1 +
+ 2 files changed, 35 insertions(+), 48 deletions(-)
+
+diff --git a/subsys/net/ip/tcp.c b/subsys/net/ip/tcp.c
+index fdc33926767..eccf8eba461 100644
+--- a/subsys/net/ip/tcp.c
++++ b/subsys/net/ip/tcp.c
+@@ -521,32 +521,11 @@ static void tcp_send_queue_flush(struct tcp *conn)
+ 	}
+ }
+ 
+-
+-static int tcp_conn_unref(struct tcp *conn)
++static void tcp_conn_release(struct k_work *work)
+ {
+-	int ref_count = atomic_get(&conn->ref_count);
++	struct tcp *conn = CONTAINER_OF(work, struct tcp, conn_release);
+ 	struct net_pkt *pkt;
+ 
+-	NET_DBG("conn: %p, ref_count=%d", conn, ref_count);
+-
+-	k_mutex_lock(&conn->lock, K_FOREVER);
+-
+-#if !defined(CONFIG_NET_TEST_PROTOCOL)
+-	if (conn->in_connect) {
+-		conn->in_connect = false;
+-		k_sem_reset(&conn->connect_sem);
+-	}
+-#endif /* CONFIG_NET_TEST_PROTOCOL */
+-
+-	k_mutex_unlock(&conn->lock);
+-
+-	ref_count = atomic_dec(&conn->ref_count) - 1;
+-	if (ref_count != 0) {
+-		tp_out(net_context_get_family(conn->context), conn->iface,
+-		       "TP_TRACE", "event", "CONN_DELETE");
+-		return ref_count;
+-	}
+-
+ 	k_mutex_lock(&tcp_lock, K_FOREVER);
+ 
+ 	/* If there is any pending data, pass that to application */
+@@ -571,19 +550,6 @@ static int tcp_conn_unref(struct tcp *conn)
+ 
+ 	tcp_send_queue_flush(conn);
+ 
+-	/* Cancel all possible delayed work and prevent any execution of newly scheduled work
+-	 * in one of the work item handlers
+-	 * Essential because the work items are destructed at the bottom of this method.
+-	 * A current ongoing execution might access the connection and schedule new work
+-	 * Solution:
+-	 * While holding the lock, cancel all delayable work.
+-	 * Because every delayable work execution takes the same lock and releases the lock,
+-	 * we're either here, or currently executing one of the workers.
+-	 * Then, after cancelling the workers within the lock, either those workers have finished
+-	 * or have been cancelled and will not execute anymore
+-	 */
+-	k_mutex_lock(&conn->lock, K_FOREVER);
+-
+ 	(void)k_work_cancel_delayable(&conn->send_data_timer);
+ 	tcp_pkt_unref(conn->send_data);
+ 
+@@ -598,8 +564,6 @@ static int tcp_conn_unref(struct tcp *conn)
+ 	(void)k_work_cancel_delayable(&conn->send_timer);
+ 	(void)k_work_cancel_delayable(&conn->recv_queue_timer);
+ 
+-	k_mutex_unlock(&conn->lock);
+-
+ 	sys_slist_find_and_remove(&tcp_conns, &conn->next);
+ 
+ 	memset(conn, 0, sizeof(*conn));
+@@ -607,6 +571,37 @@ static int tcp_conn_unref(struct tcp *conn)
+ 	k_mem_slab_free(&tcp_conns_slab, (void *)conn);
+ 
+ 	k_mutex_unlock(&tcp_lock);
++}
++
++static int tcp_conn_unref(struct tcp *conn)
++{
++	int ref_count = atomic_get(&conn->ref_count);
++
++	NET_DBG("conn: %p, ref_count=%d", conn, ref_count);
++
++	k_mutex_lock(&conn->lock, K_FOREVER);
++
++#if !defined(CONFIG_NET_TEST_PROTOCOL)
++	if (conn->in_connect) {
++		conn->in_connect = false;
++		k_sem_reset(&conn->connect_sem);
++	}
++#endif /* CONFIG_NET_TEST_PROTOCOL */
++
++	k_mutex_unlock(&conn->lock);
++
++	ref_count = atomic_dec(&conn->ref_count) - 1;
++	if (ref_count != 0) {
++		tp_out(net_context_get_family(conn->context), conn->iface,
++		       "TP_TRACE", "event", "CONN_DELETE");
++		return ref_count;
++	}
++
++	/* Release the TCP context from the TCP workqueue. This will ensure,
++	 * that all pending TCP works are cancelled properly, when the context
++	 * is released.
++	 */
++	k_work_submit_to_queue(&tcp_work_q, &conn->conn_release);
+ 
+ 	return ref_count;
+ }
+@@ -716,12 +711,10 @@ static void tcp_send_process(struct k_work *work)
+ 	struct tcp *conn = CONTAINER_OF(dwork, struct tcp, send_timer);
+ 	bool unref;
+ 
+-	/* take the lock to prevent a race-condition with tcp_conn_unref */
+ 	k_mutex_lock(&conn->lock, K_FOREVER);
+ 
+ 	unref = tcp_send_process_no_lock(conn);
+ 
+-	/* release the lock only after possible scheduling of work */
+ 	k_mutex_unlock(&conn->lock);
+ 
+ 	if (unref) {
+@@ -1547,7 +1540,6 @@ static void tcp_cleanup_recv_queue(struct k_work *work)
+ 	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+ 	struct tcp *conn = CONTAINER_OF(dwork, struct tcp, recv_queue_timer);
+ 
+-	/* take the lock to prevent a race-condition with tcp_conn_unref */
+ 	k_mutex_lock(&conn->lock, K_FOREVER);
+ 
+ 	NET_DBG("Cleanup recv queue conn %p len %zd seq %u", conn,
+@@ -1557,7 +1549,6 @@ static void tcp_cleanup_recv_queue(struct k_work *work)
+ 	net_buf_unref(conn->queue_recv_data->buffer);
+ 	conn->queue_recv_data->buffer = NULL;
+ 
+-	/* release the lock only after possible scheduling of work */
+ 	k_mutex_unlock(&conn->lock);
+ }
+ 
+@@ -1569,7 +1560,6 @@ static void tcp_resend_data(struct k_work *work)
+ 	int ret;
+ 	int exp_tcp_rto;
+ 
+-	/* take the lock to prevent a race-condition with tcp_conn_unref */
+ 	k_mutex_lock(&conn->lock, K_FOREVER);
+ 
+ 	NET_DBG("send_data_retries=%hu", conn->send_data_retries);
+@@ -1633,7 +1623,6 @@ static void tcp_resend_data(struct k_work *work)
+ 				    K_MSEC(exp_tcp_rto));
+ 
+  out:
+-	/* release the lock only after possible scheduling of work */
+ 	k_mutex_unlock(&conn->lock);
+ 
+ 	if (conn_unref) {
+@@ -1716,7 +1705,6 @@ static void tcp_send_zwp(struct k_work *work)
+ 	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+ 	struct tcp *conn = CONTAINER_OF(dwork, struct tcp, persist_timer);
+ 
+-	/* take the lock to prevent a race-condition with tcp_conn_unref */
+ 	k_mutex_lock(&conn->lock, K_FOREVER);
+ 
+ 	(void)tcp_out_ext(conn, ACK, NULL, conn->seq - 1);
+@@ -1740,7 +1728,6 @@ static void tcp_send_zwp(struct k_work *work)
+ 			&tcp_work_q, &conn->persist_timer, K_MSEC(timeout));
+ 	}
+ 
+-	/* release the lock only after possible scheduling of work */
+ 	k_mutex_unlock(&conn->lock);
+ }
+ 
+@@ -1749,12 +1736,10 @@ static void tcp_send_ack(struct k_work *work)
+ 	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+ 	struct tcp *conn = CONTAINER_OF(dwork, struct tcp, ack_timer);
+ 
+-	/* take the lock to prevent a race-condition with tcp_conn_unref */
+ 	k_mutex_lock(&conn->lock, K_FOREVER);
+ 
+ 	tcp_out(conn, ACK);
+ 
+-	/* release the lock only after possible scheduling of work */
+ 	k_mutex_unlock(&conn->lock);
+ }
+ 
+@@ -1829,6 +1814,7 @@ static struct tcp *tcp_conn_alloc(void)
+ 	k_work_init_delayable(&conn->recv_queue_timer, tcp_cleanup_recv_queue);
+ 	k_work_init_delayable(&conn->persist_timer, tcp_send_zwp);
+ 	k_work_init_delayable(&conn->ack_timer, tcp_send_ack);
++	k_work_init(&conn->conn_release, tcp_conn_release);
+ 
+ 	tcp_conn_ref(conn);
+ 
+diff --git a/subsys/net/ip/tcp_private.h b/subsys/net/ip/tcp_private.h
+index 7dddf75c7b7..6d13c8cf6fd 100644
+--- a/subsys/net/ip/tcp_private.h
++++ b/subsys/net/ip/tcp_private.h
+@@ -274,6 +274,7 @@ struct tcp { /* TCP connection */
+ 	struct k_work_delayable timewait_timer;
+ 	struct k_work_delayable persist_timer;
+ 	struct k_work_delayable ack_timer;
++	struct k_work conn_release;
+ 
+ 	union {
+ 		/* Because FIN and establish timers are never happening
+-- 
+2.37.3
+

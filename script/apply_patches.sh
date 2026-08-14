@@ -21,6 +21,7 @@ PATCH_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches"
 module_checkout_path() {
 	case "$1" in
 	memfault-firmware-sdk) echo "modules/lib/memfault-firmware-sdk" ;;
+	zephyr) echo "zephyr" ;;
 	*) echo "" ;;
 	esac
 }
