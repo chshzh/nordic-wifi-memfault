@@ -1,0 +1,68 @@
+From f2c971f27cf4e48f5d4347063c1acac851572f1c Mon Sep 17 00:00:00 2001
+From: Charlie Shao <charlie.shao@nordicsemi.no>
+Date: Fri, 14 Aug 2026 09:26:01 +0200
+Subject: [PATCH] fix(zephyr): serialize periodic HTTP upload against app's
+ tls_heap_lock
+
+The periodic-upload work handler calls memfault_zephyr_port_post_data()
+from an SDK-internal, dedicated work queue (mflt_http) driven by a
+k_timer, entirely independent of the app.
+
+On this NCS version, CONFIG_MBEDTLS_THREADING_C is unavailable (no
+CC3XX), so mbedTLS's shared static heap is not thread-safe. The app
+already serializes every other TLS connect/close against this fact via
+a project-level tls_heap_lock mutex (app_https_client, app_mqtt_client,
+and the app's own manual memfault_zephyr_port_post_data()/
+memfault_fota_start() call sites all hold it) -- but this SDK-internal
+timer-driven callback never did, since it has no visibility into an
+app-defined lock.
+
+Every ~60s (CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS), this
+callback can therefore race any app-side TLS connect/close on the same
+shared, non-reentrant mbedTLS heap and corrupt it -- independent of,
+and not fixed by, the memfault_zephyr_port_post_data() socket-leak fix
+in the previous commit. This is a plausible explanation for a
+tcp_work-thread Assert (Memfault Issue 1805239018, trace 10634676128)
+recurring on v2.6.4.4, after that first fix was already deployed.
+
+Wrap the call in tls_heap_lock, matching every other TLS touch point
+in this codebase.
+---
+ ports/zephyr/common/memfault_http_periodic_upload.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/ports/zephyr/common/memfault_http_periodic_upload.c b/ports/zephyr/common/memfault_http_periodic_upload.c
+index 15f520d..d6d04de 100644
+--- a/ports/zephyr/common/memfault_http_periodic_upload.c
++++ b/ports/zephyr/common/memfault_http_periodic_upload.c
+@@ -19,6 +19,17 @@
+ #include "memfault/ports/zephyr/http.h"
+ // clang-format on
+ 
++// This periodic upload path calls memfault_zephyr_port_post_data() from a
++// dedicated SDK-internal work queue, entirely independent of the app. On
++// this NCS version, CONFIG_MBEDTLS_THREADING_C is unavailable (no CC3XX),
++// so mbedTLS's shared static heap is not thread-safe: every other TLS
++// connect/close in this app (app_https_client, app_mqtt_client, the app's
++// own memfault_zephyr_port_post_data()/memfault_fota_start() call sites)
++// serializes against tls_heap_lock, but this SDK-internal timer callback
++// never did, so it could still race an app-side TLS connect/close and
++// corrupt the shared heap even after fixing the post_data() socket leak.
++#include "tls_heap_lock.h"
++
+ #if CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_USE_DEDICATED_WORKQUEUE
+ static K_THREAD_STACK_DEFINE(
+     memfault_http_stack_area, CONFIG_MEMFAULT_HTTP_DEDICATED_WORKQUEUE_STACK_SIZE);
+@@ -31,7 +42,9 @@ static void prv_metrics_work_handler(struct k_work *work) {
+   }
+ 
+   MEMFAULT_LOG_DEBUG("POSTing Memfault Data");
++  k_mutex_lock(&tls_heap_lock, K_FOREVER);
+   memfault_zephyr_port_post_data();
++  k_mutex_unlock(&tls_heap_lock);
+ }
+ 
+ K_WORK_DEFINE(s_upload_timer_work, prv_metrics_work_handler);
+-- 
+2.37.3
+
