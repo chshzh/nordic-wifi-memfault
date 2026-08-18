@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Charlie Shao <charlie.shao@nordicsemi.no>
+Date: Tue, 18 Aug 2026 11:55:00 +0200
+Subject: [PATCH] fix(zephyr): keep a stalled periodic upload from freezing the
+ application
+
+The periodic-upload work queue is started at
+K_HIGHEST_APPLICATION_THREAD_PRIO, which outranks every thread this
+application owns -- the HTTPS and MQTT clients at priority 5, and the
+log processing thread at K_LOWEST_APPLICATION_THREAD_PRIO. Any upload
+that stops yielding therefore takes the whole application down with it,
+UART logging included, and the previous commit's tls_heap_lock wrap
+means it does so while holding the project-wide TLS mutex.
+
+The response-wait loop that could spin forever is fixed separately, but
+the priority and the unbounded K_FOREVER lock wait are what turned that
+single bug into an unrecoverable freeze. Remove both amplifiers so a
+future stall in this path degrades Memfault uploads only:
+
+- Run the queue below the application's own network threads. This is
+  background maintenance; it has no reason to preempt anything.
+- Bound the lock wait and skip the cycle if the mutex is not available.
+  The next timer expiry retries, and the data is still queued in the
+  packetizer, so nothing is lost.
+---
+ .../zephyr/common/memfault_http_periodic_upload.c   | 18 ++++++++++++++---
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/ports/zephyr/common/memfault_http_periodic_upload.c b/ports/zephyr/common/memfault_http_periodic_upload.c
+index d6d04de..b1f3a21 100644
+--- a/ports/zephyr/common/memfault_http_periodic_upload.c
++++ b/ports/zephyr/common/memfault_http_periodic_upload.c
+@@ -30,6 +30,13 @@
+ // corrupt the shared heap even after fixing the post_data() socket leak.
+ #include "tls_heap_lock.h"
+ 
++// Background maintenance: keep this queue below the application's own network
++// threads (priority 5) and well above the log processing thread, so a stall
++// here can never starve the rest of the system. The SDK default of
++// K_HIGHEST_APPLICATION_THREAD_PRIO froze the whole application, logging
++// included, whenever an upload stopped yielding.
++#define MEMFAULT_HTTP_WORK_Q_PRIORITY 7
++
+ #if CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_USE_DEDICATED_WORKQUEUE
+ static K_THREAD_STACK_DEFINE(
+     memfault_http_stack_area, CONFIG_MEMFAULT_HTTP_DEDICATED_WORKQUEUE_STACK_SIZE);
+@@ -42,7 +49,14 @@ static void prv_metrics_work_handler(struct k_work *work) {
+   }
+ 
+   MEMFAULT_LOG_DEBUG("POSTing Memfault Data");
+-  k_mutex_lock(&tls_heap_lock, K_FOREVER);
++  // Bounded: the queued data stays in the packetizer, so skipping this cycle
++  // and letting the next timer expiry retry is always safe, whereas waiting
++  // K_FOREVER on a holder that never releases is not recoverable.
++  if (k_mutex_lock(&tls_heap_lock, TLS_HEAP_LOCK_TIMEOUT) != 0) {
++    MEMFAULT_LOG_WARN("TLS heap busy, skipping this upload");
++    return;
++  }
++
+   memfault_zephyr_port_post_data();
+   k_mutex_unlock(&tls_heap_lock);
+ }
+@@ -80,7 +94,7 @@ static int prv_background_upload_init() {
+ 
+   k_work_queue_start(&memfault_http_work_q, memfault_http_stack_area,
+                      K_THREAD_STACK_SIZEOF(memfault_http_stack_area),
+-                     K_HIGHEST_APPLICATION_THREAD_PRIO, &config);
++                     MEMFAULT_HTTP_WORK_Q_PRIORITY, &config);
+ #endif
+   return 0;
+ }
+-- 
+2.37.3
