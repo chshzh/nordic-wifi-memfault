@@ -51,7 +51,11 @@ static void schedule_ota_check(const char *context)
 {
 #if IS_ENABLED(CONFIG_MEMFAULT_FOTA)
 	LOG_INF("Starting Memfault OTA check (%s)", context);
-	k_mutex_lock(&tls_heap_lock, K_FOREVER);
+	if (k_mutex_lock(&tls_heap_lock, TLS_HEAP_LOCK_TIMEOUT) != 0) {
+		LOG_WRN("TLS heap busy, skipping OTA check (%s)", context);
+		return;
+	}
+
 	int rv = memfault_fota_start();
 	k_mutex_unlock(&tls_heap_lock);
 

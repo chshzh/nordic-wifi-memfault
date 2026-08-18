@@ -260,7 +260,11 @@ static void send_http_request(void)
 	LOG_DBG("Resolved %s (%s)", peer_addr, net_family2str(res->ai_family));
 
 	/* Held until the socket (and its mbedTLS heap allocations) is closed below */
-	k_mutex_lock(&tls_heap_lock, K_FOREVER);
+	if (k_mutex_lock(&tls_heap_lock, TLS_HEAP_LOCK_TIMEOUT) != 0) {
+		LOG_WRN("TLS heap busy, skipping this request");
+		request_failed = true;
+		goto clean_up;
+	}
 	tls_lock_held = true;
 
 	if (IS_ENABLED(CONFIG_SAMPLE_TFM_MBEDTLS)) {

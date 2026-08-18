@@ -25,6 +25,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/atomic.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/dfu/mcuboot.h>
 #include <memfault/metrics/metrics.h>
@@ -51,7 +52,10 @@ LOG_MODULE_REGISTER(memfault_core, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 #define MEMFAULT_HOSTNAME      "chunks-nrf.memfault.com"
 #define DNS_TIMEOUT_SEC        300
 
-static K_SEM_DEFINE(upload_sem, 0, 1);
+/* Limit 2 so a network-connect event and a forced-upload tick that land
+ * together are both serviced, instead of one swallowing the other.
+ */
+static K_SEM_DEFINE(upload_sem, 0, 2);
 static volatile bool wifi_connected;
 
 #if CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC > 0
@@ -69,15 +73,34 @@ static void heartbeat_force_work_fn(struct k_work *work);
 
 static K_WORK_DELAYABLE_DEFINE(heartbeat_force_work, heartbeat_force_work_fn);
 
+/* Set by the timer handler, consumed by upload_thread_fn. */
+static atomic_t force_upload_pending;
+
+static void force_upload_now(void)
+{
+	memfault_metrics_heartbeat_debug_trigger();
+	memfault_log_trigger_collection();
+
+	if (k_mutex_lock(&tls_heap_lock, TLS_HEAP_LOCK_TIMEOUT) != 0) {
+		LOG_WRN("TLS heap busy, skipping forced upload");
+		return;
+	}
+
+	memfault_zephyr_port_post_data();
+	k_mutex_unlock(&tls_heap_lock);
+}
+
 static void heartbeat_force_work_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
 	if (wifi_connected) {
-		memfault_metrics_heartbeat_debug_trigger();
-		memfault_log_trigger_collection();
-		k_mutex_lock(&tls_heap_lock, K_FOREVER);
-		memfault_zephyr_port_post_data();
-		k_mutex_unlock(&tls_heap_lock);
+		/* Defer the upload to memfault_upload_tid. This handler runs on
+		 * the system work queue, where a blocking TLS post stalls
+		 * everything else that queue owns -- DHCP renewal, the heap
+		 * monitor, the L3 DHCP watchdog -- for as long as it takes.
+		 */
+		atomic_set(&force_upload_pending, 1);
+		k_sem_give(&upload_sem);
 	}
 	k_work_schedule(&heartbeat_force_work,
 			K_SECONDS(CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC));
@@ -196,7 +219,11 @@ static void on_connect(void)
 		return;
 	}
 	LOG_DBG("Sending stored data...");
-	k_mutex_lock(&tls_heap_lock, K_FOREVER);
+	if (k_mutex_lock(&tls_heap_lock, TLS_HEAP_LOCK_TIMEOUT) != 0) {
+		LOG_WRN("TLS heap busy, stored data stays queued for the next upload");
+		return;
+	}
+
 	memfault_zephyr_port_post_data();
 	k_mutex_unlock(&tls_heap_lock);
 }
@@ -210,6 +237,14 @@ static void upload_thread_fn(void *a, void *b, void *c)
 
 	while (true) {
 		k_sem_take(&upload_sem, K_FOREVER);
+
+#if CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC > 0
+		if (atomic_cas(&force_upload_pending, 1, 0)) {
+			force_upload_now();
+			continue;
+		}
+#endif
+
 		LOG_INF("Connected to network");
 
 		/* Short initial delay: Zephyr's DNS resolver applies the DHCP-
@@ -342,9 +377,13 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 			LOG_INF("Button 1 short press: Memfault heartbeat");
 			if (wifi_connected) {
 				memfault_metrics_heartbeat_debug_trigger();
-				k_mutex_lock(&tls_heap_lock, K_FOREVER);
-				memfault_zephyr_port_post_data();
-				k_mutex_unlock(&tls_heap_lock);
+				if (k_mutex_lock(&tls_heap_lock,
+						 TLS_HEAP_LOCK_TIMEOUT) == 0) {
+					memfault_zephyr_port_post_data();
+					k_mutex_unlock(&tls_heap_lock);
+				} else {
+					LOG_WRN("TLS heap busy, upload skipped");
+				}
 			} else {
 				LOG_WRN("WiFi not connected, cannot collect "
 					"metrics");
