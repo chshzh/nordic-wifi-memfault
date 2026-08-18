@@ -47,6 +47,19 @@ for module_dir in "$PATCH_ROOT"/*/; do
 		exit 1
 	fi
 
+	# Reset to the manifest-pinned revision before applying. A cached west
+	# workspace (see .github/workflows/*.yml) may already have these
+	# patches applied from a previous run's working tree, and `west
+	# update` skips modules already at the pinned revision, so it won't
+	# clean this up for us. `manifest-rev` is the ref west itself maintains
+	# to track that pinned commit, so resetting to it (rather than just
+	# discarding working-tree edits) also recovers from a HEAD that has
+	# drifted, e.g. from an earlier local `git commit` while drafting a
+	# patch. Starting from this known-clean state keeps patch application
+	# deterministic and avoids false conflicts when two patches touch
+	# adjacent lines in the same file.
+	git -C "$target" reset --hard manifest-rev
+
 	for patch in "$module_dir"*.patch; do
 		[ -f "$patch" ] || continue
 		patch_name="$(basename "$patch")"
@@ -54,8 +67,6 @@ for module_dir in "$PATCH_ROOT"/*/; do
 		if git -C "$target" apply --check "$patch" 2>/dev/null; then
 			echo "Applying $patch_name to $module_path"
 			git -C "$target" apply "$patch"
-		elif git -C "$target" apply --check --reverse "$patch" 2>/dev/null; then
-			echo "Skipping $patch_name (already applied to $module_path)"
 		else
 			echo "ERROR: $patch_name does not apply cleanly to $module_path." \
 				"The module revision may have moved and the patch needs rebasing" \
