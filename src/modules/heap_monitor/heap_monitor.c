@@ -155,7 +155,10 @@ static void update_mbedtls_heap_metrics(uint32_t total, uint32_t used, uint32_t 
 	MEMFAULT_METRIC_SET_UNSIGNED(ncs_mbedtls_heap_peak, peak);
 }
 
-static void report_mbedtls_heap(bool warn_on_used_pct)
+/* Updates mbedtls_peak_*_all_time and pushes the Memfault metrics. Returns
+ * the current used/total/blocks so callers can optionally also log a line.
+ */
+static void update_mbedtls_heap_state(uint32_t *out_used, size_t *out_blocks)
 {
 	size_t cur_used;
 	size_t cur_blocks;
@@ -174,13 +177,23 @@ static void report_mbedtls_heap(bool warn_on_used_pct)
 	update_mbedtls_heap_metrics(total, (uint32_t)cur_used,
 				    mbedtls_peak_used_all_time);
 
-	const bool warn = warn_on_used_pct && (total != 0U) &&
-			  (((uint32_t)cur_used * 100U) / total >=
-			   CONFIG_HEAPS_MONITOR_WARN_PCT);
+	*out_used = (uint32_t)cur_used;
+	*out_blocks = cur_blocks;
+}
 
-	log_heap_line("mbedTLS", (uint32_t)cur_used, total,
-		      mbedtls_peak_used_all_time, true, cur_blocks,
-		      mbedtls_peak_blocks_all_time, warn);
+static void report_mbedtls_heap(bool warn_on_used_pct)
+{
+	uint32_t used;
+	size_t blocks;
+	const uint32_t total = CONFIG_MBEDTLS_HEAP_SIZE;
+
+	update_mbedtls_heap_state(&used, &blocks);
+
+	const bool warn = warn_on_used_pct && (total != 0U) &&
+			  ((used * 100U) / total >= CONFIG_HEAPS_MONITOR_WARN_PCT);
+
+	log_heap_line("mbedTLS", used, total, mbedtls_peak_used_all_time, true,
+		      blocks, mbedtls_peak_blocks_all_time, warn);
 }
 #endif
 
@@ -200,18 +213,27 @@ static void periodic_heap_work_fn(struct k_work *work)
 				(uint32_t)(stats.allocated_bytes + stats.free_bytes);
 			const uint32_t used = (uint32_t)stats.allocated_bytes;
 			const uint32_t peak = (uint32_t)stats.max_allocated_bytes;
-			const bool warn = total != 0U &&
-					  ((used * 100U) / total >=
-					   CONFIG_HEAPS_MONITOR_WARN_PCT);
 
-			log_heap_line("System", used, total, peak, false, 0U, 0U, warn);
+			/* No log line here: this tick's values are already sent to
+			 * Memfault below. The boot-time report and the peak/warn-
+			 * threshold listener (report_system_heap_peak_if_needed())
+			 * still log immediately when something on-device is worth
+			 * seeing without waiting for a metrics upload.
+			 */
 			update_system_heap_metrics(total, used, peak);
 		}
 	}
 #endif
 
 #if defined(CONFIG_MBEDTLS_ENABLE_HEAP) && defined(CONFIG_MBEDTLS_MEMORY_DEBUG)
-	report_mbedtls_heap(true);
+	{
+		uint32_t used;
+		size_t blocks;
+
+		update_mbedtls_heap_state(&used, &blocks);
+		ARG_UNUSED(used);
+		ARG_UNUSED(blocks);
+	}
 #endif
 
 	k_work_reschedule(&periodic_heap_work,
