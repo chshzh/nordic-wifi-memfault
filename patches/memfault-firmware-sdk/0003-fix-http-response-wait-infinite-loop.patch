@@ -1,0 +1,100 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Charlie Shao <charlie.shao@nordicsemi.no>
+Date: Tue, 18 Aug 2026 11:40:00 +0200
+Subject: [PATCH] fix(zephyr): break out of the HTTP response wait when the peer
+ closes the connection
+
+prv_read_socket_data() treats every non-positive recv() return as
+"would block" if errno happens to hold EAGAIN. recv() returns 0 (not
+-1) when the peer performs an orderly shutdown, and it leaves errno
+untouched in that case -- so a stale EAGAIN, which this thread almost
+always carries over from prv_try_send()'s non-blocking send() or from
+the TLS handshake's internal socket calls (sockets_tls.c's tls_tx/tls_rx
+pass ZSOCK_MSG_DONTWAIT unconditionally), makes the end of the stream
+look like a retryable condition. prv_read_socket_data() then reports
+success with zero bytes read, memfault_http_parse_response() never
+reports the response as complete, and prv_wait_for_http_response()
+loops.
+
+The loop does not throttle: after a peer close on a stream socket
+Zephyr keeps ZSOCK_POLLIN asserted and adds ZSOCK_POLLHUP
+(ztls_poll_update_pollin()), and it deliberately does not reset the
+mbedTLS context so that consecutive recv() calls keep returning 0
+(recv_tls()). poll() therefore returns immediately every iteration
+instead of blocking for POLL_TIMEOUT_MS, and the caller spins.
+
+This is fatal rather than merely slow on this application, because the
+periodic-upload work queue runs at K_HIGHEST_APPLICATION_THREAD_PRIO
+and holds the project's tls_heap_lock across the post: the spinning
+thread outranks every application thread, including the log processing
+thread, so UART output stops and no other module can take the TLS lock
+again. Recovery requires a power cycle. Observed on v2.6.4.5 as the
+device going silent and dropping off Memfault after a random uptime
+(~29 min in the reported case, i.e. an arbitrary periodic upload).
+
+Note that an abrupt reset is already handled correctly (POLLERR ->
+recv() returns -1 with ECONNRESET -> clean failure); only a graceful
+FIN/close_notify hits this path.
+
+Clear errno before recv(), treat 0 as end-of-stream, and bound the
+total time spent awaiting a single response as a backstop against any
+other state where poll() reports readable indefinitely.
+
+Fixed differently upstream in later SDK versions; this NCS v2.6.4 tree
+vendors v1.6.0.
+---
+ ports/zephyr/common/memfault_platform_http.c | 27 ++++++++++++++++++---
+ 1 file changed, 24 insertions(+), 3 deletions(-)
+
+diff --git a/ports/zephyr/common/memfault_platform_http.c b/ports/zephyr/common/memfault_platform_http.c
+index 4e30692..8a1c3f5 100644
+--- a/ports/zephyr/common/memfault_platform_http.c
++++ b/ports/zephyr/common/memfault_platform_http.c
+@@ -53,6 +53,10 @@
+ // Timeout for the socket file descriptor to become available for I/0
+ #define POLL_TIMEOUT_MS 5000
+ 
++// Upper bound on the total time spent waiting for one HTTP response, as a
++// backstop for any socket state where poll() keeps reporting readable.
++#define RESPONSE_TIMEOUT_MS (4 * POLL_TIMEOUT_MS)
++
+ #if (CONFIG_MINIMAL_LIBC_MALLOC_ARENA_SIZE > 0)
+ static void *prv_calloc(size_t count, size_t size) {
+   return calloc(count, size);
+@@ -334,8 +338,19 @@ static int prv_read_socket_data(int sock_fd, void *buf, size_t *buf_len) {
+     return false;
+   }
+ 
++  // recv() leaves errno untouched when it returns 0 for an orderly peer
++  // shutdown, so clear it first: otherwise a stale EAGAIN from an earlier
++  // non-blocking send or from the TLS handshake makes end-of-stream look
++  // retryable, and the caller's response loop never terminates.
++  errno = 0;
++
+   const int len = recv(sock_fd, buf, *buf_len, MSG_DONTWAIT);
+-  if (len <= 0) {
++  if (len == 0) {
++    MEMFAULT_LOG_ERROR("Connection closed by peer while awaiting response");
++    return false;
++  }
++
++  if (len < 0) {
+     if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+       *buf_len = 0;
+       return true;
+@@ -350,7 +365,13 @@ static int prv_read_socket_data(int sock_fd, void *buf, size_t *buf_len) {
+ 
+ static bool prv_wait_for_http_response(int sock_fd) {
+   sMemfaultHttpResponseContext ctx = { 0 };
++  const int64_t deadline = k_uptime_get() + RESPONSE_TIMEOUT_MS;
++
+   while (1) {
++    if (k_uptime_get() > deadline) {
++      MEMFAULT_LOG_ERROR("Timed out awaiting HTTP response");
++      return false;
++    }
+     // We don't expect any response that needs to be parsed so
+     // just use an arbitrarily small receive buffer
+     char buf[32];
+-- 
+2.37.3
