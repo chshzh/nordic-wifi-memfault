@@ -136,14 +136,15 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint32_t
 	case NET_EVENT_WIFI_DISCONNECT_RESULT: {
 		const struct wifi_status *status = (const struct wifi_status *)cb->info;
 		/*
-		 * Skip auto-reconnect for provisioner-initiated disconnects
-		 * (status == 0 means intentional/locally-generated, which is
-		 * what the provisioner does before a WiFi scan).  The
-		 * provisioner library owns reconnect in that case; scheduling
-		 * our own reconnect work races against it and can crash the
-		 * WPA supplicant.
+		 * status == 0 (intentional/locally-generated) is ambiguous: it's
+		 * what the provisioner does before a WiFi scan, but it's also what
+		 * the network module's L3 DHCP watchdog gets back from its own
+		 * NET_REQUEST_WIFI_DISCONNECT (see net_event_mgmt.c). Only defer to
+		 * the provisioner when a BLE client is actually connected and could
+		 * be driving that disconnect itself - otherwise nothing else ever
+		 * reconnects and the device is stuck offline forever.
 		 */
-		if (status && status->status == 0) {
+		if (status && status->status == 0 && current_conn != NULL) {
 			LOG_INF("WiFi disconnected (intentional), deferring "
 				"reconnect to provisioner");
 			break;
@@ -157,11 +158,25 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint32_t
 		}
 		break;
 	}
-	case NET_EVENT_WIFI_CONNECT_RESULT:
+	case NET_EVENT_WIFI_CONNECT_RESULT: {
+		const struct wifi_status *status = (const struct wifi_status *)cb->info;
+
+		/*
+		 * This event fires on both success AND failure (timeout, auth
+		 * failure, etc. - see net_event_mgmt.c's decoding of the same
+		 * event for the failure codes). Only a status == 0 result means
+		 * we are actually connected; treating a failed attempt as
+		 * "connected" here cancels the in-flight retry backoff and
+		 * leaves the device stuck offline with no reconnect scheduled.
+		 */
+		if (status && status->status != 0) {
+			break;
+		}
 		wifi_reconnect_pending = false;
 		wifi_reconnect_retry_count = 0;
 		k_work_cancel_delayable(&wifi_connect_work);
 		break;
+	}
 	default:
 		break;
 	}

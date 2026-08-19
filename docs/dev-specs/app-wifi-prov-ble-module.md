@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-24-11-30 |
+| Version | 2026-08-18-22-15 |
 | PRD Version | 2026-07-24-11-30 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
@@ -22,6 +22,8 @@
 |---|---|
 | 2026-07-13-11-08 | New spec (not present in legacy `pm/openspec/specs/`, which only briefly mentioned this module inside `memfault-integration.md`/`architecture.md`). Reverse-designed from current `wifi_prov_over_ble.c`. |
 | 2026-07-24-11-30 | Replaced the flat 180 s reconnect fallback retry with a capped exponential backoff (5 s ×3 quick retries, then 30 → 60 → 120 → 300 s cap), mirroring the MQTT reconnect backoff pattern already used elsewhere in this app. A flat 180 s interval meant the device could sit disconnected for up to 3 minutes after the first failed attempt before trying again; the initial 5 s retry on disconnect is unchanged. `wifi_reconnect_retry_count` is reset on any successful connect or when credentials are found empty. |
+| 2026-08-18-18-40 | Fixed a hang: `status == 0` on `NET_EVENT_WIFI_DISCONNECT_RESULT` was treated as "provisioner-initiated, defer reconnect" unconditionally, but the `network` module's L3 DHCP watchdog (`net_event_mgmt.c`) also produces `status == 0` from its own `NET_REQUEST_WIFI_DISCONNECT`. When that watchdog fired with no BLE client connected (e.g. after an AP power-cycle where the device re-associates but doesn't get a lease in time), reconnect was deferred to a provisioner that wasn't actually there, and the device stayed offline indefinitely. Now only defers when `current_conn != NULL` (a BLE client is actually connected and could be driving the disconnect). |
+| 2026-08-18-22-15 | Fixed a second, related hang found via hardware retest of the above fix: `NET_EVENT_WIFI_CONNECT_RESULT` fires on both success *and* failure (timeout, auth failure, etc. — same event `net_event_mgmt.c` decodes into `-ETIMEDOUT`/"Connection timed out" etc.), but this module's handler treated *any* occurrence as "now connected", clearing `wifi_reconnect_pending` and cancelling the already-scheduled backoff retry. A single failed/timed-out connect attempt during the retry loop (e.g. wpa_supplicant's own 30 s association timeout racing the AP right after a power-cycle) silently killed all further retries, leaving the device offline indefinitely with no further reconnect attempts logged. Now only clears reconnect state / cancels the retry work when `status->status == 0` (genuine success). |
 
 ---
 
@@ -104,7 +106,8 @@ Not SMF. Event/work-queue driven:
 - On boot: if `wifi_credentials_is_empty()`, starts BLE advertising immediately (`PROV_BT_LE_ADV_PARAM_FAST`).
 - If credentials already exist at boot (`credentials_existed_at_boot`), the module still starts BLE (for re-provisioning) but does not force an immediate reconnect race — it defers to `network`/Connection Manager auto-connect.
 - On `NET_EVENT_WIFI_DISCONNECT_RESULT` with a *non-zero* status (unintentional disconnect) while a provisioning session is active: schedules `wifi_connect_work_handler` on `adv_daemon_work_q` after `WIFI_RECONNECT_DELAY_SEC` (5 s).
-- On `status == 0` (intentional/provisioner-initiated disconnect, e.g. before a Wi-Fi scan): explicitly skips auto-reconnect — the provisioning library owns that reconnect itself to avoid racing the WPA supplicant.
+- On `status == 0` (intentional/locally-generated disconnect) **while a BLE client is connected** (`current_conn != NULL`): explicitly skips auto-reconnect — the provisioning library owns that reconnect itself to avoid racing the WPA supplicant while it is driving a scan. `status == 0` is otherwise ambiguous (the `network` module's L3 DHCP watchdog also produces it via its own `NET_REQUEST_WIFI_DISCONNECT`), so without a BLE client connected the normal reconnect path below is scheduled instead.
+- On `NET_EVENT_WIFI_CONNECT_RESULT`: this event fires on both success and failure (timeout, auth failure, etc.). Only `status == 0` (genuine success) clears `wifi_reconnect_pending`/`wifi_reconnect_retry_count` and cancels the pending retry work — a failed/timed-out attempt during an active retry cycle must leave the already-scheduled backoff retry running, otherwise the device is left offline with no further reconnect attempts.
 - Advertisement parameters/data are periodically refreshed via `update_adv_param_work` / `update_adv_data_work` delayed work.
 
 ---
@@ -135,6 +138,7 @@ Not SMF. Event/work-queue driven:
 |----------------|-----------|----------|
 | BLE advertising start failure | Return code from `bt_le_adv_start()` | Logged; not currently retried automatically |
 | Reconnect after unintentional disconnect | `NET_EVENT_WIFI_DISCONNECT_RESULT` status != 0 | Reconnect scheduled once (`wifi_reconnect_pending` guard prevents duplicate scheduling) after `WIFI_RECONNECT_DELAY_SEC` (5 s); if still disconnected, the fallback retry backs off 5 s ×3, then 30→60→120→300 s cap (`wifi_reconnect_backoff_sec()`) instead of a flat interval |
+| Connect attempt fails mid-retry-cycle (timeout, auth failure) | `NET_EVENT_WIFI_CONNECT_RESULT` status != 0 | Retry cycle is left running (backoff work is only cancelled on `status == 0`); previously any status on this event cancelled the retry, silently ending the reconnect loop after the first failed attempt |
 | Stack overflow risk in connect chain | Historical: 4096 B stack overflowed inside `zsock_poll_internal()` | Fixed by sizing `ADV_DAEMON_STACK_SIZE` to 8192 B (documented in-code) |
 
 ---
@@ -156,7 +160,9 @@ Not SMF. Event/work-queue driven:
 | No stored credentials at boot | BLE advertising starts as `PV<MAC>` | `wifi_credentials_is_empty()` true |
 | Provisioning success | Wi-Fi connects after credentials received | Credentials written via `net/wifi_credentials`, Connection Manager connects |
 | Unintentional disconnect during prov session | `WiFi disconnected, scheduling reconnect` | `status != 0` while `bt_wifi_prov_state_get()` true |
-| Intentional disconnect (provisioner scan) | `WiFi disconnected (intentional), deferring reconnect to provisioner` | `status == 0` |
+| Intentional disconnect (provisioner scan) | `WiFi disconnected (intentional), deferring reconnect to provisioner` | `status == 0` with a BLE client connected |
+| L3 watchdog forces disconnect (associated, no IP after timeout) with no BLE client connected | `WiFi disconnected, scheduling reconnect` (not deferred) | `status == 0` with `current_conn == NULL` — regression test: power-cycle the AP mid-session and confirm the device reconnects instead of hanging offline |
+| A connect attempt inside the retry loop times out / fails to associate | Retry cycle keeps logging `WiFi still disconnected, retrying in N seconds` past the failed attempt | `NET_EVENT_WIFI_CONNECT_RESULT` status != 0 does not cancel `wifi_connect_work` — regression test: power-cycle the AP and confirm reconnect eventually succeeds even if the first association attempt times out (do not stop observing after the first `Connection timed out` log line) |
 
 ---
 
