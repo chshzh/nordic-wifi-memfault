@@ -5,10 +5,10 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-18-22-15 |
-| PRD Version | 2026-07-24-11-30 |
+| Version | 2026-08-19-15-30 |
+| PRD Version | 2026-08-19-15-00 |
 | NCS Version | v2.6.4 |
-| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
+| Target Board(s) | nRF7002DK |
 | Status | Implemented |
 
 > `Version` = this spec's own latest edit time (`date +%Y-%m-%d-%H-%M`); bump it on **every** edit.
@@ -24,6 +24,7 @@
 | 2026-07-24-11-30 | Replaced the flat 180 s reconnect fallback retry with a capped exponential backoff (5 s ×3 quick retries, then 30 → 60 → 120 → 300 s cap), mirroring the MQTT reconnect backoff pattern already used elsewhere in this app. A flat 180 s interval meant the device could sit disconnected for up to 3 minutes after the first failed attempt before trying again; the initial 5 s retry on disconnect is unchanged. `wifi_reconnect_retry_count` is reset on any successful connect or when credentials are found empty. |
 | 2026-08-18-18-40 | Fixed a hang: `status == 0` on `NET_EVENT_WIFI_DISCONNECT_RESULT` was treated as "provisioner-initiated, defer reconnect" unconditionally, but the `network` module's L3 DHCP watchdog (`net_event_mgmt.c`) also produces `status == 0` from its own `NET_REQUEST_WIFI_DISCONNECT`. When that watchdog fired with no BLE client connected (e.g. after an AP power-cycle where the device re-associates but doesn't get a lease in time), reconnect was deferred to a provisioner that wasn't actually there, and the device stayed offline indefinitely. Now only defers when `current_conn != NULL` (a BLE client is actually connected and could be driving the disconnect). |
 | 2026-08-18-22-15 | Fixed a second, related hang found via hardware retest of the above fix: `NET_EVENT_WIFI_CONNECT_RESULT` fires on both success *and* failure (timeout, auth failure, etc. — same event `net_event_mgmt.c` decodes into `-ETIMEDOUT`/"Connection timed out" etc.), but this module's handler treated *any* occurrence as "now connected", clearing `wifi_reconnect_pending` and cancelling the already-scheduled backoff retry. A single failed/timed-out connect attempt during the retry loop (e.g. wpa_supplicant's own 30 s association timeout racing the AP right after a power-cycle) silently killed all further retries, leaving the device offline indefinitely with no further reconnect attempts logged. Now only clears reconnect state / cancels the retry work when `status->status == 0` (genuine success). |
+| 2026-08-19-15-30 | Dropped nRF54LM20DK + nRF7002EB II from Target Board(s) — that board has no board definition in NCS v2.6.4 and has been removed project-wide; see `1-architecture.md` Changelog for the full removal. No module-specific behavior changed. |
 
 ---
 

@@ -5,10 +5,10 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-24-14-56 |
-| PRD Version | 2026-07-24-14-56 |
+| Version | 2026-08-19-15-30 |
+| PRD Version | 2026-08-19-15-00 |
 | NCS Version | v2.6.4 |
-| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
+| Target Board(s) | nRF7002DK |
 | Status | Implemented |
 
 > `Version` = this spec's own latest edit time (`date +%Y-%m-%d-%H-%M`); bump it on **every** edit.
@@ -24,6 +24,7 @@
 | 2026-07-24-14-41 | Two corrections found during hardware testing: (1) **Build fix** — `CMakeLists.txt` used the brick's `zephyr_library()`/`zephyr_library_sources()` pattern, which never links into this app's plain (non-west-module) `add_subdirectory()` build; `ntp_module_init()`'s `SYS_INIT` never ran and `ntp_wifi_listener` never subscribed, even though `CONFIG_NTP_MODULE_ENABLED=y` was correctly set. Switched to `target_sources(app PRIVATE ntp.c)`, this app's convention for every other module (confirmed fix via UART: `ntp_module: NTP sync initialized` / `Querying pool.ntp.org ...` now appear, and `ntp.c.obj` now compiles into `app.dir` instead of an unlinked separate library). Also added `ntp` to `main.c`'s boot-time "Enabled modules" list (previously missing). (2) **UART log timestamps** — `CONFIG_LOG_TIMESTAMP_USE_REALTIME` doesn't exist in this Zephyr version, but its logging core exposes `log_set_timestamp_func()` to swap the timestamp source used by ALL log lines at runtime. The module now registers a `CLOCK_REALTIME`-backed function once synced (freq=1, i.e. whole seconds — this project's log timestamps are 32-bit, so an epoch value in milliseconds would overflow); combined with `CONFIG_LOG_OUTPUT_FORMAT_LINUX_TIMESTAMP=y` (prj.conf), log lines switch from `[hh:mm:ss,ms,us]` uptime to `[<epoch_seconds>.000000]` Unix time once synced. |
 | 2026-07-24-14-47 | Upgraded the log-timestamp rendering from raw epoch seconds to a calendar UTC string: registered a `log_custom_timestamp_format_func_t` via `log_custom_timestamp_set()` (`CONFIG_LOG_OUTPUT_FORMAT_CUSTOM_TIMESTAMP=y`, replacing `CONFIG_LOG_OUTPUT_FORMAT_LINUX_TIMESTAMP`) that uses `gmtime_r()` to print `"2026-07-24 14:35:33Z"` once synced, or an elapsed `hh:mm:ss.mmm` duration (reconstructed manually, since custom-timestamp mode replaces Zephyr's built-in formatter entirely) before sync. |
 | 2026-07-24-14-56 | **Bug fix**: hardware testing showed a handful of log lines briefly rendering bogus `1970-01-29` calendar dates (incrementing ~1 s per line) right around the sync transition. Root cause: the formatter checked the *live* `ntp_synced` flag at print time, but `CONFIG_LOG_MODE_DEFERRED` means messages are formatted asynchronously, sometime after they were captured — a message captured just before sync (uptime milliseconds) could still be sitting in the log buffer once `ntp_synced` flipped true, and got misinterpreted as epoch seconds. Fixed by tagging the epoch/uptime mode into bit 31 of the raw timestamp value itself at *capture* time (`NTP_LOG_TS_EPOCH_FLAG`), so formatting is correct regardless of processing delay. Also wrapped both formats in `"[...] "` to match Zephyr's original log style (`[00:06:43.892] ` / `[2026-07-24 14:35:33Z] `). |
+| 2026-08-19-15-30 | Dropped nRF54LM20DK + nRF7002EB II from Target Board(s) — that board has no board definition in NCS v2.6.4 and has been removed project-wide; see `1-architecture.md` Changelog for the full removal. No module-specific behavior changed. |
 
 ---
 

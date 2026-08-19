@@ -89,20 +89,18 @@ config MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP
 # devices by hardware without requiring board conf files.
 config MEMFAULT_NCS_FW_TYPE
 	default "nrf7002dk-fw"   if BOARD_NRF7002DK_NRF5340_CPUAPP
-	default "nrf54lm20dk-fw" if BOARD_NRF54LM20DK_NRF54LM20A_CPUAPP
 
 # ---------------------------------------------------------------------------
 # Hardware version (Memfault Hardware Version) — set per board target
 # ---------------------------------------------------------------------------
 # NCS default is the raw Zephyr BOARD name (e.g. "nrf7002dk_nrf5340_cpuapp"),
-# which never matches the "nrf7002dk"/"nrf54lm20dk" hardware_version already
-# used by every release/deployment in the Memfault project for these boards.
-# Left at the BOARD default, OTA's "latest release" check returns
-# 204/non_primary_sw_type for every check — the release exists but never
-# resolves for this device's hardware_version.
+# which never matches the "nrf7002dk" hardware_version already used by every
+# release/deployment in the Memfault project for this board. Left at the
+# BOARD default, OTA's "latest release" check returns 204/non_primary_sw_type
+# for every check — the release exists but never resolves for this device's
+# hardware_version.
 config MEMFAULT_NCS_HW_VERSION
 	default "nrf7002dk"   if BOARD_NRF7002DK_NRF5340_CPUAPP
-	default "nrf54lm20dk" if BOARD_NRF54LM20DK_NRF54LM20A_CPUAPP
 
 # ---------------------------------------------------------------------------
 # Firmware version

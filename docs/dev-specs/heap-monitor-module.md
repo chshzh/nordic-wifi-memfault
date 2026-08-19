@@ -5,10 +5,10 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-13-11-08 |
-| PRD Version | 2026-07-13-11-07 |
+| Version | 2026-08-19-15-30 |
+| PRD Version | 2026-08-19-15-00 |
 | NCS Version | v2.6.4 |
-| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
+| Target Board(s) | nRF7002DK |
 | Status | Implemented |
 
 > `Version` = this spec's own latest edit time (`date +%Y-%m-%d-%H-%M`); bump it on **every** edit.
@@ -21,6 +21,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-07-13-11-08 | New spec — module did not exist at the time of the legacy `pm/openspec` docs. Added since the pre-migration snapshot to track system-heap and mbedTLS-heap usage and feed it into Memfault metrics. |
+| 2026-08-19-15-30 | Dropped nRF54LM20DK + nRF7002EB II from Target Board(s) — that board has no board definition in NCS v2.6.4 and has been removed project-wide; see `1-architecture.md` Changelog for the full removal. No module-specific behavior changed. |
 
 ---
 

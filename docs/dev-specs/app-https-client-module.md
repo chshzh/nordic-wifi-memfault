@@ -5,10 +5,10 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-24-11-30 |
-| PRD Version | 2026-07-24-11-30 |
+| Version | 2026-08-19-15-30 |
+| PRD Version | 2026-08-19-15-00 |
 | NCS Version | v2.6.4 |
-| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
+| Target Board(s) | nRF7002DK |
 | Status | Implemented |
 
 > `Version` = this spec's own latest edit time (`date +%Y-%m-%d-%H-%M`); bump it on **every** edit.
@@ -22,6 +22,7 @@
 |---|---|
 | 2026-07-13-11-08 | New standalone spec — the legacy `pm/PRD.md` described this as "Module 6" inline but `pm/openspec/specs/` had no dedicated file for it. Reverse-designed from current `app_https_client.c`. |
 | 2026-07-24-11-30 | Ported a `DNS_EAI_CANCELED` retry from `nordic-wifi-memfault-main`: `getaddrinfo()` can return `DNS_EAI_CANCELED` (-101) when DHCPv4 lease renewal calls `dns_resolve_reconfigure()` and cancels in-flight DNS queries mid-flight; `send_http_request()` now waits 2 s and retries once, and the error log shows the EAI code alongside `errno` (previously `errno` alone, which is stale/misleading for DNS failures). |
+| 2026-08-19-15-30 | Dropped nRF54LM20DK + nRF7002EB II from Target Board(s) — that board has no board definition in NCS v2.6.4 and has been removed project-wide; see `1-architecture.md` Changelog for the full removal. No module-specific behavior changed. |
 
 ---
 

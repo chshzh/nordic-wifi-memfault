@@ -5,9 +5,9 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault (Memfault Wi-Fi Observability Sample) |
-| Version | 2026-07-28-08-15 |
+| Version | 2026-08-19-15-45 |
 | NCS Version | v2.6.4 |
-| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
+| Target Board(s) | nRF7002DK |
 | Status | Implemented |
 
 > **Status values:** `Draft` → `In Review` → `Approved` → `Implemented` → `Archived`
@@ -31,6 +31,8 @@
 | 2026-07-24-14-47 | Upgraded UART log timestamps from raw epoch seconds to a human-readable calendar UTC string: registered a custom Zephyr log formatter (`CONFIG_LOG_OUTPUT_FORMAT_CUSTOM_TIMESTAMP=y`, replacing `CONFIG_LOG_OUTPUT_FORMAT_LINUX_TIMESTAMP`) that renders the synced time via `gmtime_r()` as `"2026-07-24 14:35:33Z"` instead of `"1784896533.000000"`; before sync, the same formatter shows an elapsed `hh:mm:ss.mmm` duration. |
 | 2026-07-24-14-56 | **Bug fix**: hardware testing showed a handful of log lines briefly rendering bogus `1970-01-29` dates right around the sync transition, because the formatter checked the *live* sync flag at print time while `CONFIG_LOG_MODE_DEFERRED` formats messages asynchronously after capture. Fixed by tagging the epoch/uptime mode into the raw timestamp value itself at capture time. Also wrapped timestamps in `[...] ` brackets to match the original log style. |
 | 2026-07-28-08-15 | **Bug fix**: the `tcp_work` stack overflow (first patched 2026-07-24 by bumping `CONFIG_NET_TCP_WORKQ_STACK_SIZE` 1024→2048) recurred in the field — 7 crashes on `v2.6.4.1` over 2026-07-27/28, found via Memfault reboot history + the same (still-open) symbolicated crash issue, now faulting within ~104 B of the *2048* top instead of the *1024* top. Bumped again to 4096; RAM headroom unaffected (72.74% used, same as before). Root cause of the growing stack usage not fully isolated — see `docs/dev-specs/3-memopt.md` Open Issues. |
+| 2026-08-19-15-00 | **Wi-Fi reconnect reliability, round 2**: found via UART log analysis after a router power-cycle test — the device could still hang offline indefinitely even with the 2026-07-24-11-30 backoff/watchdog fix in place. Two independent bugs in `wifi_prov_over_ble.c`'s reconnect logic, both now fixed (see [app-wifi-prov-ble-module.md](../dev-specs/app-wifi-prov-ble-module.md) for detail): (1) a disconnect reported as "intentional" (`status == 0`) was always deferred to the BLE provisioner to reconnect, but the L3 DHCP-bound watchdog's own forced disconnect also reports `status == 0` — with no BLE provisioning session active, nothing ever reconnected. (2) a failed connection *attempt* (e.g. an association timeout mid-retry) was mistaken for a successful connection, cancelling the in-progress reconnect backoff and leaving the device offline with no further retries. **New feature**: periodic nRF70 CDR collection (`CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC`, off by default) — a fresh Wi-Fi firmware-stats snapshot is kept ready on a timer instead of only being collected on a Button-1 press or a disconnect event, so whichever CDR upload the Memfault cloud accepts (capped at 1/device/24h) reflects more recent link conditions. A companion periodic coredump-retry feature was prototyped alongside it but removed after it was found to be both redundant (a pending coredump is already retried automatically by Memfault's own periodic upload timer) and the direct cause of a boot-time out-of-RAM assertion loop on nRF7002DK — see `app-memfault-module.md` Changelog for the full RAM postmortem. Also tightened `CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS`, `CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC`, `CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC`, and `CONFIG_APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC` from 900 s to 60 s for faster feedback during active development/testing. |
+| 2026-08-19-15-45 | **Removed nRF54LM20DK + nRF7002EB II support entirely.** This board's SoC (nRF54LM20A) has no board definition anywhere in this NCS v2.6.4 installation (confirmed absent from `zephyr/boards`, `nrf/boards`, `modules/hal/nordic`) — the nRF54L series was introduced in a later NCS release than the one this `ncs264` branch targets. This project's `boards/nrf54lm20dk_nrf54lm20a_cpuapp.conf`/`.overlay` files only ever overrode Kconfig/DTS on top of a base board definition that was never actually present, which is exactly the persistent, previously-unresolved "BOARD_ROOT environment issue" this doc's engineering specs have flagged as an Open Issue since 2026-07-13 — the board build was never actually verified working in this environment, and never could be. **Retired FR-006** (dual-board support — see §3 P0 table, struck through, ID reserved rather than renumbered) and updated every other board-comparison table/note in this document (§1.3, §1.5 A3 dropped, §2.4, §5, §7) to reflect nRF7002DK as the sole target. Deleted board/partition/sysbuild files and updated CI/README/dev-specs — see [1-architecture.md](../dev-specs/1-architecture.md) Changelog for the full technical account. |
 
 ---
 
@@ -38,11 +40,11 @@
 
 ### 1.1 Product Overview
 
-`nordic-wifi-memfault` is a Memfault integration reference sample for Nordic Wi-Fi platforms. It demonstrates IoT device observability — Wi-Fi STA connectivity, Wi-Fi credential provisioning over BLE, always-on HTTPS/MQTT client traffic, and Memfault cloud-based crash reporting, metrics, and OTA firmware updates — on both the nRF7002DK (nRF5340 + nRF7002) and the nRF54LM20DK + nRF7002EB II shield (nRF54LM20A single-core + nRF7002).
+`nordic-wifi-memfault` is a Memfault integration reference sample for Nordic Wi-Fi platforms. It demonstrates IoT device observability — Wi-Fi STA connectivity, Wi-Fi credential provisioning over BLE, always-on HTTPS/MQTT client traffic, and Memfault cloud-based crash reporting, metrics, and OTA firmware updates — on the nRF7002DK (nRF5340 + nRF7002).
 
 ### 1.2 Problem Statement
 
-Developers integrating Memfault with Nordic Wi-Fi hardware need a working, current reference showing the SMF+Zbus modular architecture pattern, correct Memfault SDK wiring (coredump, metrics, OTA), and Wi-Fi lifecycle handling — across more than one board — without reverse-engineering scattered examples.
+Developers integrating Memfault with Nordic Wi-Fi hardware need a working, current reference showing the SMF+Zbus modular architecture pattern, correct Memfault SDK wiring (coredump, metrics, OTA), and Wi-Fi lifecycle handling — without reverse-engineering scattered examples.
 
 ### 1.3 Target Users
 
@@ -50,13 +52,13 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 |---|---|
 | Primary | Embedded developers integrating Memfault with nRF70 Wi-Fi devices |
 | Secondary | QA and support teams validating connectivity and OTA flows |
-| Tertiary | Nordic field engineers running demos on nRF7002DK / nRF54LM20DK |
+| Tertiary | Nordic field engineers running demos on nRF7002DK |
 
 ### 1.4 Success Metrics
 
 | Metric | Target | How to measure | Verified by |
 |---|---|---|---|
-| Clean build | Zero compiler errors, both boards | `west build -p --sysbuild` for each board target | **chsh-sk-ncs-4.1-verification** — build verification step |
+| Clean build | Zero compiler errors | `west build -p --sysbuild` | **chsh-sk-ncs-4.1-verification** — build verification step |
 | Wi-Fi connects | STA connects and gets an IP within 30 s of credentials being available | UART log timestamp (`WiFi CONNECTED`) | **chsh-sk-ncs-4.2-validation** — hardware runtime scenario |
 | Memfault upload | Heartbeat/coredump data reaches the Memfault dashboard after connect | Manual dashboard check | **chsh-sk-ncs-4.2-validation** — hardware runtime scenario |
 | OTA | Firmware update via Memfault FOTA completes and device reboots into new image | Manual OTA test | **chsh-sk-ncs-4.2-validation** — hardware runtime scenario |
@@ -68,8 +70,7 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 |---|---|---|
 | A1 | Target network is 2.4 GHz WPA2/WPA3 infrastructure Wi-Fi | High — STA connect flow is the only supported mode |
 | A2 | Developer has a Memfault project and API key | High — no cloud features work without it |
-| A3 | nRF54LM20DK is always paired with the nRF7002EB II shield | Medium — board has no other Wi-Fi source |
-| A4 | Demo environment allows outbound HTTPS/MQTT (443/8883) to `example.com`, `broker.emqx.io`, and Memfault | Low — HTTPS/MQTT client metrics will show failures but core Memfault flow still works |
+| A3 | Demo environment allows outbound HTTPS/MQTT (443/8883) to `example.com`, `broker.emqx.io`, and Memfault | Low — HTTPS/MQTT client metrics will show failures but core Memfault flow still works |
 
 ---
 
@@ -99,12 +100,12 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 
 ### 2.4 Buttons & LEDs
 
-| Hardware | nRF7002DK | nRF54LM20DK + nRF7002EB II |
-|---|---|---|
-| Buttons used | 2 (Button 1, Button 2) — `DK_BTN1`/`DK_BTN2` | 2 (BUTTON 0, BUTTON 1) — same `DK_BTN1`/`DK_BTN2` GPIO mapping |
-| LEDs used | none (no LED module yet) | none |
+| Hardware | nRF7002DK |
+|---|---|
+| Buttons used | 2 (Button 1, Button 2) — `DK_BTN1`/`DK_BTN2` |
+| LEDs used | none (no LED module yet) |
 
-> The button module tracks all 4 `DK_BTN*` GPIOs, but only buttons 1–4 have assigned actions per below; buttons 3/4 exist on both boards' DK library mapping and drive Memfault metric/trace demos only.
+> The button module tracks all 4 `DK_BTN*` GPIOs, but only buttons 1–4 have assigned actions per below; buttons 3/4 exist on the board's DK library mapping and drive Memfault metric/trace demos only.
 
 *Button behavior:*
 
@@ -143,7 +144,7 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 | FR-003 | developer | press Button 1 to trigger a heartbeat and, held long, a stack-overflow demo | I can test the metrics and crash-reporting pipeline on demand | - Short press logs "Memfault heartbeat" and posts data if Wi-Fi connected<br>- Long press (≥3s) crashes via stack overflow and a coredump is captured | [button-module.md](../dev-specs/button-module.md), [app-memfault-module.md](../dev-specs/app-memfault-module.md) |
 | FR-004 | developer | press Button 2 to check for an OTA update and, held long, trigger a division-by-zero demo | I can test the OTA and fault-handling pipeline on demand | - Short press starts `memfault_fota_start()` and logs the result<br>- Long press (≥3s) crashes via division-by-zero and a coredump is captured<br>- OTA is also auto-checked on Wi-Fi connect and every `CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN` minutes | [button-module.md](../dev-specs/button-module.md), [app-memfault-module.md](../dev-specs/app-memfault-module.md) |
 | FR-005 | developer | have HTTPS and MQTT client traffic running automatically once Wi-Fi connects | I can validate general network connectivity and see it reflected in Memfault metrics | - HTTPS client sends a `HEAD` request to `example.com` every `CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC` (default 300 s)<br>- MQTT client publishes/echoes a message to `broker.emqx.io` every `CONFIG_APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC` (default 300 s)<br>- Success/failure counters visible as Memfault metrics | [app-https-client-module.md](../dev-specs/app-https-client-module.md), [app-mqtt-client-module.md](../dev-specs/app-mqtt-client-module.md) |
-| FR-006 | developer | run the same application on nRF7002DK or nRF54LM20DK+nRF7002EB II | I can validate the reference design across Nordic's current Wi-Fi DK lineup | - `west build -b nrf7002dk_nrf5340_cpuapp --sysbuild` succeeds<br>- `west build -b nrf54lm20dk_nrf54lm20a_cpuapp --sysbuild -- -DSHIELD=nrf7002eb2` succeeds<br>- Both boards run all P0 features | [1-architecture.md](../dev-specs/1-architecture.md), [2-pm-partition.md](../dev-specs/2-pm-partition.md) |
+| ~~FR-006~~ | ~~developer~~ | ~~run the same application on nRF7002DK or nRF54LM20DK+nRF7002EB II~~ | ~~I can validate the reference design across Nordic's current Wi-Fi DK lineup~~ | **Removed 2026-08-19** — nRF54LM20DK has no board definition in NCS v2.6.4; project is nRF7002DK-only. ID reserved, not reused. | [1-architecture.md](../dev-specs/1-architecture.md) |
 | FR-007 | developer | see live heap usage feed into Memfault metrics | I can catch heap exhaustion before it causes a crash | - System heap and mbedTLS heap usage logged periodically (`CONFIG_HEAPS_MONITOR_PERIODIC_INTERVAL_SEC`)<br>- A warning is logged when usage crosses `CONFIG_HEAPS_MONITOR_WARN_PCT`<br>- Heap metrics visible in Memfault heartbeat | [heap-monitor-module.md](../dev-specs/heap-monitor-module.md) |
 
 ### P1 — Should Have
@@ -198,13 +199,15 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 | Board | Wi-Fi chip | Buttons used | LEDs used | Supported modes |
 |---|---|---|---|---|
 | nRF7002DK | nRF7002 (on-board) | 2 (of 4 available) | 0 (of 2 available) | STA |
-| nRF54LM20DK + nRF7002EB II shield | nRF7002 (shield) | 2 (of available) | 0 | STA |
+
+> **nRF54LM20DK + nRF7002EB II support removed 2026-08-19** — that board has no board definition
+> in NCS v2.6.4 (the nRF54L series was introduced in a later NCS release). See
+> [1-architecture.md](../dev-specs/1-architecture.md) Changelog for the full removal.
 
 ### 5.2 Board-specific notes
 
 - nRF7002DK: nRF5340 dual-core; BLE runs on the network core (`hci_ipc`); UART on VCOM1.
-- nRF54LM20DK: nRF54LM20A single-core; BLE runs via SoftDevice Controller on the same core; UART on VCOM0; flash is RRAM-backed (not external NOR) for internal partitions.
-- Both boards use MCUboot with an external SPI NOR (`MX25R64`) secondary OTA slot.
+- Uses MCUboot with an external SPI NOR (`MX25R64`) secondary OTA slot.
 - This `ncs264` branch targets **NCS v2.6.4**, which uses legacy Partition Manager (`pm_static_<board>.yml`) — not the DTS-based partitioning used on NCS v3.3+. Board targets use the legacy underscore format (`nrf7002dk_nrf5340_cpuapp`) and require the explicit `--sysbuild` flag.
 
 ---
@@ -241,11 +244,10 @@ Not applicable — STA is the only mode; there is no runtime mode-selection menu
 ## 7. Release Criteria
 
 - [x] All P0 FR acceptance criteria pass on nRF7002DK
-- [x] All P0 FR acceptance criteria pass on nRF54LM20DK + nRF7002EB II
 - [ ] Device runs for 24 hours without restart (not yet validated — pending Phase 4.2)
 - [x] Wi-Fi reconnects automatically after outage
 - [x] No credentials visible in UART logs
-- [x] README Quick Start guide covers both board build/flash commands
+- [x] README Quick Start guide covers build/flash commands
 
 ---
 

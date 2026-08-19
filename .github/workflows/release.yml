@@ -370,7 +370,7 @@ jobs:
           cat > /tmp/release-body.txt <<EOF
           ## Nordic Wi-Fi Memfault Release ${VER}
 
-          > Built with NCS ${{ env.NCS_VERSION }} on the \`ncs264\` branch — version format is \`v<ncs-version>.<build>\` (e.g. \`v2.6.4.0\`), where the major/minor/patch matches the NCS version this firmware is based on. CI targets nRF7002DK only — nRF54LM20DK + nRF7002EB II is not actively maintained and is no longer built here.
+          > Built with NCS ${{ env.NCS_VERSION }} on the \`ncs264\` branch — version format is \`v<ncs-version>.<build>\` (e.g. \`v2.6.4.0\`), where the major/minor/patch matches the NCS version this firmware is based on. This project targets nRF7002DK only — nRF54LM20DK + nRF7002EB II support has been removed (that board has no board definition in NCS v2.6.4).
 
           ### 📦 Firmware Files
 

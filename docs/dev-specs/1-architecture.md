@@ -5,10 +5,10 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-13-11-08 |
-| PRD Version | 2026-07-13-11-07 |
+| Version | 2026-08-19-15-35 |
+| PRD Version | 2026-08-19-15-00 |
 | NCS Version | v2.6.4 |
-| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
+| Target Board(s) | nRF7002DK |
 | Status | Implemented |
 
 > `Version` = this doc's own latest edit time (`date +%Y-%m-%d-%H-%M`); bump it on **every** edit.
@@ -21,6 +21,7 @@
 | Version | Summary of changes |
 |---|---|
 | 2026-07-13-11-08 | Migrated from `pm/openspec/specs/architecture.md`; updated for current code: `wifi` module renamed/split into `network` module (`net_event_mgmt.c` + `wifi_utils.c`), added `heap_monitor` module, dropped the 1-second delayed boot-connect (network module now connects without artificial delay), added dual-board module map and NCS v2.6.4 Partition Manager note |
+| 2026-08-19-15-35 | **Removed nRF54LM20DK + nRF7002EB II support project-wide.** This board has no board definition anywhere in this NCS v2.6.4 installation (confirmed absent from `zephyr/boards`, `nrf/boards`, and `modules/hal/nordic`) — the nRF54L series was introduced in a later NCS release, and this project's app-level `boards/nrf54lm20dk_nrf54lm20a_cpuapp.conf`/`.overlay` files only ever *overrode* Kconfig/DTS on top of a base board definition that was never actually present in this tree. This matches the persistent, previously-unresolved "BOARD_ROOT environment issue" noted in this project's Open Issues since 2026-07-13 (see `app-memfault-module.md` history) — the board build was never actually verified working in this exact environment. Deleted: both `boards/nrf54lm20dk_*` files, `pm_static_nrf54lm20dk_*.yml`, both `sysbuild/mcuboot/boards/nrf54lm20dk_*` files. Removed board-conditional Kconfig defaults for it in `Kconfig.sysbuild` and `app_memfault/Kconfig.defaults`. Project is now nRF7002DK-only; single-board module map, memory budget, and Zbus channel design are otherwise unchanged. |
 
 ---
 
@@ -166,9 +167,9 @@ struct network_msg {
 ## Memory Budget
 
 > Values below are the last known-good estimates from the pre-migration `pm/openspec/specs/architecture.md`
-> (nRF7002DK, NCS v3.2.4 build). They have **not** been re-measured on NCS v2.6.4 / the
-> nRF54LM20DK target. Treat as directional only until `chsh-sk-ncs-3.3-memopt` produces a
-> fresh measurement pass — see [3-memopt.md](3-memopt.md) Open Issues.
+> (nRF7002DK, NCS v3.2.4 build). They have **not** been re-measured on NCS v2.6.4. Treat as
+> directional only until `chsh-sk-ncs-3.3-memopt` produces a fresh measurement pass — see
+> [3-memopt.md](3-memopt.md) Open Issues.
 
 | Module | Flash (KB) | RAM (KB) | Notes |
 |--------|-----------|---------|-------|

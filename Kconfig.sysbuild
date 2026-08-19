@@ -7,7 +7,6 @@
 config WIFI_NRF70
 	bool
 	default y if BOARD_NRF7002DK_NRF5340_CPUAPP
-	default y if BOARD_NRF54LM20DK_NRF54LM20A_CPUAPP
 
 # Tells sysbuild's netcore-image choice (nrf/sysbuild/Kconfig.netcore) to
 # default to NETCORE_HCI_IPC on boards with a separate network core

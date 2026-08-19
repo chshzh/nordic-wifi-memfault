@@ -5,10 +5,10 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-13-13-31 |
-| PRD Version | 2026-07-13-12-22 |
+| Version | 2026-08-19-15-55 |
+| PRD Version | 2026-08-19-15-45 |
 | NCS Version | v2.6.4 |
-| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
+| Target Board(s) | nRF7002DK |
 | Status | Implemented |
 
 > `Version` = this spec's own latest edit time (`date +%Y-%m-%d-%H-%M`); bump it on **every** edit.
@@ -23,6 +23,7 @@
 | 2026-07-13-11-08 | Migrated from legacy docs; layout taken from `pm_static_nrf7002dk_nrf5340_cpuapp.yml` and `pm_static_nrf54lm20dk_nrf54lm20a_cpuapp.yml` (both current on `ncs264` branch) |
 | 2026-07-13-12-22 | Updated to PRD v2026-07-13-12-22: added planned external-flash partitions `mflt_log_state_partition` (12 KB) and `mflt_cdr_state_partition` (8 KB) on both boards for FR-102/FR-103 (ported from `nordic-wifi-memfault-main`'s `mflt_log_state_partition`/`mflt_cdr_state_partition`). Design only — not yet added to `pm_static_*.yml`; carved from each board's unused `external_flash` region. |
 | 2026-07-13-13-31 | `mflt_log_state_partition` (12 KB) and `mflt_cdr_state_partition` (8 KB) added to both `pm_static_*.yml` files, carved from the tail of each board's `external_flash` region. Build-verified on nRF7002DK (FLASH 90.26%, RAM 98.75%). |
+| 2026-08-19-15-55 | **Removed nRF54LM20DK + nRF7002EB II section entirely** — that board has no board definition in NCS v2.6.4 (see [1-architecture.md](1-architecture.md) Changelog for the full project-wide removal). Deleted `pm_static_nrf54lm20dk_nrf54lm20a_cpuapp.yml` and its `sysbuild/mcuboot/boards/` overlay files. Project now has a single flash layout (nRF7002DK). |
 
 ---
 
@@ -71,34 +72,9 @@ requests.
 
 ---
 
-### nRF54LM20DK + nRF7002EB II (nRF54LM20A — RRAM `flash_primary`; MX25R6435F external flash)
-
-#### Internal RRAM (`flash_primary` — 1984 KB / `0x1FD000` total)
-
-| Address | Partition | Size | Purpose |
-|---------|-----------|------|---------|
-| `0x000000` | `mcuboot` | 56 KB (`0xE000`) | Bootloader |
-| `0x00E000` | `mcuboot_pad` | 2 KB (`0x800`) | MCUboot image header padding |
-| `0x00E800` | `app` (`mcuboot_primary_app`) | 1906 KB (`0x1DC800`) | Primary app image |
-| `0x1EB000` | `settings_storage` | 8 KB (`0x2000`) | NVS — Wi-Fi credentials and small persistent app state |
-| `0x1ED000` | `memfault_coredump_partition` | 64 KB (`0x10000`) | Crash coredumps (RRAM backend) |
-
-> Total internal allocation is an exact fit: `0x1FD000` = 1984 KB.
-
-#### External Flash (`MX25R6435F` — 8 MB)
-
-| Address | Partition | Size | Purpose |
-|---------|-----------|------|---------|
-| `0x000000` | `mcuboot_secondary` | 1908 KB (`0x1DD000`) | Secondary OTA slot (matches `mcuboot_primary` span) |
-| `0x1DD000` | `external_flash` | ~6.08 MB (`0x61E000`) | Unused / reserved |
-| `0x7FB000` | `mflt_cdr_state_partition` | 8 KB (`0x2000`) | [FR-103] Memfault disconnect-time nRF70 CDR blob (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`) |
-| `0x7FD000` | `mflt_log_state_partition` | 12 KB (`0x3000`) | [FR-102] Memfault disconnect-time log-state blob (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) |
-
----
-
 ## Storage Partition Capacity Notes
 
-The `settings_storage` partition (8 KB on both boards) is shared by the Zephyr settings
+The `settings_storage` partition (8 KB) is shared by the Zephyr settings
 subsystem and all modules writing to NVS:
 
 | Consumer | Estimated size | Notes |
@@ -111,14 +87,13 @@ subsystem and all modules writing to NVS:
 
 ## DTS Overlay Checklist (adapted for Partition Manager)
 
-For each board, ensure the following exist and are consistent:
+For the target board, ensure the following exist and are consistent:
 
 - [x] `pm_static_<board>.yml` at project root — defines `mcuboot`, `mcuboot_pad`, `app`, `settings_storage`, coredump partition, `mcuboot_secondary`, `external_flash`
 - [x] `sysbuild/mcuboot/` — MCUboot image config picks up the same static partition map (shared `pm_static_*.yml`, not a separate overlay, under legacy PM)
-- [x] `boards/<board>.conf` / `boards/<board>.overlay` — board-specific Kconfig and DTS overlay (e.g. shield selection for nRF54LM20DK)
-- [x] `mcuboot_primary_app` (internal) size == `mcuboot_secondary` (external) size on both boards (MCUboot requirement) — verified: nRF7002DK `0xe3e00` vs `0xe4000` span incl. pad; nRF54LM20DK `0x1DC800` vs `0x1DD000` span incl. pad
-- [x] Total internal flash/RRAM allocation ≤ SoC capacity — nRF54LM20DK: `0x1FD000` exact fit; nRF7002DK: within nRF5340 1 MB `flash_primary`
-- [ ] **Planned (FR-102/FR-103)**: add `mflt_log_state_partition` (12 KB) and `mflt_cdr_state_partition` (8 KB) to both `pm_static_<board>.yml` files, sized within the current unused `external_flash` region on each board (no `mcuboot_secondary` overlap)
+- [x] `boards/<board>.conf` / `boards/<board>.overlay` — board-specific Kconfig and DTS overlay
+- [x] `mcuboot_primary_app` (internal) size == `mcuboot_secondary` (external) size (MCUboot requirement) — verified: nRF7002DK `0xe3e00` vs `0xe4000` span incl. pad
+- [x] Total internal flash allocation ≤ SoC capacity — nRF7002DK: within nRF5340 1 MB `flash_primary`
 
 ---
 

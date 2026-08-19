@@ -5,10 +5,10 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-07-24-14-56 |
-| PRD Version | 2026-07-24-14-56 |
+| Version | 2026-08-19-15-50 |
+| PRD Version | 2026-08-19-15-45 |
 | NCS Version | v2.6.4 |
-| Target Board(s) | nRF7002DK, nRF54LM20DK + nRF7002EB II |
+| Target Board(s) | nRF7002DK |
 | Status | Implemented |
 
 > `Version` = this doc's own latest edit time (`date +%Y-%m-%d-%H-%M`); bump it on **every** edit.
@@ -28,6 +28,8 @@
 | 2026-07-24-14-41 | Updated to PRD v2026-07-24-14-41: two FR-104 fixes found during hardware testing — `ntp-module.md`'s `CMakeLists.txt` never actually linked the module into the app (`zephyr_library()` pattern vs. this app's `target_sources(app PRIVATE ...)` convention), and UART log timestamps now do switch to real Unix-epoch time post-sync via `log_set_timestamp_func()` (previously assumed impossible in this Zephyr version). See `ntp-module.md` changelog for detail. |
 | 2026-07-24-14-47 | Updated to PRD v2026-07-24-14-47: UART log timestamps upgraded from raw epoch seconds to a calendar UTC string via a custom Zephyr log formatter (`CONFIG_LOG_OUTPUT_FORMAT_CUSTOM_TIMESTAMP`). See `ntp-module.md` changelog for detail. |
 | 2026-07-24-14-56 | Updated to PRD v2026-07-24-14-56: bug fix for a deferred-logging race that could briefly render bogus 1970 dates around the NTP sync transition, plus `[...] ` bracket formatting to match the original log style. See `ntp-module.md` changelog for detail. |
+| 2026-08-19-15-05 | Updated to PRD v2026-08-19-15-00 ("Wi-Fi reconnect reliability, round 2"). Two independent reconnect-hang bugs fixed in `wifi_prov_over_ble.c` — see [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) Changelog (2026-08-18-18-40, 2026-08-18-22-15) for detail. New opt-in periodic nRF70 CDR collection (`CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC`) added; a companion periodic coredump-retry feature was implemented, found to be both redundant with Memfault's own periodic upload timer and the direct cause of a boot-time newlib-heap assertion loop on nRF7002DK (only ~2 KB RAM headroom on this target), then removed entirely — see [app-memfault-module.md](app-memfault-module.md) Changelog (2026-08-19-10-45 through 2026-08-19-13-00) for the full account, including the RAM-margin postmortem. Also tightened four periodic-interval Kconfig values (Memfault HTTP upload, Memfault heartbeat-force, HTTPS request, MQTT publish) from 900 s to 60 s in `prj.conf` for faster feedback during active development. |
+| 2026-08-19-15-50 | Updated to PRD v2026-08-19-15-45 — **removed nRF54LM20DK + nRF7002EB II support project-wide.** No board definition for this SoC exists anywhere in this NCS v2.6.4 installation; this project's dual-board support was never actually buildable/verifiable in this environment (the persistent, previously-unresolved "BOARD_ROOT environment issue" noted since 2026-07-13 — see `app-memfault-module.md` Open Issues history). Target Board(s) updated to nRF7002DK-only across every spec file; FR-006 (dual-board support) removed from the PRD-to-Spec mapping below since it no longer applies; see [1-architecture.md](1-architecture.md) Changelog for the full list of deleted board/partition/sysbuild files. |
 
 ---
 
@@ -71,7 +73,7 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 | Configuration | `prj.conf` (system-level + module enable flags) + per-module `Kconfig.<name>` and `Kconfig.defaults` | Each module owns its tuning defaults; `prj.conf` only overrides project-specific values and Kconfig `choice` symbols |
 | Credentials | Wi-Fi: `wifi_credentials` NVS backend. Memfault: git-ignored `overlay-app-memfault-project-info.conf` | Never in source control |
 | Partitioning | Legacy Partition Manager (`pm_static_<board>.yml`) | NCS v2.6.4 predates the DTS fixed-partitions migration (NCS v3.3+) |
-| Dual-board support | Shared `src/modules/`; board differences isolated to `boards/*.conf`, `boards/*.overlay`, `pm_static_*.yml`, `sysbuild/mcuboot/boards/*` | One application core across nRF7002DK and nRF54LM20DK+nRF7002EB II |
+| Single-board target | nRF7002DK only | nRF54LM20DK + nRF7002EB II removed 2026-08-19 — no board definition for that SoC exists in NCS v2.6.4 |
 
 ---
 
@@ -84,7 +86,7 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 | FR-003 Button 1 heartbeat / stack-overflow demo | button-module.md, app-memfault-module.md | Specified |
 | FR-004 Button 2 OTA / division-by-zero demo | button-module.md, app-memfault-module.md | Specified |
 | FR-005 Always-on HTTPS/MQTT clients | app-https-client-module.md, app-mqtt-client-module.md | Specified |
-| FR-006 Dual-board support | 1-architecture.md, 2-pm-partition.md | Specified |
+| ~~FR-006 Dual-board support~~ | — | Removed 2026-08-19 — nRF54LM20DK dropped (no board definition in NCS v2.6.4); project is single-board (nRF7002DK) |
 | FR-007 Heap monitor → Memfault metrics | heap-monitor-module.md | Specified |
 | FR-101 nRF70 stats CDR | app-memfault-module.md | Specified |
 | FR-102 Log-state persist/restore across power cycle | app-memfault-module.md, 2-pm-partition.md | Implemented |
