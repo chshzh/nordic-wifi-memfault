@@ -25,6 +25,25 @@ config NRF70_FW_STATS_CDR_ENABLED
 	  as Custom Data Recording. Trigger: Button 1 short press.
 	  CDR uploads are limited to 1 per device per 24 hours.
 
+config NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC
+	int "Periodically collect a fresh nRF70 FW stats CDR snapshot every N seconds (0 = disabled)"
+	range 0 86400
+	depends on NRF70_FW_STATS_CDR_ENABLED
+	help
+	  When set, collects a fresh nRF70 FW stats snapshot (same data as the
+	  Button-1 trigger) on this interval so a CDR blob is ready whenever
+	  the periodic Memfault upload (CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_
+	  INTERVAL_SECS) or an on-connect upload fires, without needing a
+	  button press or a disconnect event first.
+	  WARNING: the Memfault cloud accepts at most 1 CDR upload per device
+	  per 24 hours. Collecting more often than that only keeps the
+	  ready-to-upload snapshot fresher (whichever one happens to be ready
+	  when the daily quota allows an upload) - it does not result in more
+	  than one CDR data point per day on the dashboard.
+	  If a snapshot from a previous collection has not been uploaded yet
+	  when this fires, it is overwritten (a warning is logged) - the
+	  newest snapshot always wins, same as the Button-1 trigger.
+
 config MEMFAULT_UPLOAD_THREAD_STACK_SIZE
 	int "Stack size for the Memfault on-connect upload thread (bytes)"
 	help
