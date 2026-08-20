@@ -33,8 +33,4 @@ extern struct k_sem iface_up_sem;
 extern struct k_sem wpa_supplicant_ready_sem;
 extern struct k_sem ipv4_dhcp_bond_sem;
 
-#if IS_ENABLED(CONFIG_WIFI_NM_WPA_SUPPLICANT_AP)
-extern struct k_sem station_connected_sem;
-#endif
-
 #endif /* NET_EVENT_MGMT_H */

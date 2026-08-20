@@ -11,13 +11,6 @@
 #include <zephyr/net/net_mgmt.h>
 
 /**
- * @brief Run SoftAP mode
- *
- * @return 0 on success, negative error code on failure
- */
-int wifi_run_softap_mode(void);
-
-/**
  * @brief Print detailed Wi-Fi status information
  *
  * @return 0 on success, negative error code on failure
@@ -40,15 +33,6 @@ void wifi_print_dhcp_ip(struct net_if *iface, struct net_mgmt_event_callback *cb
 const char *wifi_utils_get_last_ssid(void);
 
 /**
- * @brief Ensure default SoftAP credentials exist in persistent storage.
- *
- * Stores GatewayAP WPA2-PSK credentials if they are not already present.
- *
- * @return 0 on success or if credentials already exist; negative errno otherwise.
- */
-int wifi_utils_ensure_gateway_softap_credentials(void);
-
-/**
  * @brief Request connection using stored Wi-Fi credentials.
  *
  * Triggers NET_REQUEST_WIFI_CONNECT_STORED when supported, so the station
@@ -58,13 +42,6 @@ int wifi_utils_ensure_gateway_softap_credentials(void);
  *         or a negative errno code on failure.
  */
 int wifi_utils_auto_connect_stored(void);
-
-/**
- * @brief Set Wi-Fi regulatory domain
- *
- * @return 0 on success, negative error code on failure
- */
-int wifi_set_reg_domain(void);
 
 /**
  * @brief Set Wi-Fi channel for raw packet operations

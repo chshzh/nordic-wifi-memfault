@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-13-20 |
-| PRD Version | 2026-08-20-13-20 |
+| Version | 2026-08-20-14-10 |
+| PRD Version | 2026-08-20-14-10 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-14-10 | Updated to PRD v2026-08-20-14-10 — **removed all SoftAP scaffolding** (Kconfig options, `net_event_mgmt.c`/`wifi_utils.c` handlers). Closes Open Issue #2 (below) as "removed" rather than "complete". Module Dependency Map's `network-module.md` description updated to drop the "SoftAP groundwork" mention. |
 | 2026-08-20-13-20 | **Zbus event redesign**: `NETWORK_CHAN` (`NETWORK_READY`/`NETWORK_NOT_READY`) is now the channel every connectivity-gated module subscribes to, replacing `WIFI_CHAN`'s misleadingly-named `WIFI_STA_CONNECTED` (which actually fired on IP assignment, not L2 association) and dead `WIFI_DNS_READY`. `WIFI_CHAN` is now L2-only with zero subscribers. Updated Module Dependency Map. See `network-module.md` Changelog for the full rationale and blast radius. |
 | 2026-07-13-11-08 | Migrated from `pm/openspec/specs/*.md` and reverse-designed against current `src/` on the `ncs264` branch (NCS v2.6.4, dual-board, `network` module replacing `wifi` module, `heap_monitor` added) |
 | 2026-07-13-12-22 | Updated to PRD v2026-07-13-12-22: added FR-102/FR-103 (log-state and nRF70 CDR persist/restore across power cycle, ported from `nordic-wifi-memfault-main`'s FR-007/FR-008) to `app-memfault-module.md` and `2-pm-partition.md`. Design only — not yet implemented. |
@@ -53,7 +54,7 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 | [2-pm-partition.md](2-pm-partition.md) | Flash partition layout per board (legacy Partition Manager, NCS v2.6.4) | FR-006, NFR flash/OTA |
 | [3-memopt.md](3-memopt.md) | Memory optimization — stack watermarks, heap budget, headroom | NFR memory |
 | [button-module.md](button-module.md) | Button SMF state machine, press actions | FR-003, FR-004 |
-| [network-module.md](network-module.md) | Wi-Fi STA connectivity, L2/L3 event management, SoftAP groundwork | FR-001, FR-006 |
+| [network-module.md](network-module.md) | Wi-Fi STA connectivity, L2/L3 event management | FR-001, FR-006 |
 | [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) | Wi-Fi credential provisioning via BLE | FR-001 |
 | [app-memfault-module.md](app-memfault-module.md) | Memfault core (upload/DNS-wait), metrics, OTA triggers, nRF70 stats CDR, log-state/CDR persist-restore | FR-002, FR-003, FR-004, FR-101, FR-102, FR-103 |
 | [app-https-client-module.md](app-https-client-module.md) | Always-on periodic HTTPS client | FR-005 |
@@ -72,7 +73,7 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Architecture pattern | SMF + Zbus | Decoupled modules; Zbus (`BUTTON_CHAN`, `WIFI_CHAN`, `NETWORK_CHAN`) is the only inter-module channel — `WIFI_CHAN` is L2-only, `NETWORK_CHAN` is the IP-layer readiness signal that connectivity-gated modules actually subscribe to |
-| Wi-Fi/network module split | `network/net_event_mgmt.c` (L2/L3 event handling) + `network/wifi_utils.c` (helpers: mode/channel/credentials) | Legacy `wifi/wifi.c` was split for clarity; SoftAP event handling and STA connect logic now live in one file |
+| Wi-Fi/network module split | `network/net_event_mgmt.c` (L2/L3 event handling) + `network/wifi_utils.c` (helpers: mode/channel/credentials) | Legacy `wifi/wifi.c` was split for clarity; STA-only — SoftAP scaffolding was removed entirely (2026-08-20-14-10) |
 | Configuration | `prj.conf` (system-level + module enable flags) + per-module `Kconfig.<name>` and `Kconfig.defaults` | Each module owns its tuning defaults; `prj.conf` only overrides project-specific values and Kconfig `choice` symbols |
 | Credentials | Wi-Fi: `wifi_credentials` NVS backend. Memfault: git-ignored `overlay-app-memfault-project-info.conf` | Never in source control |
 | Partitioning | Legacy Partition Manager (`pm_static_<board>.yml`) | NCS v2.6.4 predates the DTS fixed-partitions migration (NCS v3.3+) |
@@ -122,7 +123,7 @@ heap_monitor   ──direct call────────▶ Memfault metrics API
 | # | Description | Owner | Target |
 |---|-------------|-------|--------|
 | ~~1~~ | ~~`NETWORK_CHAN` currently has no subscribers — `app_memfault` will become its first subscriber once FR-102/FR-103 (log-state/CDR persist-restore) are implemented~~ — **Resolved**: `app_memfault` subscribes via `memfault_network_listener` (`core/memfault_core.c`), compiled in by default since `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`/`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE` default `y` | — | — |
-| 2 | SoftAP/P2P Kconfig and event-handler scaffolding present in `network` module but unused; decide whether to finish or remove | — | — |
+| ~~2~~ | ~~SoftAP/P2P Kconfig and event-handler scaffolding present in `network` module but unused; decide whether to finish or remove~~ — **Resolved**: removed entirely (2026-08-20-14-10); this sample only uses Wi-Fi STA mode | — | — |
 | 3 | 24-hour soak test and full ZView-based memory measurement pass not yet run on either board (see [3-memopt.md](3-memopt.md)) | — | Next hardware validation pass |
 | ~~4~~ | ~~FR-102/FR-103 design ports `nordic-wifi-memfault-main`'s log-state/CDR restore feature; must verify the bundled NCS v2.6.4 Memfault SDK exposes `memfault_log_get_state()`/`MEMFAULT_LOG_RESTORE_STATE` before implementation~~ — **Resolved**: confirmed those APIs do **not** exist in the bundled Memfault SDK v1.6.0; implemented via a drain-and-replay approach instead (see `app-memfault-module.md` Open Issues, 2026-07-13-13-31 changelog entry) | — | — |
 

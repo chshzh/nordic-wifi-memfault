@@ -46,7 +46,6 @@ int main(void)
 #endif
 	/* CONFIG_WIFI_STA_STATIC_ENABLED   not yet implemented */
 	/* CONFIG_WIFI_STA_CRED_SHELL_ENABLED not yet implemented */
-	/* CONFIG_WIFI_SOFTAP_ENABLED        not yet implemented */
 	/* CONFIG_WIFI_DIRECT_GO_ENABLED     not yet implemented */
 	/* CONFIG_WIFI_DIRECT_CLI_ENABLED    not yet implemented */
 

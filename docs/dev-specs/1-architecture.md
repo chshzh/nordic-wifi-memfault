@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-13-20 |
-| PRD Version | 2026-08-20-13-20 |
+| Version | 2026-08-20-14-10 |
+| PRD Version | 2026-08-20-14-10 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-14-10 | Updated to PRD v2026-08-20-14-10 — **removed all SoftAP scaffolding**; this sample only uses Wi-Fi STA mode. Updated the Overview's description of the `network/net_event_mgmt.c` split to drop the "SoftAP event-handler groundwork" mention. See `network-module.md` Changelog for the full list of deleted code/Kconfig. |
 | 2026-08-20-13-20 | **Zbus event redesign**: `WIFI_CHAN` is now L2-only (`WIFI_STA_ASSOCIATED` new publish point replacing misleadingly-named `WIFI_STA_CONNECTED`; dead `WIFI_DNS_READY` removed) with zero subscribers. `NETWORK_CHAN` (`NETWORK_READY`/`NETWORK_NOT_READY`) is now the sole channel every connectivity-gated module (`app_memfault`, `wifi_prov_over_ble`, `app_https_client`, `app_mqtt_client`, `ntp`, OTA triggers) subscribes to. Updated Zbus Channels table and message definitions accordingly. |
 | 2026-07-13-11-08 | Migrated from `pm/openspec/specs/architecture.md`; updated for current code: `wifi` module renamed/split into `network` module (`net_event_mgmt.c` + `wifi_utils.c`), added `heap_monitor` module, dropped the 1-second delayed boot-connect (network module now connects without artificial delay), added dual-board module map and NCS v2.6.4 Partition Manager note |
 | 2026-08-20-11-12 | **Doc fix (code-driven, not PRD-driven)**: the Zbus Channels table listed `NETWORK_CHAN` as having no subscribers, but `app_memfault`'s `memfault_network_listener` (`core/memfault_core.c`) already subscribes to it, compiled in by default since FR-102/FR-103 shipped. Corrected the Subscribers column; see `0-overview.md` Changelog (closed stale Open Issues #1/#4) for the full account. |
@@ -43,7 +44,7 @@ Application modules initialize through `SYS_INIT` (priority-ordered) or `K_THREA
 
 **Changes vs. the pre-migration (`pm/openspec`) design**: the former `wifi/wifi.c` module was
 split into `network/net_event_mgmt.c` (L2/L3 net_mgmt event handling, `WIFI_CHAN` +
-`NETWORK_CHAN` publishing, SoftAP event-handler groundwork) and `network/wifi_utils.c`
+`NETWORK_CHAN` publishing) and `network/wifi_utils.c`
 (credential/mode/channel helper functions). A new `heap_monitor` module was added to track
 system-heap and mbedTLS-heap usage and feed it into Memfault metrics. The project was ported
 from NCS v3.2.4 to v2.6.4, which uses the legacy Partition Manager instead of DTS

@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault (Memfault Wi-Fi Observability Sample) |
-| Version | 2026-08-20-13-20 |
+| Version | 2026-08-20-14-10 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-14-10 | **Removed all SoftAP scaffolding** — this sample only uses Wi-Fi STA mode. Deleted the dormant `network/Kconfig` SoftAP options (`SOFTAP_SSID`, `SOFTAP_PASSWORD`, `SOFTAP_CHANNEL`, `SOFTAP_BAND_*`, `SOFTAP_REG_DOMAIN`), `net_event_mgmt.c`'s SoftAP event handlers/station tracking, and `wifi_utils.c`'s `wifi_run_softap_mode()`/`wifi_set_softap()`/`wifi_set_reg_domain()`/DHCP-server helpers and the unused `wifi_utils_ensure_gateway_softap_credentials()` — all gated behind `CONFIG_WIFI_NM_WPA_SUPPLICANT_AP`, which was never selected anywhere in this project, so none of it was ever compiled in (confirmed by an unchanged flash size after removal, within noise: 849560 B → 849576 B). Build-verified clean on nRF7002DK. |
 | 2026-08-20-13-20 | **Zbus event redesign**: `WIFI_STA_CONNECTED` (misleadingly named — actually fired on IP assignment, not L2 association) and dead `WIFI_DNS_READY` removed from `wifi_msg_type`; connectivity-gated behavior (Memfault upload, OTA-on-connect, NTP sync, BLE status, HTTPS/MQTT clients) now driven by `NETWORK_CHAN`'s `NETWORK_READY`/`NETWORK_NOT_READY` instead. FR-002's acceptance criteria reworded to avoid naming an internal enum. See [network-module.md](../dev-specs/network-module.md) for detail. |
 | 2026-02-06-00-00 | Initial draft (legacy `pm/PRD.md`, single-board nRF7002DK, wifi/button module split) |
 | 2026-03-03-00-00 | Refactoring pass — SMF+Zbus modular architecture, HTTPS/MQTT clients always-on, WiFi provisioning over BLE |
@@ -82,7 +83,7 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 ### 2.1 Wi-Fi Connectivity
 
 - [x] **Connect to an existing Wi-Fi network (STA mode)** — device joins a home or office network like a laptop would
-- [ ] **Create its own Wi-Fi hotspot (SoftAP mode)** — Kconfig scaffolding exists (`network/Kconfig` SoftAP options, `net_event_mgmt.c` SoftAP event handlers behind `CONFIG_WIFI_NM_WPA_SUPPLICANT_AP`) but is **not wired up as a selectable mode** in this release — see Out of Scope
+- [ ] **Create its own Wi-Fi hotspot (SoftAP mode)** — not implemented; this sample is STA-only — see Out of Scope
 - [ ] **Connect directly to a phone without a router (P2P / Wi-Fi Direct)** — not implemented
 
 *Notes: STA is the only active mode. There is no runtime mode switch. Wi-Fi credentials are entered once via BLE provisioning (or manually via NVS-backed `wifi_credentials`) and persist across reboots.*
@@ -248,7 +249,7 @@ Not applicable — STA is the only mode; there is no runtime mode-selection menu
 
 ## 8. Out of Scope
 
-- **SoftAP mode** — Kconfig options (`SOFTAP_SSID`, `SOFTAP_PASSWORD`, `SOFTAP_CHANNEL`, `SOFTAP_BAND_*`) and `net_event_mgmt.c` event handlers exist as groundwork but are not enabled or exposed as a selectable mode in this release.
+- **SoftAP mode** — not implemented; this sample only uses Wi-Fi STA mode. The previously-existing SoftAP Kconfig scaffolding and `net_event_mgmt.c`/`wifi_utils.c` event handlers (dormant, gated behind `CONFIG_WIFI_NM_WPA_SUPPLICANT_AP` which was never selected) have been removed entirely.
 - **Wi-Fi Direct / P2P mode** — not implemented.
 - **LED status indication** — no LED module; `CONFIG_LED_MODULE_ENABLED` referenced in comments only.
 - **Web interface / REST API** — device is a Wi-Fi client only, not a server.

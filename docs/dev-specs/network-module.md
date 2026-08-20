@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-13-20 |
-| PRD Version | 2026-08-20-13-20 |
+| Version | 2026-08-20-14-10 |
+| PRD Version | 2026-08-20-14-10 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-14-10 | **Removed all SoftAP scaffolding** (PRD v2026-08-20-14-10) — this sample only uses Wi-Fi STA mode. Deleted `l2_wifi_softap_event_handler` and its helpers (`get_station_ip_address`, `handle_softap_enable_result`, `handle_station_connected`, `handle_station_disconnected`), the `station_connected_sem`/`softap_mutex`/`connected_stations` state, and the `#if IS_ENABLED(CONFIG_WIFI_NM_WPA_SUPPLICANT_AP)` guard from `net_event_mgmt.c`; deleted `wifi_run_softap_mode()`, `wifi_set_softap()`, `wifi_set_reg_domain()`, `setup_dhcp_server()`, and the unused `wifi_utils_ensure_gateway_softap_credentials()` from `wifi_utils.c`/`.h`; removed the `SoftAP Configuration` Kconfig menu (`SOFTAP_SSID`/`SOFTAP_PASSWORD`/`SOFTAP_CHANNEL`/`SOFTAP_BAND_*`/`SOFTAP_REG_DOMAIN`) from `network/Kconfig`. None of this was ever selectable (`CONFIG_WIFI_NM_WPA_SUPPLICANT_AP` was never enabled), so it never shipped in the built firmware. Build-verified clean on nRF7002DK. |
 | 2026-08-20-13-20 | **Zbus event redesign**: `WIFI_CHAN` is now pure L2 (`WIFI_STA_ASSOCIATED` replaces the misleadingly-named `WIFI_STA_CONNECTED`, which actually fired on IP assignment; dead `WIFI_DNS_READY` removed). Added a new publish point for `WIFI_STA_ASSOCIATED` at L2 connect success (previously nothing was published there). `NETWORK_CHAN` (`NETWORK_READY`/`NETWORK_NOT_READY`) is now the sole signal connectivity-gated modules subscribe to — it is no longer a no-subscriber "forward compatibility" channel. Fixed the state diagram, which had been stale/incorrect: it previously showed `WIFI_STA_CONNECTED` published at L2 association, but the actual code only ever published it at DHCP-bound. |
 | 2026-07-13-11-08 | Replaces `pm/openspec/specs/wifi-module.md`. The legacy `wifi/wifi.c` module was renamed/split into `network/net_event_mgmt.c` (L2/L3 event handling, Zbus publishing, SoftAP event handlers) and `network/wifi_utils.c` (mode/channel/credential helper functions). The previously-documented 1-second delayed boot connect no longer exists in `net_event_mgmt.c` — connection is now driven purely by Connection Manager / Wi-Fi mgmt events, no artificial startup delay. |
 | 2026-07-24-11-30 | Added an L3 DHCP-bound watchdog (`CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC`, default 30 s, 0 = disabled), ported from the more complete `zego/bricks/network` reference brick. A successful `NET_EVENT_WIFI_CONNECT_RESULT` only means L2 association succeeded, not that an IP was obtained — without this, a device that associates but never gets a DHCP lease (or loses its lease while still linked) sat "associated, no IP" forever with no recovering event. The watchdog is armed on L2 connect success and on lease loss (`NET_EVENT_IPV4_ADDR_DEL`), cancelled on `NET_EVENT_IPV4_DHCP_BOUND` and `NET_EVENT_WIFI_DISCONNECT_RESULT`; on expiry it issues `NET_REQUEST_WIFI_DISCONNECT`, which produces a `DISCONNECT_RESULT` that re-arms whichever module owns STA reconnect (`wifi_prov_over_ble`). |
@@ -31,11 +32,10 @@
 
 The `network` module owns all Wi-Fi and IP-layer event handling: registering `net_mgmt`
 callbacks for interface (L2), Wi-Fi connect/disconnect (L2), WPA supplicant readiness (L3),
-IPv4/DHCP (L3), and (scaffolding only) SoftAP station events; publishing `WIFI_CHAN` and
-`NETWORK_CHAN` Zbus events for the rest of the app; and exposing small Wi-Fi helper
-utilities (mode/channel setting, credential bootstrap, TX-injection mode) used by other
-modules and by future SoftAP/diagnostic work. It does **not** implement SoftAP or Wi-Fi
-Direct as a selectable mode in this release — only STA is active (see PRD §2.1, §8).
+and IPv4/DHCP (L3) events; publishing `WIFI_CHAN` and `NETWORK_CHAN` Zbus events for the
+rest of the app; and exposing small Wi-Fi helper utilities (mode/channel setting, credential
+auto-connect, TX-injection mode) used by other modules. This sample only uses Wi-Fi STA
+mode — it does **not** implement SoftAP or Wi-Fi Direct (see PRD §2.1, §8).
 
 ---
 
@@ -115,11 +115,6 @@ stateDiagram-v2
 | Disconnected | L2/L4 disconnected | `WIFI_STA_DISCONNECTED` published on `WIFI_CHAN`, `NETWORK_NOT_READY` published on `NETWORK_CHAN`; decodes common 802.11 disconnect reason codes; L3 watchdog cancelled |
 | ConnError | Connection attempt failed | `WIFI_ERROR` published with the raw status code |
 
-> SoftAP event handling (`l2_wifi_softap_event_handler`, station connect/disconnect tracking,
-> per-station IP bookkeeping) exists in `net_event_mgmt.c` behind
-> `#if IS_ENABLED(CONFIG_WIFI_NM_WPA_SUPPLICANT_AP)` but this Kconfig is not selected in this
-> project — the code compiles out. Not modeled above; see PRD §8 Out of Scope.
-
 ---
 
 ## Kconfig Flags
@@ -129,11 +124,6 @@ stateDiagram-v2
 | `CONFIG_WIFI_MODULE` | bool | `y` | Enable Wi-Fi and network event management |
 | `CONFIG_WIFI_MODULE_INIT_PRIORITY` | int | `90` | `SYS_INIT` priority for `init_network_events` |
 | `CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC` | int (0–300) | `30` (0 = disabled) | L3 connectivity watchdog: forces `NET_REQUEST_WIFI_DISCONNECT` if DHCP hasn't bound this many seconds after L2 association, or a lease is lost while still associated |
-| `CONFIG_SOFTAP_SSID` | string | `"device_AP"` | SoftAP SSID — unused while `WIFI_NM_WPA_SUPPLICANT_AP` is not selected |
-| `CONFIG_SOFTAP_PASSWORD` | string | `"password@123"` | SoftAP password — unused (also: default is a non-secret placeholder, must not be used verbatim if SoftAP is ever enabled) |
-| `CONFIG_SOFTAP_CHANNEL` | int | `1` | SoftAP channel — unused |
-| `CONFIG_SOFTAP_BAND_2_4_GHZ` / `CONFIG_SOFTAP_BAND_5_GHZ` | choice | `2_4_GHZ` | SoftAP band — unused |
-| `CONFIG_SOFTAP_REG_DOMAIN` | string | `"00"` | SoftAP regulatory domain — unused |
 | `CONFIG_WIFI_NRF700X` | bool | `y if WIFI_MODULE` | nRF70 driver (named `WIFI_NRF70` in later NCS releases) |
 | `CONFIG_WPA_SUPP` | bool | `y if WIFI_MODULE` | nRF wrapper WPA supplicant (NCS v2.6.4 name; Zephyr's `WIFI_NM_WPA_SUPPLICANT` is not used) |
 | `CONFIG_WPA_SUPP_THREAD_STACK_SIZE` | int | `8192 if WIFI_MODULE` | WPA supplicant thread stack |
@@ -157,20 +147,13 @@ bool net_event_mgmt_is_connected(void);
 extern struct k_sem iface_up_sem;
 extern struct k_sem wpa_supplicant_ready_sem;
 extern struct k_sem ipv4_dhcp_bond_sem;
-#if IS_ENABLED(CONFIG_WIFI_NM_WPA_SUPPLICANT_AP)
-extern struct k_sem station_connected_sem;
-#endif
 
 /* wifi_utils.h */
 const char *wifi_utils_get_last_ssid(void);
-int wifi_utils_ensure_gateway_softap_credentials(void);   /* SoftAP-only helper, currently unused */
 int wifi_utils_auto_connect_stored(void);
 int wifi_set_mode(int mode);
 int wifi_set_channel(int channel);
 int wifi_set_tx_injection_mode(void);
-#if IS_ENABLED(CONFIG_WIFI_NM_WPA_SUPPLICANT_AP)
-int wifi_set_reg_domain(void);
-#endif
 ```
 
 ---
@@ -210,8 +193,6 @@ int wifi_set_reg_domain(void);
 ## Open Issues / TBD
 
 - [ ] `wifi_msg.rssi` is never populated (always 0) — future enhancement per PRD.
-- [ ] SoftAP support (Kconfig + `net_event_mgmt.c` handlers) is present but dormant; decide whether to complete or remove (tracked in `0-overview.md` Open Issues #2).
-- [ ] `CONFIG_SOFTAP_PASSWORD` default (`"password@123"`) is a placeholder and must never be used verbatim if SoftAP is enabled in the future.
 
 ---
 
