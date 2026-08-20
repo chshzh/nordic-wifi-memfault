@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-19-15-30 |
-| PRD Version | 2026-08-19-15-00 |
+| Version | 2026-08-20-13-20 |
+| PRD Version | 2026-08-20-13-20 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-13-20 | **Zbus event redesign**: `WIFI_CHAN` is now pure L2 (`WIFI_STA_ASSOCIATED` replaces the misleadingly-named `WIFI_STA_CONNECTED`, which actually fired on IP assignment; dead `WIFI_DNS_READY` removed). Added a new publish point for `WIFI_STA_ASSOCIATED` at L2 connect success (previously nothing was published there). `NETWORK_CHAN` (`NETWORK_READY`/`NETWORK_NOT_READY`) is now the sole signal connectivity-gated modules subscribe to — it is no longer a no-subscriber "forward compatibility" channel. Fixed the state diagram, which had been stale/incorrect: it previously showed `WIFI_STA_CONNECTED` published at L2 association, but the actual code only ever published it at DHCP-bound. |
 | 2026-07-13-11-08 | Replaces `pm/openspec/specs/wifi-module.md`. The legacy `wifi/wifi.c` module was renamed/split into `network/net_event_mgmt.c` (L2/L3 event handling, Zbus publishing, SoftAP event handlers) and `network/wifi_utils.c` (mode/channel/credential helper functions). The previously-documented 1-second delayed boot connect no longer exists in `net_event_mgmt.c` — connection is now driven purely by Connection Manager / Wi-Fi mgmt events, no artificial startup delay. |
 | 2026-07-24-11-30 | Added an L3 DHCP-bound watchdog (`CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC`, default 30 s, 0 = disabled), ported from the more complete `zego/bricks/network` reference brick. A successful `NET_EVENT_WIFI_CONNECT_RESULT` only means L2 association succeeded, not that an IP was obtained — without this, a device that associates but never gets a DHCP lease (or loses its lease while still linked) sat "associated, no IP" forever with no recovering event. The watchdog is armed on L2 connect success and on lease loss (`NET_EVENT_IPV4_ADDR_DEL`), cancelled on `NET_EVENT_IPV4_DHCP_BOUND` and `NET_EVENT_WIFI_DISCONNECT_RESULT`; on expiry it issues `NET_REQUEST_WIFI_DISCONNECT`, which produces a `DISCONNECT_RESULT` that re-arms whichever module owns STA reconnect (`wifi_prov_over_ble`). |
 | 2026-08-19-15-30 | Dropped nRF54LM20DK + nRF7002EB II from Target Board(s) — that board has no board definition in NCS v2.6.4 and has been removed project-wide; see `1-architecture.md` Changelog for the full removal. No module-specific behavior changed. |
@@ -60,7 +61,7 @@ Direct as a selectable mode in this release — only STA is active (see PRD §2.
 
 ```c
 struct wifi_msg {
-	enum wifi_msg_type type;  /* WIFI_STA_CONNECTED, WIFI_STA_DISCONNECTED, WIFI_DNS_READY, WIFI_ERROR */
+	enum wifi_msg_type type;  /* WIFI_STA_ASSOCIATED, WIFI_STA_DISCONNECTED, WIFI_ERROR */
 	int32_t rssi;              /* not currently populated (always 0) */
 	int error_code;
 };
@@ -71,10 +72,16 @@ struct network_msg {
 };
 ```
 
-`WIFI_STA_CONNECTED` / `WIFI_STA_DISCONNECTED` are the events other modules react to
-(`app_memfault`, `wifi_prov_over_ble`, `app_https_client`, `app_mqtt_client`, OTA triggers).
-`WIFI_ERROR` is published on `NET_EVENT_WIFI_CONNECT_RESULT` failure. `NETWORK_CHAN` is
-published for forward compatibility (IP-layer readiness) but currently has no subscribers.
+`WIFI_CHAN` is pure L2 (association-layer) signaling: `WIFI_STA_ASSOCIATED` on successful
+association, `WIFI_STA_DISCONNECTED` on L2 disconnect, `WIFI_ERROR` on connect failure. It
+currently has no subscribers — reserved for future L2-specific consumers (e.g. RSSI/link
+diagnostics).
+
+`NETWORK_CHAN` (`NETWORK_READY`/`NETWORK_NOT_READY`) is the authoritative "safe to do IP
+traffic" signal and is what every connectivity-gated module subscribes to (`app_memfault`,
+`wifi_prov_over_ble`, `app_https_client`, `app_mqtt_client`, `ntp`, OTA triggers).
+`NETWORK_READY` is published on `NET_EVENT_IPV4_DHCP_BOUND`; `NETWORK_NOT_READY` is published
+on L2 disconnect (alongside `WIFI_STA_DISCONNECTED`, from the same handler).
 
 ---
 
@@ -88,10 +95,10 @@ stateDiagram-v2
     [*] --> WaitIfUp
     WaitIfUp --> WaitWpaReady: NET_EVENT_IF_UP [iface_up_sem given]
     WaitWpaReady --> Associating: NET_EVENT_WPA_SUPP_READY [wpa_supplicant_ready_sem given]
-    Associating --> Connected: NET_EVENT_WIFI_CONNECT_RESULT [status==0] / publish WIFI_STA_CONNECTED
+    Associating --> Associated: NET_EVENT_WIFI_CONNECT_RESULT [status==0] / publish WIFI_STA_ASSOCIATED
     Associating --> ConnError: NET_EVENT_WIFI_CONNECT_RESULT [status!=0] / publish WIFI_ERROR
-    Connected --> DhcpBound: NET_EVENT_IPV4_DHCP_BOUND [ipv4_dhcp_bond_sem given] / publish NETWORK_READY, cancel L3 watchdog
-    DhcpBound --> Disconnected: NET_EVENT_WIFI_DISCONNECT_RESULT / publish WIFI_STA_DISCONNECTED
+    Associated --> DhcpBound: NET_EVENT_IPV4_DHCP_BOUND [ipv4_dhcp_bond_sem given] / publish NETWORK_READY, cancel L3 watchdog
+    DhcpBound --> Disconnected: NET_EVENT_WIFI_DISCONNECT_RESULT / publish WIFI_STA_DISCONNECTED, NETWORK_NOT_READY
     Disconnected --> Associating: reconnect (Connection Manager / stored-credential auto-connect)
     ConnError --> Associating: supplicant auto-retries (status 1, 2, 16) or app retries
 ```
@@ -103,9 +110,9 @@ stateDiagram-v2
 | WaitIfUp | Waiting for the Wi-Fi network interface to come up | `k_sem` (`iface_up_sem`) given on `NET_EVENT_IF_UP` |
 | WaitWpaReady | Waiting for the WPA supplicant to signal readiness | `wpa_supplicant_ready_sem`; NCS v2.6.4 names this event `NET_EVENT_WPA_SUPP_READY` (renamed to `NET_EVENT_SUPPLICANT_READY` in later NCS) |
 | Associating | Connection attempt in progress (via `wifi_credentials`/Connection Manager, or triggered by `wifi_prov_over_ble`) | Decodes and logs common WPA status codes (auth failure, AP not found, timeout, etc.) |
-| Connected | L2 association succeeded | `wifi_print_status()` called; `WIFI_STA_CONNECTED` published; if `CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC > 0`, the L3 DHCP-bound watchdog is armed here |
+| Associated | L2 association succeeded | `wifi_print_status()` called; `WIFI_STA_ASSOCIATED` published on `WIFI_CHAN`; if `CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC > 0`, the L3 DHCP-bound watchdog is armed here |
 | DhcpBound | IP address assigned | `ipv4_dhcp_bond_sem` given; `NETWORK_READY` published on `NETWORK_CHAN`; L3 watchdog cancelled |
-| Disconnected | L2/L4 disconnected | `WIFI_STA_DISCONNECTED` published; decodes common 802.11 disconnect reason codes; L3 watchdog cancelled |
+| Disconnected | L2/L4 disconnected | `WIFI_STA_DISCONNECTED` published on `WIFI_CHAN`, `NETWORK_NOT_READY` published on `NETWORK_CHAN`; decodes common 802.11 disconnect reason codes; L3 watchdog cancelled |
 | ConnError | Connection attempt failed | `WIFI_ERROR` published with the raw status code |
 
 > SoftAP event handling (`l2_wifi_softap_event_handler`, station connect/disconnect tracking,
@@ -173,7 +180,7 @@ int wifi_set_reg_domain(void);
 | Error Condition | Detection | Response |
 |----------------|-----------|----------|
 | Wi-Fi connect failure | `NET_EVENT_WIFI_CONNECT_RESULT` with non-zero `status` | Logs decoded reason (auth failure, AP not found, timeout, etc.); publishes `WIFI_ERROR`; supplicant auto-retries on transient codes (1, 2, 16) |
-| Wi-Fi disconnect | `NET_EVENT_WIFI_DISCONNECT_RESULT` | Logs decoded 802.11 reason code; publishes `WIFI_STA_DISCONNECTED` |
+| Wi-Fi disconnect | `NET_EVENT_WIFI_DISCONNECT_RESULT` | Logs decoded 802.11 reason code; publishes `WIFI_STA_DISCONNECTED` and `NETWORK_NOT_READY` |
 | Interface not found | `net_if_get_first_wifi()` returns NULL in `wifi_utils.c` helpers | Log error, return `-ENODEV` |
 | Invalid channel | `wifi_set_channel()` range check | Log error, return `-EINVAL` |
 
@@ -211,7 +218,7 @@ int wifi_set_reg_domain(void);
 ## Related Specs
 
 - [1-architecture.md](1-architecture.md) — Zbus channel table, boot sequence
-- [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) — credential provisioning, consumes `WIFI_CHAN`
-- [app-memfault-module.md](app-memfault-module.md) — consumes `WIFI_CHAN` for upload-on-connect
+- [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) — credential provisioning, consumes `NETWORK_CHAN`
+- [app-memfault-module.md](app-memfault-module.md) — consumes `NETWORK_CHAN` for upload-on-connect
 
 *(Changelog is maintained at the top of this document.)*

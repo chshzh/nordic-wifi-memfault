@@ -573,19 +573,19 @@ int app_mqtt_client_publish(const char *payload)
 	return 0;
 }
 
-/* Zbus: react to WiFi connect/disconnect from wifi module */
-extern const struct zbus_channel WIFI_CHAN;
+/* Zbus: react to network ready/not-ready from network module */
+extern const struct zbus_channel NETWORK_CHAN;
 
-static void app_mqtt_wifi_listener(const struct zbus_channel *chan)
+static void app_mqtt_network_listener(const struct zbus_channel *chan)
 {
-	const struct wifi_msg *msg = zbus_chan_const_msg(chan);
+	const struct network_msg *msg = zbus_chan_const_msg(chan);
 
-	if (msg->type == WIFI_STA_CONNECTED) {
+	if (msg->type == NETWORK_READY) {
 		app_mqtt_client_notify_connected();
-	} else if (msg->type == WIFI_STA_DISCONNECTED) {
+	} else if (msg->type == NETWORK_NOT_READY) {
 		app_mqtt_client_notify_disconnected();
 	}
 }
 
-ZBUS_LISTENER_DEFINE(app_mqtt_wifi_listener_def, app_mqtt_wifi_listener);
-ZBUS_CHAN_ADD_OBS(WIFI_CHAN, app_mqtt_wifi_listener_def, 0);
+ZBUS_LISTENER_DEFINE(app_mqtt_network_listener_def, app_mqtt_network_listener);
+ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, app_mqtt_network_listener_def, 0);

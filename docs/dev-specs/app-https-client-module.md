@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-19-15-30 |
-| PRD Version | 2026-08-19-15-00 |
+| Version | 2026-08-20-13-20 |
+| PRD Version | 2026-08-20-13-20 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-13-20 | **Zbus event redesign**: switched from subscribing to `WIFI_CHAN`'s `WIFI_STA_CONNECTED`/`WIFI_STA_DISCONNECTED` to `NETWORK_CHAN`'s `NETWORK_READY`/`NETWORK_NOT_READY`. See [network-module.md](network-module.md) for the full rationale. |
 | 2026-07-13-11-08 | New standalone spec — the legacy `pm/PRD.md` described this as "Module 6" inline but `pm/openspec/specs/` had no dedicated file for it. Reverse-designed from current `app_https_client.c`. |
 | 2026-07-24-11-30 | Ported a `DNS_EAI_CANCELED` retry from `nordic-wifi-memfault-main`: `getaddrinfo()` can return `DNS_EAI_CANCELED` (-101) when DHCPv4 lease renewal calls `dns_resolve_reconfigure()` and cancels in-flight DNS queries mid-flight; `send_http_request()` now waits 2 s and retries once, and the error log shows the EAI code alongside `errno` (previously `errno` alone, which is stale/misleading for DNS failures). |
 | 2026-08-19-15-30 | Dropped nRF54LM20DK + nRF7002EB II from Target Board(s) — that board has no board definition in NCS v2.6.4 and has been removed project-wide; see `1-architecture.md` Changelog for the full removal. No module-specific behavior changed. |
@@ -74,14 +75,14 @@ a callback-driven wrapper.
 
 | Library event | Zbus channel published | Message |
 |--------------------------|----------------------|---------|
-| none (this module subscribes to `WIFI_CHAN`, it does not publish) | — | — |
+| none (this module subscribes to `NETWORK_CHAN`, it does not publish) | — | — |
 
 ---
 
 ## Zbus Integration
 
-**Subscribes to**: `WIFI_CHAN` — sets `network_ready` on `WIFI_STA_CONNECTED`, clears it on
-`WIFI_STA_DISCONNECTED`; the client thread only attempts requests while `network_ready` is true.
+**Subscribes to**: `NETWORK_CHAN` — sets `network_ready` on `NETWORK_READY`, clears it on
+`NETWORK_NOT_READY`; the client thread only attempts requests while `network_ready` is true.
 
 **Publishes to**: none.
 
@@ -94,7 +95,7 @@ Not SMF — single dedicated thread (`app_https_client_tid`) loop:
 ```mermaid
 stateDiagram-v2
     [*] --> WaitNetwork
-    WaitNetwork --> WaitDNS: WIFI_STA_CONNECTED [network_ready = true]
+    WaitNetwork --> WaitDNS: NETWORK_READY [network_ready = true]
     WaitDNS --> SendRequest: DNS resolves (check_dns_ready loop, every 10s)
     SendRequest --> WaitNetwork: response received or error / update total+fail counters, k_sleep(HTTPS_REQUEST_INTERVAL_SEC)
     WaitDNS --> WaitNetwork: WIFI_STA_DISCONNECTED [network_ready = false]
@@ -104,7 +105,7 @@ stateDiagram-v2
 
 | State | Description |
 |-------|-------------|
-| WaitNetwork | Blocked on `https_thread_sem`, given by the `WIFI_CHAN` listener on connect |
+| WaitNetwork | Blocked on `https_thread_sem`, given by the `NETWORK_CHAN` listener on connect |
 | WaitDNS | Polling `check_dns_ready()` for the configured hostname every 10 s |
 | SendRequest | Opens a TLS socket, provisions the CA cert if needed, sends `HTTP_HEAD`, reads the response, updates counters |
 
@@ -170,7 +171,7 @@ by `app_https_client.c`. The module is self-starting via `K_THREAD_DEFINE`.
 
 ## Related Specs
 
-- [network-module.md](network-module.md) — publishes `WIFI_CHAN`
+- [network-module.md](network-module.md) — publishes `NETWORK_CHAN`
 - [app-memfault-module.md](app-memfault-module.md) — shares the Memfault metrics heartbeat
 
 *(Changelog is maintained at the top of this document.)*

@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault (Memfault Wi-Fi Observability Sample) |
-| Version | 2026-08-20-11-25 |
+| Version | 2026-08-20-13-20 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-13-20 | **Zbus event redesign**: `WIFI_STA_CONNECTED` (misleadingly named — actually fired on IP assignment, not L2 association) and dead `WIFI_DNS_READY` removed from `wifi_msg_type`; connectivity-gated behavior (Memfault upload, OTA-on-connect, NTP sync, BLE status, HTTPS/MQTT clients) now driven by `NETWORK_CHAN`'s `NETWORK_READY`/`NETWORK_NOT_READY` instead. FR-002's acceptance criteria reworded to avoid naming an internal enum. See [network-module.md](../dev-specs/network-module.md) for detail. |
 | 2026-02-06-00-00 | Initial draft (legacy `pm/PRD.md`, single-board nRF7002DK, wifi/button module split) |
 | 2026-03-03-00-00 | Refactoring pass — SMF+Zbus modular architecture, HTTPS/MQTT clients always-on, WiFi provisioning over BLE |
 | 2026-07-13-11-07 | Migrated from `pm/PRD.md` to `docs/pm-prd/PRD.md` (new template) and synced to current `src/` on the `ncs264` branch: dual-board support (nRF7002DK + nRF54LM20DK+nRF7002EB II), `wifi` module renamed/split into `network` module (net event mgmt + wifi utils), new `heap_monitor` module, port from NCS v3.2.4 → v2.6.4 (legacy Partition Manager, sysbuild `--sysbuild` flag required, underscore board targets) |
@@ -140,7 +141,7 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 | ID | As a… | I want to… | So that… | Acceptance Criteria | Engineering Spec |
 |---|---|---|---|---|---|
 | FR-001 | developer | power on the device and have it connect to Wi‑Fi using stored or newly-provisioned credentials | I don't have to hardcode credentials or use a shell | - No credentials stored → device advertises as `PV<MAC>` for BLE provisioning<br>- Credentials present → device connects within 30 s of boot<br>- `WiFi CONNECTED` logged over UART with IP address | [network-module.md](../dev-specs/network-module.md), [app-wifi-prov-ble-module.md](../dev-specs/app-wifi-prov-ble-module.md) |
-| FR-002 | developer | have crash and metrics data automatically uploaded to Memfault once connected | I can monitor fleet health without manual steps | - On WIFI_STA_CONNECTED, device waits for DNS then uploads any queued data<br>- Coredump from a crash appears on the Memfault dashboard after next boot + connect<br>- Heartbeat metrics appear in the dashboard | [app-memfault-module.md](../dev-specs/app-memfault-module.md) |
+| FR-002 | developer | have crash and metrics data automatically uploaded to Memfault once connected | I can monitor fleet health without manual steps | - Once the network is ready (IP address assigned), device waits for DNS then uploads any queued data<br>- Coredump from a crash appears on the Memfault dashboard after next boot + connect<br>- Heartbeat metrics appear in the dashboard | [app-memfault-module.md](../dev-specs/app-memfault-module.md) |
 | FR-003 | developer | press Button 1 to trigger a heartbeat and, held long, a stack-overflow demo | I can test the metrics and crash-reporting pipeline on demand | - Short press logs "Memfault heartbeat" and posts data if Wi-Fi connected<br>- Long press (≥3s) crashes via stack overflow and a coredump is captured | [button-module.md](../dev-specs/button-module.md), [app-memfault-module.md](../dev-specs/app-memfault-module.md) |
 | FR-004 | developer | press Button 2 to check for an OTA update and, held long, trigger a division-by-zero demo | I can test the OTA and fault-handling pipeline on demand | - Short press starts `memfault_fota_start()` and logs the result<br>- Long press (≥3s) crashes via division-by-zero and a coredump is captured<br>- OTA is also auto-checked on Wi-Fi connect and every `CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN` minutes | [button-module.md](../dev-specs/button-module.md), [app-memfault-module.md](../dev-specs/app-memfault-module.md) |
 | FR-005 | developer | have HTTPS and MQTT client traffic running automatically once Wi-Fi connects | I can validate general network connectivity and see it reflected in Memfault metrics | - HTTPS client sends a `HEAD` request to `example.com` every `CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC` (default 300 s)<br>- MQTT client publishes/echoes a message to `broker.emqx.io` every `CONFIG_APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC` (default 300 s)<br>- Success/failure counters visible as Memfault metrics | [app-https-client-module.md](../dev-specs/app-https-client-module.md), [app-mqtt-client-module.md](../dev-specs/app-mqtt-client-module.md) |

@@ -10,7 +10,7 @@ config NTP_MODULE_ENABLED
 	depends on ZBUS && NETWORKING && POSIX_CLOCK
 	help
 	  Queries an SNTP server and sets CLOCK_REALTIME once Wi-Fi
-	  connectivity is established (WIFI_STA_CONNECTED on WIFI_CHAN). When
+	  connectivity is established (NETWORK_READY on NETWORK_CHAN). When
 	  CONFIG_LOG_TIMESTAMP_USE_REALTIME=y is also set, Zephyr log output
 	  shows real-world wall-clock timestamps, and application code that
 	  reads CLOCK_REALTIME (e.g. Memfault event/log timestamps, including

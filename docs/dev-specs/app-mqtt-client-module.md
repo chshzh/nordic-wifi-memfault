@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-19-15-30 |
-| PRD Version | 2026-08-19-15-00 |
+| Version | 2026-08-20-13-20 |
+| PRD Version | 2026-08-20-13-20 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-13-20 | **Zbus event redesign**: switched from subscribing to `WIFI_CHAN`'s `WIFI_STA_CONNECTED`/`WIFI_STA_DISCONNECTED` to `NETWORK_CHAN`'s `NETWORK_READY`/`NETWORK_NOT_READY`. See [network-module.md](network-module.md) for the full rationale. |
 | 2026-07-13-11-08 | New standalone spec — legacy `pm/PRD.md` described this as "Module 7" inline (targeting `test.mosquitto.org`) but had no dedicated spec file. Current code targets `broker.emqx.io` (per `Kconfig.defaults` and `prj.conf`) — broker changed since the legacy docs. |
 | 2026-08-19-15-30 | Dropped nRF54LM20DK + nRF7002EB II from Target Board(s) — that board has no board definition in NCS v2.6.4 and has been removed project-wide; see `1-architecture.md` Changelog for the full removal. No module-specific behavior changed. |
 
@@ -81,13 +82,13 @@ static void on_mqtt_publish(...);   /* used to detect the echoed message coming 
 
 | Library event | Zbus channel published | Message |
 |--------------------------|----------------------|---------|
-| none (this module subscribes to `WIFI_CHAN`, it does not publish) | — | — |
+| none (this module subscribes to `NETWORK_CHAN`, it does not publish) | — | — |
 
 ---
 
 ## Zbus Integration
 
-**Subscribes to**: `WIFI_CHAN` — sets `network_ready` on connect / clears on disconnect;
+**Subscribes to**: `NETWORK_CHAN` — sets `network_ready` on connect / clears on disconnect;
 drives connect/disconnect of the MQTT session.
 
 **Publishes to**: none.
@@ -99,7 +100,7 @@ drives connect/disconnect of the MQTT session.
 ```mermaid
 stateDiagram-v2
     [*] --> APP_MQTT_STATE_DISCONNECTED
-    APP_MQTT_STATE_DISCONNECTED --> APP_MQTT_STATE_CONNECTING: WIFI_STA_CONNECTED + DNS ready / mqtt_helper_connect()
+    APP_MQTT_STATE_DISCONNECTED --> APP_MQTT_STATE_CONNECTING: NETWORK_READY + DNS ready / mqtt_helper_connect()
     APP_MQTT_STATE_CONNECTING --> APP_MQTT_STATE_CONNECTED: on_mqtt_connack [return_code == ACCEPTED] / subscribe to echo topic
     APP_MQTT_STATE_CONNECTING --> APP_MQTT_STATE_DISCONNECTED: on_mqtt_connack [return_code != ACCEPTED]
     APP_MQTT_STATE_CONNECTED --> APP_MQTT_STATE_DISCONNECTED: WIFI_STA_DISCONNECTED or on_mqtt_disconnect
@@ -110,7 +111,7 @@ stateDiagram-v2
 
 | State | Description |
 |-------|-------------|
-| `APP_MQTT_STATE_DISCONNECTED` | No MQTT session; waiting for `WIFI_STA_CONNECTED` |
+| `APP_MQTT_STATE_DISCONNECTED` | No MQTT session; waiting for `NETWORK_READY` |
 | `APP_MQTT_STATE_CONNECTING` | `mqtt_helper_connect()` issued, awaiting CONNACK |
 | `APP_MQTT_STATE_CONNECTED` | Subscribed to echo topic; publish loop runs every `CONFIG_APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC` |
 
@@ -152,7 +153,7 @@ No public functions exported — self-starting via `K_THREAD_DEFINE(app_mqtt_cli
 | Broker rejects connection | `on_mqtt_connack` with `return_code != MQTT_CONNECTION_ACCEPTED` | Log error, state reset to `APP_MQTT_STATE_DISCONNECTED`, retried after `CONFIG_APP_MQTT_CLIENT_RECONNECT_TIMEOUT_SEC` |
 | No echo received (silent publishes) | `APP_MQTT_ECHO_TIMEOUT_THRESHOLD` (3) consecutive publishes without an echo | `mqtt_echo_failures` incremented once at the threshold crossing |
 | `mqtt_helper_msg_id_get()` unavailable on this NCS version | N/A (build-time) | Replaced with a local monotonic `next_msg_id()` counter |
-| Wi-Fi disconnects mid-session | `WIFI_CHAN`: `WIFI_STA_DISCONNECTED` | `network_ready = false`; session torn down, reconnect attempted once Wi-Fi returns |
+| Wi-Fi disconnects mid-session | `NETWORK_CHAN`: `NETWORK_NOT_READY` | `network_ready = false`; session torn down, reconnect attempted once Wi-Fi returns |
 
 ---
 
@@ -186,7 +187,7 @@ No public functions exported — self-starting via `K_THREAD_DEFINE(app_mqtt_cli
 
 ## Related Specs
 
-- [network-module.md](network-module.md) — publishes `WIFI_CHAN`
+- [network-module.md](network-module.md) — publishes `NETWORK_CHAN`
 - [app-memfault-module.md](app-memfault-module.md) — shares the Memfault metrics heartbeat
 
 *(Changelog is maintained at the top of this document.)*

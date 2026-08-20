@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-11-02 |
-| PRD Version | 2026-08-20-10-59 |
+| Version | 2026-08-20-13-20 |
+| PRD Version | 2026-08-20-13-20 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-13-20 | **Zbus event redesign**: merged the separate `memfault_wifi_listener` (`WIFI_CHAN`) and `memfault_network_listener` (`NETWORK_CHAN`) into a single `memfault_network_listener` on `NETWORK_CHAN` only — both had been firing in lockstep from the same disconnect event, guarded by the same `log_freeze_scheduled` bool, so the duplication served no purpose. `core` and `ota` (`ota_triggers.c`) now both key off `NETWORK_READY`/`NETWORK_NOT_READY` instead of the misleadingly-named `WIFI_STA_CONNECTED` (which actually fired on IP assignment, not L2 association). See [network-module.md](network-module.md) for the full rationale. |
 | 2026-07-13-11-08 | Replaces `pm/openspec/specs/memfault-integration.md`. Confirmed unchanged core upload/DNS-wait/button-action behavior in `core/memfault_core.c`. Documented NCS v2.6.4-specific API differences: `memfault_metrics_connectivity_connected_state_change()` and `CONFIG_MEMFAULT_METRICS_HEARTBEAT_INTERVAL_SECS` do not exist in the bundled Memfault SDK version; `mflt_nrf70_fw_stats_cdr.c` renamed `nrf70_fw_stats_cdr.c` and ported to `struct rpu_op_stats` / `nrf_wifi_fmac_stats_get()` API. |
 | 2026-07-13-12-22 | Updated to PRD v2026-07-13-12-22: added design for FR-102 (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) and FR-103 (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`), ported from `nordic-wifi-memfault-main`'s FR-007/FR-008. Design only — not yet implemented on this branch; see Open Issues. |
 | 2026-07-13-13-31 | FR-102/FR-103 implemented and build-verified (nRF7002DK: FLASH 90.26%, RAM 98.75%). FR-102's design changed from the original raw-ring-buffer-copy plan to a drain-and-replay approach (`memfault_log_read()` on disconnect + `memfault_log_save_preformatted()` on reconnect) because `memfault_log_get_state()`/`memfault_log_restore_state()` do not exist in the Memfault SDK v1.6.0 bundled with NCS v2.6.4. Scratch buffer capped at 4 KB (not the full 12 KB partition) to fit the RAM budget. FR-103 implemented as originally designed. New files: `core/memfault_log_state_restore.c(.h)`. |
@@ -39,8 +40,8 @@
 `app_memfault` is the library-wrapper module group for the Memfault SDK. It has four
 sub-areas under one Kconfig group (`CONFIG_APP_MEMFAULT_MODULE`):
 
-- **core** (`core/memfault_core.c`) — boot image confirmation, Wi-Fi-connect-driven upload
-  thread (with bounded DNS wait), and `BUTTON_CHAN`/`WIFI_CHAN` listeners that turn button
+- **core** (`core/memfault_core.c`) — boot image confirmation, network-ready-driven upload
+  thread (with bounded DNS wait), and `BUTTON_CHAN`/`NETWORK_CHAN` listeners that turn button
   presses into heartbeat triggers, OTA-check requests, and crash demos.
 - **metrics** (`metrics/wifi_metrics.c`, `metrics/stack_metrics.c`) — heartbeat data
   collectors invoked from `memfault_metrics_heartbeat_collect_data()`.
@@ -51,7 +52,7 @@ sub-areas under one Kconfig group (`CONFIG_APP_MEMFAULT_MODULE`):
   short-press heartbeat.
 
 **Log-state persist/restore across power cycle** (FR-102, `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`,
-default `y`): on `WIFI_STA_DISCONNECTED` (`WIFI_CHAN`) or `NETWORK_NOT_READY` (`NETWORK_CHAN`) —
+default `y`): on `NETWORK_NOT_READY` (`NETWORK_CHAN`) —
 guarded so it only fires once per disconnect event and only after the device has completed at
 least one real connect (`network_ever_connected`) — a 10 s delayable work item drains unread
 entries from the live Memfault log ring buffer one at a time via `memfault_log_read()` and
@@ -178,17 +179,17 @@ void memfault_metrics_heartbeat_collect_data(void)
 
 | Library event / trigger | Zbus channel subscribed | Behavior |
 |--------------------------|----------------------|---------|
-| Wi-Fi connectivity change | `WIFI_CHAN` (`memfault_wifi_listener_def`) | `WIFI_STA_CONNECTED` → init stack metrics, `k_sem_give(&upload_sem)` to wake the upload thread. `WIFI_STA_DISCONNECTED` → clear `wifi_connected` flag. |
+| Network connectivity change | `NETWORK_CHAN` (`memfault_network_listener_def`) | `NETWORK_READY` → init stack metrics, `k_sem_give(&upload_sem)` to wake the upload thread. `NETWORK_NOT_READY` → clear `wifi_connected` flag. |
 | Button action | `BUTTON_CHAN` (`memfault_button_listener_def`) | See Button Actions table below. |
-| Button 2 short press / Wi-Fi connect | `BUTTON_CHAN`, `WIFI_CHAN` (`ota_button_listener`, `ota_wifi_listener` in `ota_triggers.c`) | Sets a flag bit and wakes `mflt_ota_triggers_tid`. |
-| **[Planned FR-102/FR-103]** Wi-Fi/network connectivity loss | `WIFI_CHAN` (`WIFI_STA_DISCONNECTED`), `NETWORK_CHAN` (`NETWORK_NOT_READY`) | Sets a `log_freeze_scheduled` guard (once per disconnect burst, only if `network_ever_connected`) and schedules a 10 s delayable work item that persists log-state and CDR to external flash. |
-| **[Planned FR-102/FR-103]** Wi-Fi reconnect | `WIFI_CHAN` (`WIFI_STA_CONNECTED`) | Clears `log_freeze_scheduled`, cancels any pending persist work, then restores log-state and CDR from external flash in `on_connect()` before upload. |
+| Button 2 short press / network ready | `BUTTON_CHAN`, `NETWORK_CHAN` (`ota_button_listener`, `ota_network_listener` in `ota_triggers.c`) | Sets a flag bit and wakes `mflt_ota_triggers_tid`. |
+| Network connectivity loss | `NETWORK_CHAN` (`NETWORK_NOT_READY`) | Sets a `log_freeze_scheduled` guard (once per disconnect burst, only if `network_ever_connected`) and schedules a 10 s delayable work item that persists log-state and CDR to external flash. |
+| Network reconnect | `NETWORK_CHAN` (`NETWORK_READY`) | Clears `log_freeze_scheduled`, cancels any pending persist work, then restores log-state and CDR from external flash in `on_connect()` before upload. |
 
 ---
 
 ## Zbus Integration
 
-**Subscribes to**: `WIFI_CHAN`, `BUTTON_CHAN` (both `core` and `ota` sub-areas register their own listeners).
+**Subscribes to**: `NETWORK_CHAN`, `BUTTON_CHAN` (both `core` and `ota` sub-areas register their own listeners).
 
 **Publishes to**: none — this module is a Zbus consumer only.
 
@@ -215,7 +216,7 @@ sequenceDiagram
     participant DNS
     participant SDK as Memfault SDK
 
-    Network->>Core: WIFI_CHAN: WIFI_STA_CONNECTED
+    Network->>Core: NETWORK_CHAN: NETWORK_READY
     Core->>Core: wifi_connected = true, k_sem_give(upload_sem)
     Core->>Core: upload_thread_fn wakes (k_sem_take)
     loop every 10s, up to 300s
@@ -232,7 +233,7 @@ sequenceDiagram
 
 ### OTA Trigger Flow (`ota/ota_triggers.c`)
 
-- Triggers: Button 2 short press, `WIFI_STA_CONNECTED`, or a periodic timer
+- Triggers: Button 2 short press, `NETWORK_READY`, or a periodic timer
   (`CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN`, default 60 min).
 - On wake, sleeps `CONFIG_MEMFAULT_OTA_CONNECT_DELAY_SEC` (default per Kconfig help: 60 s) to
   let DNS settle, then calls `memfault_fota_start()`.
@@ -276,7 +277,7 @@ Not SMF. `core` uses a Zbus-listener + dedicated-thread pattern (`memfault_uploa
 ## API / Public Interface
 
 `core`, `ota`, `metrics`, and `cdr` expose no public functions to other application modules —
-all interaction is via Zbus (`BUTTON_CHAN`, `WIFI_CHAN`) or the Memfault SDK's own callback
+all interaction is via Zbus (`BUTTON_CHAN`, `NETWORK_CHAN`) or the Memfault SDK's own callback
 contract (`memfault_metrics_heartbeat_collect_data`).
 
 ---
@@ -312,7 +313,7 @@ contract (`memfault_metrics_heartbeat_collect_data`).
 | Scenario | UART log expected | Pass condition |
 |----------|-------------------|----------------|
 | Boot confirm | `New OTA FW confirmed!` | First boot after an OTA update |
-| Wi-Fi connect → upload | `Connected to network` → `Waiting for DNS resolver to be ready for Memfault` → `Sending already captured data to Memfault` | After `WIFI_STA_CONNECTED` |
+| Wi-Fi connect → upload | `Connected to network` → `Waiting for DNS resolver to be ready for Memfault` → `Sending already captured data to Memfault` | After `NETWORK_READY` |
 | Button 1 short | (heartbeat trigger, no dedicated core log line beyond `LOG_INF("Button 1 short press: Memfault heartbeat")`) | duration < long-press threshold, `wifi_connected == true` |
 | Button 1 long | `Stack overflow will now be triggered` | duration ≥ long-press threshold |
 | Button 2 long | `Division by zero will now be triggered` | duration ≥ long-press threshold |
@@ -337,7 +338,7 @@ contract (`memfault_metrics_heartbeat_collect_data`).
 ## Related Specs
 
 - [button-module.md](button-module.md) — publishes the `BUTTON_CHAN` events this module consumes
-- [network-module.md](network-module.md) — publishes the `WIFI_CHAN` events this module consumes
+- [network-module.md](network-module.md) — publishes the `NETWORK_CHAN` events this module consumes
 - [ntp-module.md](ntp-module.md) — provides real UTC time once synced, used by restored FR-102 log-state entries
 - [heap-monitor-module.md](heap-monitor-module.md) — feeds heap metrics into the same Memfault heartbeat
 - [2-pm-partition.md](2-pm-partition.md) — coredump partition layout

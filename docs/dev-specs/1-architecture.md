@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-11-12 |
-| PRD Version | 2026-08-19-15-00 |
+| Version | 2026-08-20-13-20 |
+| PRD Version | 2026-08-20-13-20 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-13-20 | **Zbus event redesign**: `WIFI_CHAN` is now L2-only (`WIFI_STA_ASSOCIATED` new publish point replacing misleadingly-named `WIFI_STA_CONNECTED`; dead `WIFI_DNS_READY` removed) with zero subscribers. `NETWORK_CHAN` (`NETWORK_READY`/`NETWORK_NOT_READY`) is now the sole channel every connectivity-gated module (`app_memfault`, `wifi_prov_over_ble`, `app_https_client`, `app_mqtt_client`, `ntp`, OTA triggers) subscribes to. Updated Zbus Channels table and message definitions accordingly. |
 | 2026-07-13-11-08 | Migrated from `pm/openspec/specs/architecture.md`; updated for current code: `wifi` module renamed/split into `network` module (`net_event_mgmt.c` + `wifi_utils.c`), added `heap_monitor` module, dropped the 1-second delayed boot-connect (network module now connects without artificial delay), added dual-board module map and NCS v2.6.4 Partition Manager note |
 | 2026-08-20-11-12 | **Doc fix (code-driven, not PRD-driven)**: the Zbus Channels table listed `NETWORK_CHAN` as having no subscribers, but `app_memfault`'s `memfault_network_listener` (`core/memfault_core.c`) already subscribes to it, compiled in by default since FR-102/FR-103 shipped. Corrected the Subscribers column; see `0-overview.md` Changelog (closed stale Open Issues #1/#4) for the full account. |
 | 2026-08-19-15-35 | **Removed nRF54LM20DK + nRF7002EB II support project-wide.** This board has no board definition anywhere in this NCS v2.6.4 installation (confirmed absent from `zephyr/boards`, `nrf/boards`, and `modules/hal/nordic`) — the nRF54L series was introduced in a later NCS release, and this project's app-level `boards/nrf54lm20dk_nrf54lm20a_cpuapp.conf`/`.overlay` files only ever *overrode* Kconfig/DTS on top of a base board definition that was never actually present in this tree. This matches the persistent, previously-unresolved "BOARD_ROOT environment issue" noted in this project's Open Issues since 2026-07-13 (see `app-memfault-module.md` history) — the board build was never actually verified working in this exact environment. Deleted: both `boards/nrf54lm20dk_*` files, `pm_static_nrf54lm20dk_*.yml`, both `sysbuild/mcuboot/boards/nrf54lm20dk_*` files. Removed board-conditional Kconfig defaults for it in `Kconfig.sysbuild` and `app_memfault/Kconfig.defaults`. Project is now nRF7002DK-only; single-board module map, memory budget, and Zbus channel design are otherwise unchanged. |
@@ -60,7 +61,7 @@ src/
     │
     │   ── Application modules (SMF+Zbus) ──
     ├── button/                   ← SMF button state machine, BUTTON_CHAN publisher
-    ├── network/                  ← Wi-Fi L2/L3 event mgmt, WIFI_CHAN/NETWORK_CHAN publisher
+    ├── network/                  ← Wi-Fi L2/L3 event mgmt, WIFI_CHAN (L2)/NETWORK_CHAN (L3) publisher
     ├── heap_monitor/              ← periodic + peak heap sampling, no Zbus (direct Memfault metric calls)
     │
     │   ── Library wrapper modules ──
@@ -82,8 +83,8 @@ src/
 | Channel | Message Type | Publisher | Subscribers | Direction |
 |---------|-------------|-----------|-------------|-----------|
 | `BUTTON_CHAN` | `struct button_msg` | `button` | `app_memfault` (core listener), `app_memfault` (ota_triggers listener) | runtime |
-| `WIFI_CHAN` | `struct wifi_msg` | `network` (`net_event_mgmt.c`) | `app_memfault` (core + ota_triggers), `wifi_prov_over_ble`, `app_https_client`, `app_mqtt_client` | runtime |
-| `NETWORK_CHAN` | `struct network_msg` | `network` (`net_event_mgmt.c`) | `app_memfault` (`memfault_network_listener`, `core/memfault_core.c`) — active whenever `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`/`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE` are enabled (both default `y`) | runtime |
+| `WIFI_CHAN` | `struct wifi_msg` | `network` (`net_event_mgmt.c`) | none — L2-only, reserved for future consumers | runtime |
+| `NETWORK_CHAN` | `struct network_msg` | `network` (`net_event_mgmt.c`) | `app_memfault` (core + ota_triggers), `wifi_prov_over_ble`, `app_https_client`, `app_mqtt_client`, `ntp` | runtime |
 
 ### Message Definitions (`src/modules/messages.h`)
 
@@ -104,11 +105,10 @@ struct button_msg {
 
 #define BUTTON_LONG_PRESS_THRESHOLD_MS CONFIG_BUTTON_LONG_PRESS_MS
 
-/* WiFi messages (STA mode) */
+/* WiFi messages (STA mode, L2 only -- see NETWORK_CHAN below for IP-layer readiness) */
 enum wifi_msg_type {
-	WIFI_STA_CONNECTED,
+	WIFI_STA_ASSOCIATED,
 	WIFI_STA_DISCONNECTED,
-	WIFI_DNS_READY,
 	WIFI_ERROR,
 };
 
@@ -191,7 +191,7 @@ struct network_msg {
 | Boot | `Board:   <board name>` then `==============================================` | Always |
 | Module init | `Button module initialized`, `Memfault core init` | Per module |
 | Wi-Fi connect | `[WiFi] WiFi is connected!` | STA association succeeds |
-| Memfault upload | `Sending already captured data to Memfault` | After WIFI_STA_CONNECTED + DNS ready |
+| Memfault upload | `Sending already captured data to Memfault` | After NETWORK_READY + DNS ready |
 | OTA check | `Starting Memfault OTA check (<context>)` | Button 2 short press, connect, or periodic timer |
 
 ---

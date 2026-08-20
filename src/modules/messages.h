@@ -43,10 +43,14 @@ struct button_msg {
  * ============================================================================
  */
 
+/* L2 (802.11 association) events only. IP-layer readiness is signaled
+ * separately on NETWORK_CHAN (NETWORK_READY/NETWORK_NOT_READY below) --
+ * subscribers that need "safe to do IP traffic now" should use that channel
+ * instead of WIFI_STA_ASSOCIATED.
+ */
 enum wifi_msg_type {
-	WIFI_STA_CONNECTED,
+	WIFI_STA_ASSOCIATED,
 	WIFI_STA_DISCONNECTED,
-	WIFI_DNS_READY,
 	WIFI_ERROR,
 };
 

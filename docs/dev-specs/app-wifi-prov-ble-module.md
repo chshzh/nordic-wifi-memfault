@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-19-15-30 |
-| PRD Version | 2026-08-19-15-00 |
+| Version | 2026-08-20-13-20 |
+| PRD Version | 2026-08-20-13-20 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-13-20 | **Zbus event redesign**: switched from subscribing to `WIFI_CHAN`'s `WIFI_STA_CONNECTED`/`WIFI_STA_DISCONNECTED` to `NETWORK_CHAN`'s `NETWORK_READY`/`NETWORK_NOT_READY` for the BLE advertisement status flag. See [network-module.md](network-module.md) for the full rationale. |
 | 2026-07-13-11-08 | New spec (not present in legacy `pm/openspec/specs/`, which only briefly mentioned this module inside `memfault-integration.md`/`architecture.md`). Reverse-designed from current `wifi_prov_over_ble.c`. |
 | 2026-07-24-11-30 | Replaced the flat 180 s reconnect fallback retry with a capped exponential backoff (5 s ×3 quick retries, then 30 → 60 → 120 → 300 s cap), mirroring the MQTT reconnect backoff pattern already used elsewhere in this app. A flat 180 s interval meant the device could sit disconnected for up to 3 minutes after the first failed attempt before trying again; the initial 5 s retry on disconnect is unchanged. `wifi_reconnect_retry_count` is reset on any successful connect or when credentials are found empty. |
 | 2026-08-18-18-40 | Fixed a hang: `status == 0` on `NET_EVENT_WIFI_DISCONNECT_RESULT` was treated as "provisioner-initiated, defer reconnect" unconditionally, but the `network` module's L3 DHCP watchdog (`net_event_mgmt.c`) also produces `status == 0` from its own `NET_REQUEST_WIFI_DISCONNECT`. When that watchdog fired with no BLE client connected (e.g. after an AP power-cycle where the device re-associates but doesn't get a lease in time), reconnect was deferred to a provisioner that wasn't actually there, and the device stayed offline indefinitely. Now only defers when `current_conn != NULL` (a BLE client is actually connected and could be driving the disconnect). |
@@ -88,13 +89,13 @@ static void wifi_connect_work_handler(struct k_work *work);
 
 | Library event / callback | Zbus channel published | Message |
 |--------------------------|----------------------|---------|
-| none directly | — | This module does not publish Zbus messages. It *subscribes* to `WIFI_CHAN` (published by `network`) to know when the device is connected/disconnected and to update BLE advertisement data accordingly. |
+| none directly | — | This module does not publish Zbus messages. It *subscribes* to `NETWORK_CHAN` (published by `network`) to know when the device is connected/disconnected and to update BLE advertisement data accordingly. |
 
 ---
 
 ## Zbus Integration
 
-**Subscribes to**: `WIFI_CHAN` — updates BLE advertisement flag bits (`ADV_DATA_FLAG_CONN_STATUS_BIT`) when Wi-Fi connects/disconnects, so the mobile app sees live connection status during provisioning.
+**Subscribes to**: `NETWORK_CHAN` — updates BLE advertisement flag bits (`ADV_DATA_FLAG_CONN_STATUS_BIT`) when the network becomes ready/not-ready, so the mobile app sees live connection status during provisioning.
 
 **Publishes to**: none.
 
@@ -176,7 +177,7 @@ Not SMF. Event/work-queue driven:
 
 ## Related Specs
 
-- [network-module.md](network-module.md) — publishes `WIFI_CHAN`, owns the actual Wi-Fi connect/disconnect state machine
+- [network-module.md](network-module.md) — publishes `NETWORK_CHAN`, owns the actual Wi-Fi connect/disconnect state machine
 - [1-architecture.md](1-architecture.md) — Zbus channel table
 
 *(Changelog is maintained at the top of this document.)*

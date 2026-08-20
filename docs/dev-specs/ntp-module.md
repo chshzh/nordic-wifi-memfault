@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-19-15-30 |
-| PRD Version | 2026-08-19-15-00 |
+| Version | 2026-08-20-13-20 |
+| PRD Version | 2026-08-20-13-20 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-13-20 | **Zbus event redesign**: switched from subscribing to `WIFI_CHAN`'s `WIFI_STA_CONNECTED`/`WIFI_STA_DISCONNECTED` to `NETWORK_CHAN`'s `NETWORK_READY`/`NETWORK_NOT_READY` — this module only ever cared about IP-layer readiness (needed to reach the SNTP server), not L2 association, and `WIFI_STA_CONNECTED` had been misleadingly named (it fired on IP assignment, not association). See [network-module.md](network-module.md) for the full rationale. |
 | 2026-07-24-14-09 | New spec — ported from `zego/bricks/ntp` (NCS v3.4.0 brick, spec version 2026-07-08-00-00), ported for FR-104. Unlike the brick's decoupled `ZEGO_NTP_NET_CHAN` + weak-hook publish pattern, this app already has `WIFI_CHAN`/`NETWORK_CHAN` zbus channels published by `network/net_event_mgmt.c`, so the module subscribes to `WIFI_CHAN` directly (same pattern as `app_memfault/core/memfault_core.c`'s `memfault_wifi_listener`) instead of introducing a second network-state channel. Kconfig prefix renamed `CONFIG_ZEGO_NTP_*` → `CONFIG_NTP_MODULE_*` to match this app's per-module naming convention (`CONFIG_WIFI_MODULE_*`, `CONFIG_HEAPS_MONITOR_*`). Two NCS v2.6.4-specific deviations from the brick: (1) `sys_clock_settime()`/`SYS_CLOCK_REALTIME` do not exist in this Zephyr version (3.5.99) — uses the POSIX `clock_settime(CLOCK_REALTIME, ...)` / `<zephyr/posix/time.h>` API instead, gated on `CONFIG_POSIX_CLOCK` (already enabled transitively by this app's Wi-Fi stack). (2) `CONFIG_LOG_TIMESTAMP_USE_REALTIME` does not exist in this Zephyr version either — UART log line timestamps remain device uptime; instead, this module implements `memfault_platform_time_get_current()` directly (this app has no `CONFIG_DATE_TIME`/`CONFIG_RTC`, so the Memfault Zephyr port's `MEMFAULT_SYSTEM_TIME_SOURCE` choice defaults to `..._CUSTOM`, which otherwise has no built-in implementation — every Memfault event/log was previously only ever timestamped at server ingest time). |
 | 2026-07-24-14-41 | Two corrections found during hardware testing: (1) **Build fix** — `CMakeLists.txt` used the brick's `zephyr_library()`/`zephyr_library_sources()` pattern, which never links into this app's plain (non-west-module) `add_subdirectory()` build; `ntp_module_init()`'s `SYS_INIT` never ran and `ntp_wifi_listener` never subscribed, even though `CONFIG_NTP_MODULE_ENABLED=y` was correctly set. Switched to `target_sources(app PRIVATE ntp.c)`, this app's convention for every other module (confirmed fix via UART: `ntp_module: NTP sync initialized` / `Querying pool.ntp.org ...` now appear, and `ntp.c.obj` now compiles into `app.dir` instead of an unlinked separate library). Also added `ntp` to `main.c`'s boot-time "Enabled modules" list (previously missing). (2) **UART log timestamps** — `CONFIG_LOG_TIMESTAMP_USE_REALTIME` doesn't exist in this Zephyr version, but its logging core exposes `log_set_timestamp_func()` to swap the timestamp source used by ALL log lines at runtime. The module now registers a `CLOCK_REALTIME`-backed function once synced (freq=1, i.e. whole seconds — this project's log timestamps are 32-bit, so an epoch value in milliseconds would overflow); combined with `CONFIG_LOG_OUTPUT_FORMAT_LINUX_TIMESTAMP=y` (prj.conf), log lines switch from `[hh:mm:ss,ms,us]` uptime to `[<epoch_seconds>.000000]` Unix time once synced. |
 | 2026-07-24-14-47 | Upgraded the log-timestamp rendering from raw epoch seconds to a calendar UTC string: registered a `log_custom_timestamp_format_func_t` via `log_custom_timestamp_set()` (`CONFIG_LOG_OUTPUT_FORMAT_CUSTOM_TIMESTAMP=y`, replacing `CONFIG_LOG_OUTPUT_FORMAT_LINUX_TIMESTAMP`) that uses `gmtime_r()` to print `"2026-07-24 14:35:33Z"` once synced, or an elapsed `hh:mm:ss.mmm` duration (reconstructed manually, since custom-timestamp mode replaces Zephyr's built-in formatter entirely) before sync. |
@@ -79,7 +80,7 @@ each reconnect.
 ## Module Type
 
 - [x] **Application module** — no SMF state machine, no dedicated thread; driven by a
-  `k_work_delayable` item on the system work queue plus a `WIFI_CHAN` zbus listener.
+  `k_work_delayable` item on the system work queue plus a `NETWORK_CHAN` zbus listener.
 - [ ] Library wrapper module (wraps Zephyr's `sntp_simple()` API, but this is a thin,
   app-owned integration rather than a distinct third-party library surface)
 
@@ -87,15 +88,15 @@ each reconnect.
 
 ## Zbus Integration
 
-**Subscribes to**: `WIFI_CHAN` (`ZBUS_LISTENER_DEFINE(ntp_wifi_listener, ...)`), the same
-channel `network/net_event_mgmt.c` publishes `WIFI_STA_CONNECTED` / `WIFI_STA_DISCONNECTED`
+**Subscribes to**: `NETWORK_CHAN` (`ZBUS_LISTENER_DEFINE(ntp_network_listener, ...)`), the same
+channel `network/net_event_mgmt.c` publishes `NETWORK_READY` / `NETWORK_NOT_READY`
 to (see [network-module.md](network-module.md)). This module does not publish any zbus
 channel of its own.
 
 | Event received | Action |
 |-----------------|--------|
-| `WIFI_STA_CONNECTED` | If not already synced, schedule an immediate SNTP query (`K_NO_WAIT`) |
-| `WIFI_STA_DISCONNECTED` | Cancel any pending/scheduled SNTP work, clear the synced flag |
+| `NETWORK_READY` | If not already synced, schedule an immediate SNTP query (`K_NO_WAIT`) |
+| `NETWORK_NOT_READY` | Cancel any pending/scheduled SNTP work, clear the synced flag |
 
 ---
 
@@ -141,12 +142,12 @@ two booleans (`ntp_network_ready`, `ntp_synced`), matching the ported brick's de
 
 ## Behavior
 
-1. On `WIFI_STA_CONNECTED`: if not already synced, schedule an immediate SNTP query.
+1. On `NETWORK_READY`: if not already synced, schedule an immediate SNTP query.
 2. On successful query: call `sys_clock_settime(SYS_CLOCK_REALTIME, ...)`, mark synced, and
    reschedule the next query after `CONFIG_NTP_MODULE_RESYNC_INTERVAL_SEC`.
 3. On failed query: reschedule after `CONFIG_NTP_MODULE_RETRY_INTERVAL_SEC`.
-4. On `WIFI_STA_DISCONNECTED`: cancel any pending work and clear the synced flag, so the
-   next `WIFI_STA_CONNECTED` triggers an immediate re-sync.
+4. On `NETWORK_NOT_READY`: cancel any pending work and clear the synced flag, so the
+   next `NETWORK_READY` triggers an immediate re-sync.
 
 ---
 
@@ -201,7 +202,7 @@ static void ntp_wifi_listener(const struct zbus_channel *chan);
 |----------|-------------------|-----------------|
 | Wi-Fi connects | `Querying pool.ntp.org ...` then `Time synced, epoch ...` | Within `CONFIG_NTP_MODULE_TIMEOUT_MS` of connect |
 | Log timestamp switch | Log line prefix changes from `[00:00:29.357] ` (elapsed) to `[2026-07-24 14:35:33Z] ` (calendar UTC) | Immediately after `Time synced` line, no bogus 1970 dates on messages captured just before it |
-| Disconnect then reconnect | A fresh `Querying ...` line shortly after `WIFI_STA_CONNECTED` fires again | Every reconnect |
+| Disconnect then reconnect | A fresh `Querying ...` line shortly after `NETWORK_READY` fires again | Every reconnect |
 | SNTP server unreachable | `SNTP query failed (...) - retry in Ns` | Retried every `CONFIG_NTP_MODULE_RETRY_INTERVAL_SEC` |
 | Long uptime (> resync interval) | New `Querying ...` line every `CONFIG_NTP_MODULE_RESYNC_INTERVAL_SEC` | Periodic resync fires |
 | FR-102 restore after NTP sync | Restored log-state entries and live Memfault events carry a real UTC timestamp instead of only a server ingest-time one | Only once NTP has completed its first sync |
@@ -218,7 +219,7 @@ static void ntp_wifi_listener(const struct zbus_channel *chan);
 ## Related Specs
 
 - [1-architecture.md](1-architecture.md) — module map
-- [network-module.md](network-module.md) — publishes `WIFI_STA_CONNECTED` / `WIFI_STA_DISCONNECTED` on `WIFI_CHAN`
+- [network-module.md](network-module.md) — publishes `NETWORK_READY` / `NETWORK_NOT_READY` on `NETWORK_CHAN`
 - [app-memfault-module.md](app-memfault-module.md) — FR-102 restored log-state entries benefit from real UTC timestamps once this module has synced
 
 *(Changelog is maintained at the top of this document.)*

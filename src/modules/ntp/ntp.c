@@ -5,17 +5,17 @@
  *
  * NTP time synchronization module.
  *
- * Subscribes to WIFI_CHAN (published by network/net_event_mgmt.c). On
- * WIFI_STA_CONNECTED, queries the configured SNTP server and sets
+ * Subscribes to NETWORK_CHAN (published by network/net_event_mgmt.c). On
+ * NETWORK_READY, queries the configured SNTP server and sets
  * CLOCK_REALTIME so log output and application code (notably Memfault
  * event/log timestamps) show real-world wall-clock time instead of device
  * uptime. Retries failed queries via a k_work_delayable item on the system
- * work queue -- no dedicated thread required. Resets on WIFI_STA_DISCONNECTED
+ * work queue -- no dedicated thread required. Resets on NETWORK_NOT_READY
  * so a fresh sync is performed after each reconnect.
  *
  * Ported from zego/bricks/ntp: unlike the brick's decoupled
  * ZEGO_NTP_NET_CHAN + application weak-hook pattern, this module subscribes
- * directly to this app's existing WIFI_CHAN.
+ * directly to this app's existing NETWORK_CHAN.
  *
  * Memfault integration: this app does not enable CONFIG_DATE_TIME or
  * CONFIG_RTC, so the Memfault Zephyr port's MEMFAULT_SYSTEM_TIME_SOURCE
@@ -165,18 +165,18 @@ static void ntp_work_handler(struct k_work *work)
 	}
 }
 
-static void ntp_wifi_listener(const struct zbus_channel *chan)
+static void ntp_network_listener(const struct zbus_channel *chan)
 {
-	const struct wifi_msg *msg = zbus_chan_const_msg(chan);
+	const struct network_msg *msg = zbus_chan_const_msg(chan);
 
 	switch (msg->type) {
-	case WIFI_STA_CONNECTED:
+	case NETWORK_READY:
 		ntp_network_ready = true;
 		if (!ntp_synced) {
 			k_work_reschedule(&ntp_work, K_NO_WAIT);
 		}
 		break;
-	case WIFI_STA_DISCONNECTED:
+	case NETWORK_NOT_READY:
 		ntp_network_ready = false;
 		ntp_synced = false;
 		k_work_cancel_delayable(&ntp_work);
@@ -186,10 +186,10 @@ static void ntp_wifi_listener(const struct zbus_channel *chan)
 	}
 }
 
-ZBUS_LISTENER_DEFINE(ntp_wifi_listener_def, ntp_wifi_listener);
+ZBUS_LISTENER_DEFINE(ntp_network_listener_def, ntp_network_listener);
 
-extern const struct zbus_channel WIFI_CHAN;
-ZBUS_CHAN_ADD_OBS(WIFI_CHAN, ntp_wifi_listener_def, 0);
+extern const struct zbus_channel NETWORK_CHAN;
+ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, ntp_network_listener_def, 0);
 
 #if defined(NTP_MODULE_PROVIDES_MEMFAULT_TIME)
 bool memfault_platform_time_get_current(sMemfaultCurrentTime *time)

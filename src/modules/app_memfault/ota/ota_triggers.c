@@ -131,10 +131,10 @@ void mflt_ota_triggers_notify_connected(void)
 	}
 }
 
-/* Zbus: Button 2 short press -> OTA check; WIFI_STA_CONNECTED -> OTA on connect
+/* Zbus: Button 2 short press -> OTA check; NETWORK_READY -> OTA on connect
  */
 extern const struct zbus_channel BUTTON_CHAN;
-extern const struct zbus_channel WIFI_CHAN;
+extern const struct zbus_channel NETWORK_CHAN;
 
 static void ota_button_listener(const struct zbus_channel *chan)
 {
@@ -149,17 +149,17 @@ static void ota_button_listener(const struct zbus_channel *chan)
 	mflt_ota_triggers_notify_button();
 }
 
-static void ota_wifi_listener(const struct zbus_channel *chan)
+static void ota_network_listener(const struct zbus_channel *chan)
 {
-	const struct wifi_msg *msg = zbus_chan_const_msg(chan);
+	const struct network_msg *msg = zbus_chan_const_msg(chan);
 
-	if (msg->type == WIFI_STA_CONNECTED) {
+	if (msg->type == NETWORK_READY) {
 		mflt_ota_triggers_notify_connected();
 	}
 }
 
 ZBUS_LISTENER_DEFINE(ota_button_listener_def, ota_button_listener);
-ZBUS_LISTENER_DEFINE(ota_wifi_listener_def, ota_wifi_listener);
+ZBUS_LISTENER_DEFINE(ota_network_listener_def, ota_network_listener);
 
 ZBUS_CHAN_ADD_OBS(BUTTON_CHAN, ota_button_listener_def, 0);
-ZBUS_CHAN_ADD_OBS(WIFI_CHAN, ota_wifi_listener_def, 0);
+ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, ota_network_listener_def, 0);

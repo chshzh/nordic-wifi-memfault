@@ -525,25 +525,25 @@ void wifi_prov_over_ble_update_wifi_status(bool connected)
 	k_work_reschedule_for_queue(&adv_daemon_work_q, &update_adv_data_work, K_NO_WAIT);
 }
 
-/* Zbus: update BLE advertisement when WiFi connect/disconnect (from wifi
- * module) */
-extern const struct zbus_channel WIFI_CHAN;
+/* Zbus: update BLE advertisement when the network becomes ready/not-ready
+ * (from network module) */
+extern const struct zbus_channel NETWORK_CHAN;
 
 static void wifi_prov_over_ble_listener(const struct zbus_channel *chan)
 {
-	const struct wifi_msg *msg = zbus_chan_const_msg(chan);
+	const struct network_msg *msg = zbus_chan_const_msg(chan);
 
-	if (msg->type == WIFI_STA_CONNECTED) {
-		LOG_INF("WiFi connected - BLE advertisement updated");
+	if (msg->type == NETWORK_READY) {
+		LOG_INF("Network ready - BLE advertisement updated");
 		wifi_prov_over_ble_update_wifi_status(true);
-	} else if (msg->type == WIFI_STA_DISCONNECTED) {
-		LOG_INF("WiFi disconnected - BLE advertisement updated");
+	} else if (msg->type == NETWORK_NOT_READY) {
+		LOG_INF("Network not ready - BLE advertisement updated");
 		wifi_prov_over_ble_update_wifi_status(false);
 	}
 }
 
 ZBUS_LISTENER_DEFINE(wifi_prov_over_ble_listener_def, wifi_prov_over_ble_listener);
-ZBUS_CHAN_ADD_OBS(WIFI_CHAN, wifi_prov_over_ble_listener_def, 0);
+ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, wifi_prov_over_ble_listener_def, 0);
 
 /* Initialize BLE provisioning after network event module init (default 90). */
 SYS_INIT(wifi_prov_over_ble_init, APPLICATION, 95);

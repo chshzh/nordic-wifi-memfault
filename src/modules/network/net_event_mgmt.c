@@ -358,6 +358,7 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb, uint3
 			LOG_INF("[WiFi] WiFi is connected!");
 			/* Print detailed WiFi status when connected */
 			wifi_print_status();
+			publish_wifi_event(WIFI_STA_ASSOCIATED, 0);
 			/* Associated at L2 - arm the watchdog; it is cancelled when
 			 * DHCP binds.
 			 */
@@ -516,7 +517,6 @@ static void l3_ipv4_event_handler(struct net_mgmt_event_callback *cb, uint32_t m
 		wifi_print_dhcp_ip(iface, cb);
 		/* Signal network connectivity */
 		k_sem_give(&ipv4_dhcp_bond_sem);
-		publish_wifi_event(WIFI_STA_CONNECTED, 0);
 		publish_network_ready(true);
 		break;
 

@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-11-12 |
-| PRD Version | 2026-08-20-10-59 |
+| Version | 2026-08-20-13-20 |
+| PRD Version | 2026-08-20-13-20 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-13-20 | **Zbus event redesign**: `NETWORK_CHAN` (`NETWORK_READY`/`NETWORK_NOT_READY`) is now the channel every connectivity-gated module subscribes to, replacing `WIFI_CHAN`'s misleadingly-named `WIFI_STA_CONNECTED` (which actually fired on IP assignment, not L2 association) and dead `WIFI_DNS_READY`. `WIFI_CHAN` is now L2-only with zero subscribers. Updated Module Dependency Map. See `network-module.md` Changelog for the full rationale and blast radius. |
 | 2026-07-13-11-08 | Migrated from `pm/openspec/specs/*.md` and reverse-designed against current `src/` on the `ncs264` branch (NCS v2.6.4, dual-board, `network` module replacing `wifi` module, `heap_monitor` added) |
 | 2026-07-13-12-22 | Updated to PRD v2026-07-13-12-22: added FR-102/FR-103 (log-state and nRF70 CDR persist/restore across power cycle, ported from `nordic-wifi-memfault-main`'s FR-007/FR-008) to `app-memfault-module.md` and `2-pm-partition.md`. Design only — not yet implemented. |
 | 2026-07-13-13-31 | FR-102/FR-103 implemented and build-verified on nRF7002DK (FLASH 90.26%, RAM 98.75%). See `app-memfault-module.md` and `2-pm-partition.md` changelogs for implementation details and the FR-102 design deviation (drain-and-replay vs. raw ring-buffer copy). |
@@ -70,7 +71,7 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Architecture pattern | SMF + Zbus | Decoupled modules; Zbus (`BUTTON_CHAN`, `WIFI_CHAN`, `NETWORK_CHAN`) is the only inter-module channel |
+| Architecture pattern | SMF + Zbus | Decoupled modules; Zbus (`BUTTON_CHAN`, `WIFI_CHAN`, `NETWORK_CHAN`) is the only inter-module channel — `WIFI_CHAN` is L2-only, `NETWORK_CHAN` is the IP-layer readiness signal that connectivity-gated modules actually subscribe to |
 | Wi-Fi/network module split | `network/net_event_mgmt.c` (L2/L3 event handling) + `network/wifi_utils.c` (helpers: mode/channel/credentials) | Legacy `wifi/wifi.c` was split for clarity; SoftAP event handling and STA connect logic now live in one file |
 | Configuration | `prj.conf` (system-level + module enable flags) + per-module `Kconfig.<name>` and `Kconfig.defaults` | Each module owns its tuning defaults; `prj.conf` only overrides project-specific values and Kconfig `choice` symbols |
 | Credentials | Wi-Fi: `wifi_credentials` NVS backend. Memfault: git-ignored `overlay-app-memfault-project-info.conf` | Never in source control |
@@ -100,13 +101,13 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 ## 5. Module Dependency Map
 
 ```
-network        ──Zbus(WIFI_CHAN)──▶  app_memfault (core)
-network        ──Zbus(WIFI_CHAN)──▶  app_memfault (ota_triggers)
-network        ──Zbus(WIFI_CHAN)──▶  app_wifi_prov_over_ble
-network        ──Zbus(WIFI_CHAN)──▶  app_https_client
-network        ──Zbus(WIFI_CHAN)──▶  app_mqtt_client
-network        ──Zbus(WIFI_CHAN)──▶  ntp
-network        ──Zbus(NETWORK_CHAN)─▶ app_memfault (core) [FR-102/FR-103, memfault_network_listener]
+network        ──Zbus(NETWORK_CHAN)─▶ app_memfault (core) [also FR-102/FR-103, memfault_network_listener]
+network        ──Zbus(NETWORK_CHAN)─▶ app_memfault (ota_triggers)
+network        ──Zbus(NETWORK_CHAN)─▶ app_wifi_prov_over_ble
+network        ──Zbus(NETWORK_CHAN)─▶ app_https_client
+network        ──Zbus(NETWORK_CHAN)─▶ app_mqtt_client
+network        ──Zbus(NETWORK_CHAN)─▶ ntp
+network        ──Zbus(WIFI_CHAN)────▶ (no subscribers — L2-only, reserved for future consumers)
 button         ──Zbus(BUTTON_CHAN)──▶ app_memfault (core)
 button         ──Zbus(BUTTON_CHAN)──▶ app_memfault (ota_triggers)
 heap_monitor   ──direct call────────▶ Memfault metrics API (no Zbus)

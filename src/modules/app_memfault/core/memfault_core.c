@@ -116,11 +116,11 @@ static void heartbeat_force_work_fn(struct k_work *work)
  */
 static bool log_freeze_scheduled;
 
-/* Guard: true once the device has completed a real WIFI_STA_CONNECTED at
+/* Guard: true once the device has completed a real NETWORK_READY at
  * least once. The boot-time "no stored credentials" state also publishes a
- * disconnect notification (WIFI_STA_DISCONNECTED / NETWORK_NOT_READY) even
- * though nothing was ever connected or lost -- this guard prevents that from
- * scheduling a pointless persist to flash.
+ * NETWORK_NOT_READY notification even though nothing was ever connected or
+ * lost -- this guard prevents that from scheduling a pointless persist to
+ * flash.
  */
 static bool network_ever_connected;
 
@@ -278,15 +278,19 @@ static void upload_thread_fn(void *a, void *b, void *c)
 K_THREAD_DEFINE(memfault_upload_tid, CONFIG_MEMFAULT_UPLOAD_THREAD_STACK_SIZE, upload_thread_fn,
 		NULL, NULL, NULL, 5, 0, 0);
 
-/* WIFI_CHAN listener */
-extern const struct zbus_channel WIFI_CHAN;
+/* NETWORK_CHAN listener -- IP-layer readiness (DHCP bound / lost). Replaces
+ * the former separate WIFI_CHAN listener: this module only ever cared about
+ * "safe to do IP traffic", which is what NETWORK_READY/NETWORK_NOT_READY
+ * already signal, so there is no need to also track L2 association here.
+ */
+extern const struct zbus_channel NETWORK_CHAN;
 
-static void memfault_wifi_listener(const struct zbus_channel *chan)
+static void memfault_network_listener(const struct zbus_channel *chan)
 {
-	const struct wifi_msg *msg = zbus_chan_const_msg(chan);
+	const struct network_msg *msg = zbus_chan_const_msg(chan);
 
 	switch (msg->type) {
-	case WIFI_STA_CONNECTED:
+	case NETWORK_READY:
 		wifi_connected = true;
 		/* memfault_metrics_connectivity_connected_state_change() does not
 		 * exist in the Memfault SDK version bundled with NCS v2.6.4.
@@ -306,7 +310,7 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 #endif
 		k_sem_give(&upload_sem);
 		break;
-	case WIFI_STA_DISCONNECTED:
+	case NETWORK_NOT_READY:
 		wifi_connected = false;
 #if CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC > 0
 		k_work_cancel_delayable(&heartbeat_force_work);
@@ -326,33 +330,8 @@ static void memfault_wifi_listener(const struct zbus_channel *chan)
 	}
 }
 
-ZBUS_LISTENER_DEFINE(memfault_wifi_listener_def, memfault_wifi_listener);
-ZBUS_CHAN_ADD_OBS(WIFI_CHAN, memfault_wifi_listener_def, 0);
-
-#if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE || CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
-/* NETWORK_CHAN listener -- catches IP-layer loss (DHCP expiry, addr removal)
- * independently of WiFi association state.
- */
-extern const struct zbus_channel NETWORK_CHAN;
-
-static void memfault_network_listener(const struct zbus_channel *chan)
-{
-	const struct network_msg *msg = zbus_chan_const_msg(chan);
-
-	if (msg->type == NETWORK_NOT_READY) {
-		if (network_ever_connected && !log_freeze_scheduled) {
-			log_freeze_scheduled = true;
-			k_work_schedule(&log_freeze_work, K_SECONDS(LOG_FREEZE_DELAY_SEC));
-			LOG_WRN("Network connectivity lost - scheduling Memfault log/CDR "
-				"persist in %d s",
-				LOG_FREEZE_DELAY_SEC);
-		}
-	}
-}
-
 ZBUS_LISTENER_DEFINE(memfault_network_listener_def, memfault_network_listener);
 ZBUS_CHAN_ADD_OBS(NETWORK_CHAN, memfault_network_listener_def, 0);
-#endif /* CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE || CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE */
 
 /* BUTTON_CHAN listener: heartbeat, crash demos, metric, trace */
 extern const struct zbus_channel BUTTON_CHAN;
