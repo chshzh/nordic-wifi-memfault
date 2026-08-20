@@ -28,6 +28,15 @@ int init_network_events(void);
  */
 bool net_event_mgmt_is_connected(void);
 
+/**
+ * @brief Request an immediate STA connect attempt using stored credentials.
+ *
+ * Intended for callers (e.g. wifi_prov_over_ble) that just stored new Wi-Fi
+ * credentials and want to trigger a connect attempt without waiting for a
+ * disconnect event.
+ */
+void net_event_mgmt_request_connect(void);
+
 /* External semaphores for network events */
 extern struct k_sem iface_up_sem;
 extern struct k_sem wpa_supplicant_ready_sem;

@@ -6,6 +6,8 @@
 
 #include "wifi_prov_over_ble.h"
 #include "../messages.h"
+#include "../network/net_event_mgmt.h"
+#include "../network/wifi_utils.h"
 
 #include <stdbool.h>
 #include <zephyr/types.h>
@@ -20,7 +22,6 @@
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/net/wifi.h>
 #include <zephyr/net/wifi_mgmt.h>
-#include <net/wifi_credentials.h>
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/logging/log.h>
@@ -30,26 +31,6 @@
 #include <net/wifi_mgmt_ext.h>
 
 LOG_MODULE_REGISTER(wifi_prov_over_ble, CONFIG_WIFI_PROV_OVER_BLE_LOG_LEVEL);
-
-#define WIFI_RECONNECT_DELAY_SEC 5
-
-/* Capped exponential backoff for the WiFi reconnect fallback retry, mirroring
- * the MQTT reconnect backoff pattern used elsewhere in this app.
- * Retries 1-3: 5 s quick retries (transient AP reboot/short outage).
- * Retry 4+:    30 s -> 60 s -> 120 s -> 300 s cap (persistent failures).
- */
-#define WIFI_RECONNECT_BACKOFF_BASE_SEC 30U
-#define WIFI_RECONNECT_BACKOFF_MAX_SEC  300U
-
-static uint32_t wifi_reconnect_backoff_sec(int retry_count)
-{
-	if (retry_count <= 3) {
-		return WIFI_RECONNECT_DELAY_SEC;
-	}
-	uint32_t b = WIFI_RECONNECT_BACKOFF_BASE_SEC << (uint32_t)(retry_count - 4);
-
-	return MIN(b, WIFI_RECONNECT_BACKOFF_MAX_SEC);
-}
 
 #ifdef CONFIG_WIFI_PROV_ADV_DATA_UPDATE
 #define ADV_DATA_UPDATE_INTERVAL CONFIG_WIFI_PROV_ADV_DATA_UPDATE_INTERVAL
@@ -69,48 +50,25 @@ static uint32_t wifi_reconnect_backoff_sec(int retry_count)
 	BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE, BT_GAP_ADV_SLOW_INT_MIN,                        \
 			BT_GAP_ADV_SLOW_INT_MAX, NULL)
 
-/* Sized to accommodate WIFI_REQUEST_CONNECT_STORED's full connect chain
- * (net_mgmt -> wifi mgmt handler -> nrf700x driver -> hostap/wpa_supplicant
- * event loop, which itself calls zsock_select()/poll() internally) - this
- * needs comparable headroom to CONFIG_WPA_SUPP_THREAD_STACK_SIZE elsewhere
- * in this project. 4096 B overflowed with "Stack overflow (context area not
- * valid)" inside zsock_poll_internal() when wifi_connect_work ran on it.
- */
-#define ADV_DAEMON_STACK_SIZE 8192
-#define ADV_DAEMON_PRIORITY   5
-
-static struct k_work_delayable wifi_connect_work;
 static bool wifi_connect_requested = false;
 static struct bt_conn *current_conn = NULL;
-static bool wifi_reconnect_pending = false;
-static int wifi_reconnect_retry_count = 0;
-static struct net_mgmt_event_callback wifi_mgmt_cb;
 static bool connection_requested_after_provisioning = false;
 static bool credentials_existed_at_boot = false;
 static bool last_prov_state = false;
 
-K_THREAD_STACK_DEFINE(adv_daemon_stack_area, ADV_DAEMON_STACK_SIZE);
-static struct k_work_q adv_daemon_work_q;
-
 static uint8_t device_name[] = {'P', 'V', '0', '0', '0', '0', '0', '0'};
 static uint8_t prov_svc_data[] = {BT_UUID_PROV_VAL, 0x00, 0x00, 0x00, 0x00};
 
-/* wifi_credentials_is_empty() does not exist in the wifi_credentials library
- * bundled with NCS v2.6.4; check via wifi_credentials_for_each_ssid() instead.
- */
-static void count_ssid_cb(void *cb_arg, const char *ssid, size_t ssid_len)
-{
-	ARG_UNUSED(ssid);
-	ARG_UNUSED(ssid_len);
-	*(bool *)cb_arg = false;
-}
+extern const struct zbus_channel BLE_CHAN;
 
-static bool wifi_credentials_is_empty(void)
+static void publish_ble_event(enum ble_msg_type type)
 {
-	bool empty = true;
+	struct ble_msg msg = {.type = type};
+	int err = zbus_chan_pub(&BLE_CHAN, &msg, K_MSEC(100));
 
-	wifi_credentials_for_each_ssid(count_ssid_cb, &empty);
-	return empty;
+	if (err) {
+		LOG_WRN("Failed to publish BLE_CHAN event (%d)", err);
+	}
 }
 
 static const struct bt_data ad[] = {
@@ -124,129 +82,6 @@ static const struct bt_data sd[] = {
 
 static struct k_work_delayable update_adv_param_work;
 static struct k_work_delayable update_adv_data_work;
-
-static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event,
-				    struct net_if *iface)
-{
-	ARG_UNUSED(iface);
-	if (!bt_wifi_prov_state_get()) {
-		return;
-	}
-	switch (mgmt_event) {
-	case NET_EVENT_WIFI_DISCONNECT_RESULT: {
-		const struct wifi_status *status = (const struct wifi_status *)cb->info;
-		/*
-		 * status == 0 (intentional/locally-generated) is ambiguous: it's
-		 * what the provisioner does before a WiFi scan, but it's also what
-		 * the network module's L3 DHCP watchdog gets back from its own
-		 * NET_REQUEST_WIFI_DISCONNECT (see net_event_mgmt.c). Only defer to
-		 * the provisioner when a BLE client is actually connected and could
-		 * be driving that disconnect itself - otherwise nothing else ever
-		 * reconnects and the device is stuck offline forever.
-		 */
-		if (status && status->status == 0 && current_conn != NULL) {
-			LOG_INF("WiFi disconnected (intentional), deferring "
-				"reconnect to provisioner");
-			break;
-		}
-		if (!wifi_reconnect_pending) {
-			wifi_reconnect_pending = true;
-			wifi_reconnect_retry_count = 0;
-			k_work_reschedule_for_queue(&adv_daemon_work_q, &wifi_connect_work,
-						    K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
-			LOG_INF("WiFi disconnected, scheduling reconnect");
-		}
-		break;
-	}
-	case NET_EVENT_WIFI_CONNECT_RESULT: {
-		const struct wifi_status *status = (const struct wifi_status *)cb->info;
-
-		/*
-		 * This event fires on both success AND failure (timeout, auth
-		 * failure, etc. - see net_event_mgmt.c's decoding of the same
-		 * event for the failure codes). Only a status == 0 result means
-		 * we are actually connected; treating a failed attempt as
-		 * "connected" here cancels the in-flight retry backoff and
-		 * leaves the device stuck offline with no reconnect scheduled.
-		 */
-		if (status && status->status != 0) {
-			break;
-		}
-		wifi_reconnect_pending = false;
-		wifi_reconnect_retry_count = 0;
-		k_work_cancel_delayable(&wifi_connect_work);
-		break;
-	}
-	default:
-		break;
-	}
-}
-
-static void wifi_connect_work_handler(struct k_work *work)
-{
-	int err;
-	struct net_if *iface = net_if_get_default();
-	struct wifi_iface_status status = {0};
-	int status_rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status, sizeof(status));
-	bool wifi_is_connected = (status_rc == 0 && status.state >= WIFI_STATE_ASSOCIATED);
-	bool wifi_is_connecting = (status_rc == 0 && status.state > WIFI_STATE_DISCONNECTED &&
-				   status.state < WIFI_STATE_ASSOCIATED);
-	bool reconnect_cycle_active = wifi_reconnect_pending;
-
-	if (wifi_is_connected) {
-		wifi_reconnect_pending = false;
-		wifi_reconnect_retry_count = 0;
-		return;
-	}
-	if (wifi_credentials_is_empty()) {
-		LOG_WRN("No stored WiFi credentials, skipping reconnect");
-		wifi_reconnect_pending = false;
-		wifi_reconnect_retry_count = 0;
-		return;
-	}
-	/*
-	 * If a BLE client is actively connected, it may be in the middle of
-	 * provisioning and driving its own internal reconnect - don't race it
-	 * with a second NET_REQUEST_WIFI_CONNECT_STORED call. Reschedule as a
-	 * fallback; the provisioner's NET_EVENT_WIFI_CONNECT_RESULT handler
-	 * will cancel this work if reconnect succeeds first.
-	 *
-	 * NOTE: bt_wifi_prov_state_get() is NOT the right check here - it
-	 * returns true whenever ANY WiFi credentials are stored (i.e. "this
-	 * device has been provisioned at some point"), not "a BLE client is
-	 * actively provisioning right now". Since credentials always exist
-	 * by the time this boot-time auto-connect path runs, using it here
-	 * would defer forever and auto-connect would never actually happen.
-	 */
-	if (current_conn != NULL) {
-		LOG_INF("BLE client connected, deferring connect attempt");
-		k_work_reschedule_for_queue(&adv_daemon_work_q, &wifi_connect_work,
-					    K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
-		return;
-	}
-	if (wifi_is_connecting) {
-		LOG_DBG("WiFi connection in progress (state %d)", status.state);
-	} else {
-		LOG_INF("WiFi credentials detected, attempting to connect");
-		err = net_mgmt(NET_REQUEST_WIFI_CONNECT_STORED, iface, NULL, 0);
-		if (err) {
-			LOG_WRN("WiFi connection request failed: %d", err);
-			if (!reconnect_cycle_active) {
-				connection_requested_after_provisioning = false;
-			}
-		} else {
-			LOG_INF("WiFi connection request sent");
-		}
-	}
-	if (reconnect_cycle_active) {
-		wifi_reconnect_retry_count++;
-		uint32_t delay = wifi_reconnect_backoff_sec(wifi_reconnect_retry_count);
-
-		k_work_reschedule_for_queue(&adv_daemon_work_q, &wifi_connect_work,
-					    K_SECONDS(delay));
-		LOG_INF("WiFi still disconnected, retrying in %u seconds", delay);
-	}
-}
 
 static void update_wifi_status_in_adv(void)
 {
@@ -270,14 +105,13 @@ static void update_wifi_status_in_adv(void)
 	} else {
 		prov_svc_data[ADV_DATA_FLAG_IDX] |= ADV_DATA_FLAG_PROV_STATUS_BIT;
 		if (iface && !connection_requested_after_provisioning &&
-		    !wifi_credentials_is_empty() && !credentials_existed_at_boot) {
+		    wifi_utils_has_stored_credentials() && !credentials_existed_at_boot) {
 			rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status,
 				      sizeof(status));
 			bool wifi_is_connected = (rc == 0 && status.state >= WIFI_STATE_ASSOCIATED);
 			if (!wifi_is_connected) {
 				connection_requested_after_provisioning = true;
-				k_work_reschedule_for_queue(&adv_daemon_work_q, &wifi_connect_work,
-							    K_SECONDS(2));
+				net_event_mgmt_request_connect();
 				LOG_INF("WiFi credentials provisioned, "
 					"scheduling connection");
 			}
@@ -310,6 +144,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	}
 	LOG_INF("BT Connected");
 	current_conn = bt_conn_ref(conn);
+	publish_ble_event(BLE_CLIENT_CONNECTED);
 	k_work_cancel_delayable(&update_adv_data_work);
 }
 
@@ -320,10 +155,9 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 		bt_conn_unref(current_conn);
 		current_conn = NULL;
 	}
-	k_work_reschedule_for_queue(&adv_daemon_work_q, &update_adv_param_work,
-				    K_SECONDS(ADV_PARAM_UPDATE_DELAY));
-	k_work_reschedule_for_queue(&adv_daemon_work_q, &update_adv_data_work,
-				    K_SECONDS(ADV_PARAM_UPDATE_DELAY + 1));
+	publish_ble_event(BLE_CLIENT_DISCONNECTED);
+	k_work_reschedule(&update_adv_param_work, K_SECONDS(ADV_PARAM_UPDATE_DELAY));
+	k_work_reschedule(&update_adv_data_work, K_SECONDS(ADV_PARAM_UPDATE_DELAY + 1));
 }
 
 static void identity_resolved(struct bt_conn *conn, const bt_addr_le_t *rpa,
@@ -381,8 +215,7 @@ static void update_adv_data_task(struct k_work *item)
 	update_wifi_status_in_adv();
 	if (current_conn != NULL) {
 #ifdef CONFIG_WIFI_PROV_ADV_DATA_UPDATE
-		k_work_reschedule_for_queue(&adv_daemon_work_q, &update_adv_data_work,
-					    K_SECONDS(ADV_DATA_UPDATE_INTERVAL));
+		k_work_reschedule(&update_adv_data_work, K_SECONDS(ADV_DATA_UPDATE_INTERVAL));
 #endif
 		return;
 	}
@@ -391,8 +224,7 @@ static void update_adv_data_task(struct k_work *item)
 		LOG_ERR("Cannot update advertisement data, err = %d", rc);
 	}
 #ifdef CONFIG_WIFI_PROV_ADV_DATA_UPDATE
-	k_work_reschedule_for_queue(&adv_daemon_work_q, &update_adv_data_work,
-				    K_SECONDS(ADV_DATA_UPDATE_INTERVAL));
+	k_work_reschedule(&update_adv_data_work, K_SECONDS(ADV_DATA_UPDATE_INTERVAL));
 #endif
 }
 
@@ -436,31 +268,20 @@ int wifi_prov_over_ble_init(void)
 	struct net_linkaddr *mac_addr = iface ? net_if_get_link_addr(iface) : NULL;
 	char device_name_str[sizeof(device_name) + 1];
 
-	credentials_existed_at_boot = !wifi_credentials_is_empty();
+	/* Boot-time auto-connect using stored credentials is handled by
+	 * network module (net_event_mgmt.c), which owns the only
+	 * NET_REQUEST_WIFI_CONNECT_STORED call path in the app. This flag is
+	 * only used here to gate re-triggering a connect right after a fresh
+	 * BLE provisioning event (see update_wifi_status_in_adv()).
+	 */
+	credentials_existed_at_boot = wifi_utils_has_stored_credentials();
 	last_prov_state = bt_wifi_prov_state_get();
 	if (credentials_existed_at_boot) {
 		connection_requested_after_provisioning = true;
-		LOG_INF("WiFi credentials exist at boot, scheduling "
-			"auto-connect");
 	}
 
-	k_work_queue_init(&adv_daemon_work_q);
-	k_work_queue_start(&adv_daemon_work_q, adv_daemon_stack_area,
-			   K_THREAD_STACK_SIZEOF(adv_daemon_stack_area), ADV_DAEMON_PRIORITY,
-			   &(const struct k_work_queue_config){.name = "ble_adv_daemon_wq"});
-	k_work_init_delayable(&wifi_connect_work, wifi_connect_work_handler);
 	k_work_init_delayable(&update_adv_param_work, update_adv_param_task);
 	k_work_init_delayable(&update_adv_data_work, update_adv_data_task);
-
-	if (credentials_existed_at_boot) {
-		/* Delayed boot connect (1s, per docs/dev-specs wifi-module spec):
-		 * gives BLE/Memfault/other subsystems time to finish their own
-		 * SYS_INIT before we attempt a WiFi connection using stored
-		 * credentials. wifi_connect_work_handler() issues the actual
-		 * NET_REQUEST_WIFI_CONNECT_STORED request.
-		 */
-		k_work_reschedule_for_queue(&adv_daemon_work_q, &wifi_connect_work, K_SECONDS(1));
-	}
 
 	bt_conn_auth_cb_register(&auth_cb_display);
 	bt_conn_auth_info_cb_register(&auth_info_cb_display);
@@ -505,13 +326,8 @@ int wifi_prov_over_ble_init(void)
 	LOG_INF("* connect and provision WiFi credentials");
 	LOG_INF("********************************************");
 
-	net_mgmt_init_event_callback(&wifi_mgmt_cb, wifi_mgmt_event_handler,
-				     NET_EVENT_WIFI_DISCONNECT_RESULT |
-					     NET_EVENT_WIFI_CONNECT_RESULT);
-	net_mgmt_add_event_callback(&wifi_mgmt_cb);
 #ifdef CONFIG_WIFI_PROV_ADV_DATA_UPDATE
-	k_work_schedule_for_queue(&adv_daemon_work_q, &update_adv_data_work,
-				  K_SECONDS(ADV_DATA_UPDATE_INTERVAL));
+	k_work_schedule(&update_adv_data_work, K_SECONDS(ADV_DATA_UPDATE_INTERVAL));
 #endif
 	return 0;
 }
@@ -520,9 +336,8 @@ void wifi_prov_over_ble_update_wifi_status(bool connected)
 {
 	if (connected) {
 		wifi_connect_requested = false;
-		wifi_reconnect_pending = false;
 	}
-	k_work_reschedule_for_queue(&adv_daemon_work_q, &update_adv_data_work, K_NO_WAIT);
+	k_work_reschedule(&update_adv_data_work, K_NO_WAIT);
 }
 
 /* Zbus: update BLE advertisement when the network becomes ready/not-ready

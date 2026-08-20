@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-13-20 |
-| PRD Version | 2026-08-20-13-20 |
+| Version | 2026-08-20-14-56 |
+| PRD Version | 2026-08-20-14-56 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,8 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-14-56 | Wording fix only, no behavior change here: dropped stale "backoff" wording from the Overview now that `network` module's retry is a flat interval again (PRD v2026-08-20-14-56) — see [network-module.md](network-module.md) Changelog for the actual retry-logic simplification. |
+| 2026-08-20-14-47 | **STA reconnect ownership moved to `network` module** (PRD v2026-08-20-14-47) — this module no longer owns any Wi-Fi reconnect/auto-connect logic. Removed `wifi_mgmt_event_handler()`, `wifi_connect_work`/`wifi_connect_work_handler()`, the reconnect state/backoff function, and the dedicated `adv_daemon_work_q` (8192 B) work queue entirely (relocated, not duplicated, into `network/net_event_mgmt.c` as `net_connect_work_q`). This module now only: publishes a new `BLE_CHAN` channel (`BLE_CLIENT_CONNECTED`/`BLE_CLIENT_DISCONNECTED`) from the BT `connected()`/`disconnected()` callbacks, so `network` can still defer its own reconnect attempt while a BLE provisioning session is active; and calls the new `net_event_mgmt_request_connect()` after fresh credentials are provisioned, instead of scheduling its own connect work. The remaining lightweight advertisement work (`update_adv_param_work`/`update_adv_data_work`) now runs on the system work queue instead of the removed dedicated queue. Rationale: reconnect/boot auto-connect must work regardless of `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED` (e.g. when credentials are entered via `wifi cred shell` instead of BLE provisioning) — see [network-module.md](network-module.md) for the full account. Build-verified clean on nRF7002DK (RAM 99.55%, unchanged within 8 B noise). |
 | 2026-08-20-13-20 | **Zbus event redesign**: switched from subscribing to `WIFI_CHAN`'s `WIFI_STA_CONNECTED`/`WIFI_STA_DISCONNECTED` to `NETWORK_CHAN`'s `NETWORK_READY`/`NETWORK_NOT_READY` for the BLE advertisement status flag. See [network-module.md](network-module.md) for the full rationale. |
 | 2026-07-13-11-08 | New spec (not present in legacy `pm/openspec/specs/`, which only briefly mentioned this module inside `memfault-integration.md`/`architecture.md`). Reverse-designed from current `wifi_prov_over_ble.c`. |
 | 2026-07-24-11-30 | Replaced the flat 180 s reconnect fallback retry with a capped exponential backoff (5 s ×3 quick retries, then 30 → 60 → 120 → 300 s cap), mirroring the MQTT reconnect backoff pattern already used elsewhere in this app. A flat 180 s interval meant the device could sit disconnected for up to 3 minutes after the first failed attempt before trying again; the initial 5 s retry on disconnect is unchanged. `wifi_reconnect_retry_count` is reset on any successful connect or when credentials are found empty. |
@@ -33,9 +35,11 @@
 
 Wraps the NCS BLE Wi-Fi Provisioning Service (`bluetooth/services/wifi_provisioning.h`) so a
 user can set Wi-Fi credentials via the nRF Wi-Fi Provisioner mobile app. Advertises as
-`PV<MAC>`, updates BLE advertisement data to reflect provisioning/connection status, and
-manages Wi-Fi reconnection after a disconnect while a BLE prov session is not intentionally
-driving the disconnect itself.
+`PV<MAC>` and updates BLE advertisement data to reflect provisioning/connection status.
+Wi-Fi STA reconnect (retry + boot-time auto-connect) is owned entirely by the
+`network` module now — this module's only involvement is publishing `BLE_CHAN` so `network`
+can avoid racing an active BLE provisioning session's own connect attempt, and requesting an
+immediate connect attempt right after fresh credentials are provisioned.
 
 ---
 
@@ -59,7 +63,7 @@ driving the disconnect itself.
 |-------|-------|
 | Library | Bluetooth host stack + NCS `bt_wifi_prov` (Wi-Fi Provisioning Service) |
 | NCS Kconfig | `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED=y` (selects `BT`, `BT_PERIPHERAL`, `BT_SMP`, `BT_WIFI_PROV`, `NANOPB`) |
-| Library internal threads | Bluetooth host RX/TX threads (managed by the BT stack); this module additionally owns a dedicated `adv_daemon` work queue (`K_THREAD_STACK_DEFINE(adv_daemon_stack_area, 8192)`, priority 5) for connect/reconnect work that must not run on the system work queue |
+| Library internal threads | Bluetooth host RX/TX threads (managed by the BT stack); this module's own delayed work (`update_adv_param_work`/`update_adv_data_work`) runs on the system work queue — the dedicated `adv_daemon` work queue was removed and relocated into `network/net_event_mgmt.c` for the reconnect work chain that actually needed its 8192 B stack (see [network-module.md](network-module.md)) |
 
 **APIs called by this module** (app → library):
 
@@ -68,28 +72,30 @@ bt_enable(NULL);                          /* start BLE host */
 bt_le_adv_start(...);                     /* start/update advertising (fast/slow params) */
 bt_le_adv_update_data(ad, ..., sd, ...);   /* refresh service-data byte (prov/conn status, RSSI) */
 bt_wifi_prov_state_get();                 /* query whether a provisioning session is active */
-net_mgmt(NET_REQUEST_WIFI_CONNECT_STORED, ...);  /* trigger reconnect using stored credentials */
-wifi_credentials_for_each_ssid(count_ssid_cb, &empty);  /* check if any credentials are stored (no
-                                                            wifi_credentials_is_empty() on this NCS version) */
+wifi_utils_has_stored_credentials();      /* shared helper (network/wifi_utils.h) — check if any
+                                              credentials are stored */
+net_event_mgmt_request_connect();         /* request an immediate connect attempt after fresh
+                                              provisioning (network/net_event_mgmt.h) */
 ```
 
 **Callbacks implemented by this module** (library → app):
 
 ```c
-static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb,
-                                     uint32_t mgmt_event, struct net_if *iface);
-/* Reacts to NET_EVENT_WIFI_DISCONNECT_RESULT / NET_EVENT_WIFI_CONNECT_RESULT,
- * but only while bt_wifi_prov_state_get() is true. */
-
-static void wifi_connect_work_handler(struct k_work *work);
-/* Scheduled on adv_daemon_work_q to retry NET_REQUEST_WIFI_CONNECT_STORED. */
+static void connected(struct bt_conn *conn, uint8_t err);
+static void disconnected(struct bt_conn *conn, uint8_t reason);
+/* BT_CONN_CB_DEFINE callbacks; publish BLE_CLIENT_CONNECTED/BLE_CLIENT_DISCONNECTED
+ * on BLE_CHAN in addition to their existing advertisement-refresh duties. */
 ```
 
 **Zbus integration** — how library events are forwarded to the rest of the app:
 
 | Library event / callback | Zbus channel published | Message |
 |--------------------------|----------------------|---------|
-| none directly | — | This module does not publish Zbus messages. It *subscribes* to `NETWORK_CHAN` (published by `network`) to know when the device is connected/disconnected and to update BLE advertisement data accordingly. |
+| BT `connected()` | `BLE_CHAN` | `BLE_CLIENT_CONNECTED` |
+| BT `disconnected()` | `BLE_CHAN` | `BLE_CLIENT_DISCONNECTED` |
+
+It also *subscribes* to `NETWORK_CHAN` (published by `network`) to know when the device is
+connected/disconnected and to update BLE advertisement data accordingly.
 
 ---
 
@@ -97,7 +103,7 @@ static void wifi_connect_work_handler(struct k_work *work);
 
 **Subscribes to**: `NETWORK_CHAN` — updates BLE advertisement flag bits (`ADV_DATA_FLAG_CONN_STATUS_BIT`) when the network becomes ready/not-ready, so the mobile app sees live connection status during provisioning.
 
-**Publishes to**: none.
+**Publishes to**: `BLE_CHAN` — `BLE_CLIENT_CONNECTED`/`BLE_CLIENT_DISCONNECTED`, from the BT `connected()`/`disconnected()` callbacks. Consumed by `network` to defer its own STA reconnect attempt while a BLE provisioning session is active.
 
 ---
 
@@ -105,12 +111,12 @@ static void wifi_connect_work_handler(struct k_work *work);
 
 Not SMF. Event/work-queue driven:
 
-- On boot: if `wifi_credentials_is_empty()`, starts BLE advertising immediately (`PROV_BT_LE_ADV_PARAM_FAST`).
-- If credentials already exist at boot (`credentials_existed_at_boot`), the module still starts BLE (for re-provisioning) but does not force an immediate reconnect race — it defers to `network`/Connection Manager auto-connect.
-- On `NET_EVENT_WIFI_DISCONNECT_RESULT` with a *non-zero* status (unintentional disconnect) while a provisioning session is active: schedules `wifi_connect_work_handler` on `adv_daemon_work_q` after `WIFI_RECONNECT_DELAY_SEC` (5 s).
-- On `status == 0` (intentional/locally-generated disconnect) **while a BLE client is connected** (`current_conn != NULL`): explicitly skips auto-reconnect — the provisioning library owns that reconnect itself to avoid racing the WPA supplicant while it is driving a scan. `status == 0` is otherwise ambiguous (the `network` module's L3 DHCP watchdog also produces it via its own `NET_REQUEST_WIFI_DISCONNECT`), so without a BLE client connected the normal reconnect path below is scheduled instead.
-- On `NET_EVENT_WIFI_CONNECT_RESULT`: this event fires on both success and failure (timeout, auth failure, etc.). Only `status == 0` (genuine success) clears `wifi_reconnect_pending`/`wifi_reconnect_retry_count` and cancels the pending retry work — a failed/timed-out attempt during an active retry cycle must leave the already-scheduled backoff retry running, otherwise the device is left offline with no further reconnect attempts.
-- Advertisement parameters/data are periodically refreshed via `update_adv_param_work` / `update_adv_data_work` delayed work.
+- On boot: if `wifi_utils_has_stored_credentials()` is false, starts BLE advertising immediately (`PROV_BT_LE_ADV_PARAM_FAST`).
+- If credentials already exist at boot (`credentials_existed_at_boot`), the module still starts BLE (for re-provisioning) but does not force an immediate connect request — `network`'s own boot-time auto-connect (see [network-module.md](network-module.md)) handles that.
+- On BT `connected()`/`disconnected()`: publishes `BLE_CLIENT_CONNECTED`/`BLE_CLIENT_DISCONNECTED` on `BLE_CHAN` (in addition to the existing advertisement-refresh duties), so `network` knows whether a BLE client is actively connected and could be driving its own Wi-Fi scan/connect.
+- On fresh Wi-Fi credentials being provisioned (`current_prov_state && !last_prov_state` transition, then a `WiFi credentials provisioned` check in `update_wifi_status_in_adv()`): calls `net_event_mgmt_request_connect()` instead of scheduling its own connect work.
+- All Wi-Fi reconnect/backoff logic (disconnect handling, retry cancellation on success, etc.) now lives entirely in `network/net_event_mgmt.c` — see that spec's State Machine and Changelog for the reconnect-ownership move and the two hardware-bug-fix regressions it must continue to pass.
+- Advertisement parameters/data are periodically refreshed via `update_adv_param_work` / `update_adv_data_work` delayed work, now on the system work queue.
 
 ---
 
@@ -139,9 +145,10 @@ Not SMF. Event/work-queue driven:
 | Error Condition | Detection | Response |
 |----------------|-----------|----------|
 | BLE advertising start failure | Return code from `bt_le_adv_start()` | Logged; not currently retried automatically |
-| Reconnect after unintentional disconnect | `NET_EVENT_WIFI_DISCONNECT_RESULT` status != 0 | Reconnect scheduled once (`wifi_reconnect_pending` guard prevents duplicate scheduling) after `WIFI_RECONNECT_DELAY_SEC` (5 s); if still disconnected, the fallback retry backs off 5 s ×3, then 30→60→120→300 s cap (`wifi_reconnect_backoff_sec()`) instead of a flat interval |
-| Connect attempt fails mid-retry-cycle (timeout, auth failure) | `NET_EVENT_WIFI_CONNECT_RESULT` status != 0 | Retry cycle is left running (backoff work is only cancelled on `status == 0`); previously any status on this event cancelled the retry, silently ending the reconnect loop after the first failed attempt |
-| Stack overflow risk in connect chain | Historical: 4096 B stack overflowed inside `zsock_poll_internal()` | Fixed by sizing `ADV_DAEMON_STACK_SIZE` to 8192 B (documented in-code) |
+
+Wi-Fi reconnect error handling (disconnect backoff, connect-failure-mid-retry, the historical
+connect-chain stack overflow fix, etc.) moved entirely to [network-module.md](network-module.md)
+— see that spec's Error Handling table.
 
 ---
 
@@ -151,7 +158,7 @@ Not SMF. Event/work-queue driven:
 |----------|-------|-------|
 | Flash | ~45 KB | BLE stack + provisioning service (per legacy architecture estimate; not re-measured) |
 | RAM (static) | ~20 KB | Per legacy estimate |
-| Stack | 8192 B (`adv_daemon` work queue) | Sized for the full `NET_REQUEST_WIFI_CONNECT_STORED` call chain including `zsock_poll_internal()` |
+| Stack | none dedicated | The 8192 B `adv_daemon` work queue was relocated (not duplicated) into `network/net_event_mgmt.c` as `net_connect_work_q`, since that module now owns the `NET_REQUEST_WIFI_CONNECT_STORED` call chain it was sized for. Remaining advertisement work runs on the system work queue. |
 
 ---
 
@@ -159,12 +166,13 @@ Not SMF. Event/work-queue driven:
 
 | Scenario | UART log expected | Pass condition |
 |----------|-------------------|----------------|
-| No stored credentials at boot | BLE advertising starts as `PV<MAC>` | `wifi_credentials_is_empty()` true |
-| Provisioning success | Wi-Fi connects after credentials received | Credentials written via `net/wifi_credentials`, Connection Manager connects |
-| Unintentional disconnect during prov session | `WiFi disconnected, scheduling reconnect` | `status != 0` while `bt_wifi_prov_state_get()` true |
-| Intentional disconnect (provisioner scan) | `WiFi disconnected (intentional), deferring reconnect to provisioner` | `status == 0` with a BLE client connected |
-| L3 watchdog forces disconnect (associated, no IP after timeout) with no BLE client connected | `WiFi disconnected, scheduling reconnect` (not deferred) | `status == 0` with `current_conn == NULL` — regression test: power-cycle the AP mid-session and confirm the device reconnects instead of hanging offline |
-| A connect attempt inside the retry loop times out / fails to associate | Retry cycle keeps logging `WiFi still disconnected, retrying in N seconds` past the failed attempt | `NET_EVENT_WIFI_CONNECT_RESULT` status != 0 does not cancel `wifi_connect_work` — regression test: power-cycle the AP and confirm reconnect eventually succeeds even if the first association attempt times out (do not stop observing after the first `Connection timed out` log line) |
+| No stored credentials at boot | BLE advertising starts as `PV<MAC>` | `wifi_utils_has_stored_credentials()` false |
+| Provisioning success | Wi-Fi connects after credentials received | Credentials written via `net/wifi_credentials`, `network` connects via `net_event_mgmt_request_connect()` |
+| BT client connects/disconnects during provisioning | `BLE_CHAN`: `BLE_CLIENT_CONNECTED` / `BLE_CLIENT_DISCONNECTED` | On `connected()`/`disconnected()` BT callbacks |
+
+Wi-Fi reconnect/backoff test points (unintentional disconnect, intentional-disconnect
+deferral, L3-watchdog regression, connect-failure-mid-retry regression) moved to
+[network-module.md](network-module.md) — see that spec's Test Points table.
 
 ---
 
@@ -177,7 +185,7 @@ Not SMF. Event/work-queue driven:
 
 ## Related Specs
 
-- [network-module.md](network-module.md) — publishes `NETWORK_CHAN`, owns the actual Wi-Fi connect/disconnect state machine
+- [network-module.md](network-module.md) — publishes `NETWORK_CHAN`, owns the actual Wi-Fi connect/disconnect state machine and all STA reconnect logic; subscribes to this module's `BLE_CHAN`
 - [1-architecture.md](1-architecture.md) — Zbus channel table
 
 *(Changelog is maintained at the top of this document.)*

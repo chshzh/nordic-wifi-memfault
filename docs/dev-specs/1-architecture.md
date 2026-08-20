@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-14-10 |
-| PRD Version | 2026-08-20-14-10 |
+| Version | 2026-08-20-14-47 |
+| PRD Version | 2026-08-20-14-47 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-14-47 | Updated to PRD v2026-08-20-14-47 — **STA reconnect ownership moved from `wifi_prov_over_ble` to `network`**. Added new `BLE_CHAN` channel (published by `wifi_prov_over_ble` when compiled in, subscribed by `network`) to the Zbus Channels table and message definitions. Updated the `wifi_prov_over_ble` row in External Libraries — the dedicated `adv_daemon` work queue was relocated into `network` (as `net_connect_work_q`), not duplicated. See `network-module.md` and `app-wifi-prov-ble-module.md` Changelogs for the full account. |
 | 2026-08-20-14-10 | Updated to PRD v2026-08-20-14-10 — **removed all SoftAP scaffolding**; this sample only uses Wi-Fi STA mode. Updated the Overview's description of the `network/net_event_mgmt.c` split to drop the "SoftAP event-handler groundwork" mention. See `network-module.md` Changelog for the full list of deleted code/Kconfig. |
 | 2026-08-20-13-20 | **Zbus event redesign**: `WIFI_CHAN` is now L2-only (`WIFI_STA_ASSOCIATED` new publish point replacing misleadingly-named `WIFI_STA_CONNECTED`; dead `WIFI_DNS_READY` removed) with zero subscribers. `NETWORK_CHAN` (`NETWORK_READY`/`NETWORK_NOT_READY`) is now the sole channel every connectivity-gated module (`app_memfault`, `wifi_prov_over_ble`, `app_https_client`, `app_mqtt_client`, `ntp`, OTA triggers) subscribes to. Updated Zbus Channels table and message definitions accordingly. |
 | 2026-07-13-11-08 | Migrated from `pm/openspec/specs/architecture.md`; updated for current code: `wifi` module renamed/split into `network` module (`net_event_mgmt.c` + `wifi_utils.c`), added `heap_monitor` module, dropped the 1-second delayed boot-connect (network module now connects without artificial delay), added dual-board module map and NCS v2.6.4 Partition Manager note |
@@ -32,7 +33,7 @@
 
 **Application architecture**: nordic-wifi-memfault application code uses an **SMF + Zbus modular** architecture.
 Each application feature lives in its own module under `src/modules/`.
-All inter-module communication is exclusively through Zbus channels (`BUTTON_CHAN`, `WIFI_CHAN`, `NETWORK_CHAN`).
+All inter-module communication is exclusively through Zbus channels (`BUTTON_CHAN`, `WIFI_CHAN`, `NETWORK_CHAN`, `BLE_CHAN`).
 Application modules initialize through `SYS_INIT` (priority-ordered) or `K_THREAD_DEFINE` at boot time.
 
 > **Scope note**: The architecture pattern describes **application code only**.
@@ -86,6 +87,7 @@ src/
 | `BUTTON_CHAN` | `struct button_msg` | `button` | `app_memfault` (core listener), `app_memfault` (ota_triggers listener) | runtime |
 | `WIFI_CHAN` | `struct wifi_msg` | `network` (`net_event_mgmt.c`) | none — L2-only, reserved for future consumers | runtime |
 | `NETWORK_CHAN` | `struct network_msg` | `network` (`net_event_mgmt.c`) | `app_memfault` (core + ota_triggers), `wifi_prov_over_ble`, `app_https_client`, `app_mqtt_client`, `ntp` | runtime |
+| `BLE_CHAN` | `struct ble_msg` | `wifi_prov_over_ble` (when `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED`) | `network` (`net_event_mgmt.c`) — defers STA reconnect while a BLE client is connected | runtime |
 
 ### Message Definitions (`src/modules/messages.h`)
 
@@ -129,6 +131,16 @@ struct network_msg {
 	enum network_msg_type type;
 	bool ready;
 };
+
+/* BLE provisioning client-connection messages */
+enum ble_msg_type {
+	BLE_CLIENT_CONNECTED,
+	BLE_CLIENT_DISCONNECTED,
+};
+
+struct ble_msg {
+	enum ble_msg_type type;
+};
 ```
 
 > `BUTTON_LONG_PRESS_THRESHOLD_MS` is now correctly wired to `CONFIG_BUTTON_LONG_PRESS_MS`
@@ -142,7 +154,7 @@ struct network_msg {
 |---------|-------------|------------------|--------------------|
 | Memfault SDK | `CONFIG_MEMFAULT=y` (via `select` from `CONFIG_APP_MEMFAULT_MODULE`) | HTTP upload / FOTA download threads managed internally | `app_memfault/` |
 | Wi-Fi driver + WPA supplicant (`WPA_SUPP`, nRF wrapper) | `CONFIG_WIFI_NRF700X=y`, `CONFIG_WPA_SUPP=y` | `wpa_supplicant` main + workqueue threads | `network/` |
-| Bluetooth stack + Wi-Fi Provisioning Service | `CONFIG_BT=y`, `CONFIG_BT_WIFI_PROV=y` | BLE host + `adv_daemon` work queue (`wifi_prov_over_ble.c`) | `wifi_prov_over_ble/` |
+| Bluetooth stack + Wi-Fi Provisioning Service | `CONFIG_BT=y`, `CONFIG_BT_WIFI_PROV=y` | BLE host threads (managed by the BT stack); advertisement-refresh work runs on the system work queue | `wifi_prov_over_ble/` |
 | MQTT helper (`mqtt_helper`) | `CONFIG_MQTT_HELPER=y` (via `select`) | Internal MQTT socket/keepalive handling | `app_mqtt_client/` |
 
 ---

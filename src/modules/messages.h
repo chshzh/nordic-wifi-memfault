@@ -75,4 +75,18 @@ struct network_msg {
 	bool ready;
 };
 
+/* ============================================================================
+ * BLE PROVISIONING MESSAGES
+ * ============================================================================
+ */
+
+enum ble_msg_type {
+	BLE_CLIENT_CONNECTED,
+	BLE_CLIENT_DISCONNECTED,
+};
+
+struct ble_msg {
+	enum ble_msg_type type;
+};
+
 #endif /* MESSAGES_H */

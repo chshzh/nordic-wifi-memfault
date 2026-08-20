@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-14-10 |
-| PRD Version | 2026-08-20-14-10 |
+| Version | 2026-08-20-14-56 |
+| PRD Version | 2026-08-20-14-56 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,8 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-14-56 | **Simplified STA reconnect retry to a flat interval** (PRD v2026-08-20-14-56), by request — removed the capped exponential backoff (`wifi_reconnect_backoff_sec()`, `wifi_reconnect_retry_count`, `WIFI_RECONNECT_BACKOFF_BASE_SEC`/`_MAX_SEC`). The quick `WIFI_RECONNECT_DELAY_SEC` (5 s) first attempt after a disconnect is unchanged; every subsequent retry now uses a flat `WIFI_RECONNECT_RETRY_SEC` (180 s / 3 min) interval instead of escalating 30→60→120→300 s. The BLE-deferral re-check poll (while a BLE client is connected) also stays at 5 s, since it is just checking for BLE disconnect, not a real network retry. |
+| 2026-08-20-14-47 | **STA reconnect ownership moved here from `wifi_prov_over_ble.c`** (PRD v2026-08-20-14-47) — this module already owned all other L2/L3 event handling and is unconditionally compiled, whereas the reconnect logic (backoff retry + boot-time auto-connect via `NET_REQUEST_WIFI_CONNECT_STORED`) previously lived entirely inside `wifi_prov_over_ble.c`, gated by `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED`. Moved `wifi_reconnect_backoff_sec()`, the reconnect state, and `wifi_connect_work`/`wifi_connect_work_handler()` here (adapted to use a new `BLE_CHAN` subscription instead of a direct `current_conn != NULL` check, and the new shared `wifi_utils_has_stored_credentials()` helper). Added `net_event_mgmt_request_connect()` (called by `wifi_prov_over_ble.c` right after fresh credentials are provisioned) and moved boot-time auto-connect scheduling into `init_network_events()`. The 8192 B dedicated work queue (`adv_daemon_work_q` in `wifi_prov_over_ble.c`, sized for `NET_REQUEST_WIFI_CONNECT_STORED`'s full connect chain) was **relocated, not duplicated**, into this module as `net_connect_work_q` — RAM-neutral (measured +8 B, within noise) on this ~99.5%-RAM-used target. Removed the now-dead `wifi_utils_auto_connect_stored()` and added `wifi_utils_has_stored_credentials()` to `wifi_utils.c`/`.h`. Build-verified clean on nRF7002DK. |
 | 2026-08-20-14-10 | **Removed all SoftAP scaffolding** (PRD v2026-08-20-14-10) — this sample only uses Wi-Fi STA mode. Deleted `l2_wifi_softap_event_handler` and its helpers (`get_station_ip_address`, `handle_softap_enable_result`, `handle_station_connected`, `handle_station_disconnected`), the `station_connected_sem`/`softap_mutex`/`connected_stations` state, and the `#if IS_ENABLED(CONFIG_WIFI_NM_WPA_SUPPLICANT_AP)` guard from `net_event_mgmt.c`; deleted `wifi_run_softap_mode()`, `wifi_set_softap()`, `wifi_set_reg_domain()`, `setup_dhcp_server()`, and the unused `wifi_utils_ensure_gateway_softap_credentials()` from `wifi_utils.c`/`.h`; removed the `SoftAP Configuration` Kconfig menu (`SOFTAP_SSID`/`SOFTAP_PASSWORD`/`SOFTAP_CHANNEL`/`SOFTAP_BAND_*`/`SOFTAP_REG_DOMAIN`) from `network/Kconfig`. None of this was ever selectable (`CONFIG_WIFI_NM_WPA_SUPPLICANT_AP` was never enabled), so it never shipped in the built firmware. Build-verified clean on nRF7002DK. |
 | 2026-08-20-13-20 | **Zbus event redesign**: `WIFI_CHAN` is now pure L2 (`WIFI_STA_ASSOCIATED` replaces the misleadingly-named `WIFI_STA_CONNECTED`, which actually fired on IP assignment; dead `WIFI_DNS_READY` removed). Added a new publish point for `WIFI_STA_ASSOCIATED` at L2 connect success (previously nothing was published there). `NETWORK_CHAN` (`NETWORK_READY`/`NETWORK_NOT_READY`) is now the sole signal connectivity-gated modules subscribe to — it is no longer a no-subscriber "forward compatibility" channel. Fixed the state diagram, which had been stale/incorrect: it previously showed `WIFI_STA_CONNECTED` published at L2 association, but the actual code only ever published it at DHCP-bound. |
 | 2026-07-13-11-08 | Replaces `pm/openspec/specs/wifi-module.md`. The legacy `wifi/wifi.c` module was renamed/split into `network/net_event_mgmt.c` (L2/L3 event handling, Zbus publishing, SoftAP event handlers) and `network/wifi_utils.c` (mode/channel/credential helper functions). The previously-documented 1-second delayed boot connect no longer exists in `net_event_mgmt.c` — connection is now driven purely by Connection Manager / Wi-Fi mgmt events, no artificial startup delay. |
@@ -33,9 +35,19 @@
 The `network` module owns all Wi-Fi and IP-layer event handling: registering `net_mgmt`
 callbacks for interface (L2), Wi-Fi connect/disconnect (L2), WPA supplicant readiness (L3),
 and IPv4/DHCP (L3) events; publishing `WIFI_CHAN` and `NETWORK_CHAN` Zbus events for the
-rest of the app; and exposing small Wi-Fi helper utilities (mode/channel setting, credential
-auto-connect, TX-injection mode) used by other modules. This sample only uses Wi-Fi STA
-mode — it does **not** implement SoftAP or Wi-Fi Direct (see PRD §2.1, §8).
+rest of the app; owning STA auto-reconnect (retry after disconnect + boot-time
+auto-connect using stored credentials); and exposing small Wi-Fi helper utilities
+(mode/channel setting, credential checks, TX-injection mode) used by other modules. This
+sample only uses Wi-Fi STA mode — it does **not** implement SoftAP or Wi-Fi Direct (see PRD
+§2.1, §8).
+
+Because this module is unconditionally compiled (unlike `wifi_prov_over_ble`, which is
+gated by `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED`), it owns the only
+`NET_REQUEST_WIFI_CONNECT_STORED` call path in the app — reconnect/auto-connect works
+whether credentials were entered via BLE provisioning or `wifi cred shell`. It subscribes to
+a small `BLE_CHAN` channel (published by `wifi_prov_over_ble.c` when compiled in) purely to
+avoid racing an active BLE provisioning session's own connect attempt; it has no other
+dependency on that module.
 
 ---
 
@@ -55,7 +67,11 @@ mode — it does **not** implement SoftAP or Wi-Fi Direct (see PRD §2.1, §8).
 
 ## Zbus Integration
 
-**Subscribes to**: none.
+**Subscribes to**: `BLE_CHAN` (`BLE_CLIENT_CONNECTED`/`BLE_CLIENT_DISCONNECTED`, published by
+`wifi_prov_over_ble.c` when compiled in) — tracks whether a BLE client is currently
+connected, so the reconnect work handler can defer to an active BLE provisioning session
+instead of racing its own connect attempt. Defaults to "not connected" when
+`wifi_prov_over_ble` is not compiled in.
 
 **Publishes to**: `WIFI_CHAN` and `NETWORK_CHAN`.
 
@@ -99,7 +115,7 @@ stateDiagram-v2
     Associating --> ConnError: NET_EVENT_WIFI_CONNECT_RESULT [status!=0] / publish WIFI_ERROR
     Associated --> DhcpBound: NET_EVENT_IPV4_DHCP_BOUND [ipv4_dhcp_bond_sem given] / publish NETWORK_READY, cancel L3 watchdog
     DhcpBound --> Disconnected: NET_EVENT_WIFI_DISCONNECT_RESULT / publish WIFI_STA_DISCONNECTED, NETWORK_NOT_READY
-    Disconnected --> Associating: reconnect (Connection Manager / stored-credential auto-connect)
+    Disconnected --> Associating: reconnect (this module's own retry via NET_REQUEST_WIFI_CONNECT_STORED, deferred while BLE_CHAN shows a BLE client connected)
     ConnError --> Associating: supplicant auto-retries (status 1, 2, 16) or app retries
 ```
 
@@ -112,7 +128,7 @@ stateDiagram-v2
 | Associating | Connection attempt in progress (via `wifi_credentials`/Connection Manager, or triggered by `wifi_prov_over_ble`) | Decodes and logs common WPA status codes (auth failure, AP not found, timeout, etc.) |
 | Associated | L2 association succeeded | `wifi_print_status()` called; `WIFI_STA_ASSOCIATED` published on `WIFI_CHAN`; if `CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC > 0`, the L3 DHCP-bound watchdog is armed here |
 | DhcpBound | IP address assigned | `ipv4_dhcp_bond_sem` given; `NETWORK_READY` published on `NETWORK_CHAN`; L3 watchdog cancelled |
-| Disconnected | L2/L4 disconnected | `WIFI_STA_DISCONNECTED` published on `WIFI_CHAN`, `NETWORK_NOT_READY` published on `NETWORK_CHAN`; decodes common 802.11 disconnect reason codes; L3 watchdog cancelled |
+| Disconnected | L2/L4 disconnected | `WIFI_STA_DISCONNECTED` published on `WIFI_CHAN`, `NETWORK_NOT_READY` published on `NETWORK_CHAN`; decodes common 802.11 disconnect reason codes; L3 watchdog cancelled; schedules `wifi_connect_work` (quick 5 s first attempt, then a flat 180 s / 3 min retry interval) unless `status == 0` and a BLE client is connected (`BLE_CHAN` shows `BLE_CLIENT_CONNECTED`), in which case it defers to that provisioning session |
 | ConnError | Connection attempt failed | `WIFI_ERROR` published with the raw status code |
 
 ---
@@ -144,13 +160,14 @@ stateDiagram-v2
 /* net_event_mgmt.h */
 int init_network_events(void);
 bool net_event_mgmt_is_connected(void);
+void net_event_mgmt_request_connect(void);  /* called by wifi_prov_over_ble.c after fresh provisioning */
 extern struct k_sem iface_up_sem;
 extern struct k_sem wpa_supplicant_ready_sem;
 extern struct k_sem ipv4_dhcp_bond_sem;
 
 /* wifi_utils.h */
 const char *wifi_utils_get_last_ssid(void);
-int wifi_utils_auto_connect_stored(void);
+bool wifi_utils_has_stored_credentials(void);
 int wifi_set_mode(int mode);
 int wifi_set_channel(int channel);
 int wifi_set_tx_injection_mode(void);
@@ -175,7 +192,7 @@ int wifi_set_tx_injection_mode(void);
 |----------|-------|-------|
 | Flash | ~120 KB | Includes Wi-Fi driver + WPA supplicant link-in triggered by this module's Kconfig selects (not this module's own code size) |
 | RAM (static) | ~60 KB | Network buffers, WPA supplicant firmware state |
-| Stack | 8192 B (`WPA_SUPP_THREAD_STACK_SIZE`) + 5632 B (`WPA_SUPP_WQ_STACK_SIZE`) + 7168 B (`NET_CONNECTION_MANAGER_MONITOR_STACK_SIZE`) | External-library threads triggered by this module, not this module's own thread (module itself has no dedicated thread) |
+| Stack | 8192 B (`WPA_SUPP_THREAD_STACK_SIZE`) + 5632 B (`WPA_SUPP_WQ_STACK_SIZE`) + 7168 B (`NET_CONNECTION_MANAGER_MONITOR_STACK_SIZE`) + 8192 B (`net_connect_work_q`, this module's own dedicated queue for `wifi_connect_work` — relocated from `wifi_prov_over_ble.c`'s `adv_daemon_work_q`, not duplicated) | The first three are external-library threads triggered by this module's Kconfig selects; `net_connect_work_q` is this module's own dedicated queue, sized for `NET_REQUEST_WIFI_CONNECT_STORED`'s full connect chain (a 4096 B queue previously overflowed inside `zsock_poll_internal()`) |
 
 ---
 
@@ -187,6 +204,8 @@ int wifi_set_tx_injection_mode(void);
 | Wi-Fi connected | `[WiFi] WiFi is connected!` | `NET_EVENT_WIFI_CONNECT_RESULT` status == 0 |
 | Wi-Fi disconnected | `=== WiFi DISCONNECTED (reason: %d) ===` | `NET_EVENT_WIFI_DISCONNECT_RESULT` |
 | Connect failure | `[WiFi] Reason: <decoded reason>` | `NET_EVENT_WIFI_CONNECT_RESULT` status != 0 |
+| Reconnect after disconnect with `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED=n` | `WiFi disconnected, scheduling reconnect` then `WiFi credentials detected, attempting to connect` | Confirms reconnect no longer depends on the BLE provisioning module — regression test for the reconnect-ownership move |
+| Boot-time auto-connect with credentials stored via `wifi cred add` shell command | `WiFi credentials exist at boot, scheduling auto-connect` | `wifi_utils_has_stored_credentials()` true at `init_network_events()` time, independent of any BLE session |
 
 ---
 
@@ -199,7 +218,7 @@ int wifi_set_tx_injection_mode(void);
 ## Related Specs
 
 - [1-architecture.md](1-architecture.md) — Zbus channel table, boot sequence
-- [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) — credential provisioning, consumes `NETWORK_CHAN`
+- [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) — credential provisioning; consumes `NETWORK_CHAN`, publishes `BLE_CHAN` (consumed here for reconnect deferral), calls `net_event_mgmt_request_connect()` after fresh provisioning
 - [app-memfault-module.md](app-memfault-module.md) — consumes `NETWORK_CHAN` for upload-on-connect
 
 *(Changelog is maintained at the top of this document.)*

@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-14-10 |
-| PRD Version | 2026-08-20-14-10 |
+| Version | 2026-08-20-14-47 |
+| PRD Version | 2026-08-20-14-47 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-14-47 | Updated to PRD v2026-08-20-14-47 — **decoupled STA reconnect from BLE provisioning**: moved reconnect/boot-auto-connect ownership from `wifi_prov_over_ble.c` into the always-compiled `network` module, using a new `BLE_CHAN` Zbus channel so `network` can still avoid racing an active BLE provisioning session without a compile-time dependency on that module. Reconnect now works whether credentials are entered via BLE provisioning or `wifi cred shell`. Updated the Module Dependency Map with the new `wifi_prov_over_ble --BLE_CHAN--> network` edge. See `network-module.md` and `app-wifi-prov-ble-module.md` Changelogs for the full account. |
 | 2026-08-20-14-10 | Updated to PRD v2026-08-20-14-10 — **removed all SoftAP scaffolding** (Kconfig options, `net_event_mgmt.c`/`wifi_utils.c` handlers). Closes Open Issue #2 (below) as "removed" rather than "complete". Module Dependency Map's `network-module.md` description updated to drop the "SoftAP groundwork" mention. |
 | 2026-08-20-13-20 | **Zbus event redesign**: `NETWORK_CHAN` (`NETWORK_READY`/`NETWORK_NOT_READY`) is now the channel every connectivity-gated module subscribes to, replacing `WIFI_CHAN`'s misleadingly-named `WIFI_STA_CONNECTED` (which actually fired on IP assignment, not L2 association) and dead `WIFI_DNS_READY`. `WIFI_CHAN` is now L2-only with zero subscribers. Updated Module Dependency Map. See `network-module.md` Changelog for the full rationale and blast radius. |
 | 2026-07-13-11-08 | Migrated from `pm/openspec/specs/*.md` and reverse-designed against current `src/` on the `ncs264` branch (NCS v2.6.4, dual-board, `network` module replacing `wifi` module, `heap_monitor` added) |
@@ -72,8 +73,8 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Architecture pattern | SMF + Zbus | Decoupled modules; Zbus (`BUTTON_CHAN`, `WIFI_CHAN`, `NETWORK_CHAN`) is the only inter-module channel — `WIFI_CHAN` is L2-only, `NETWORK_CHAN` is the IP-layer readiness signal that connectivity-gated modules actually subscribe to |
-| Wi-Fi/network module split | `network/net_event_mgmt.c` (L2/L3 event handling) + `network/wifi_utils.c` (helpers: mode/channel/credentials) | Legacy `wifi/wifi.c` was split for clarity; STA-only — SoftAP scaffolding was removed entirely (2026-08-20-14-10) |
+| Architecture pattern | SMF + Zbus | Decoupled modules; Zbus (`BUTTON_CHAN`, `WIFI_CHAN`, `NETWORK_CHAN`, `BLE_CHAN`) is the only inter-module channel — `WIFI_CHAN` is L2-only, `NETWORK_CHAN` is the IP-layer readiness signal that connectivity-gated modules actually subscribe to |
+| Wi-Fi/network module split | `network/net_event_mgmt.c` (L2/L3 event handling + STA reconnect ownership) + `network/wifi_utils.c` (helpers: mode/channel/credential checks) | Legacy `wifi/wifi.c` was split for clarity; STA-only — SoftAP scaffolding was removed entirely (2026-08-20-14-10); reconnect logic moved here from `wifi_prov_over_ble` (2026-08-20-14-47) so it works regardless of BLE provisioning being enabled |
 | Configuration | `prj.conf` (system-level + module enable flags) + per-module `Kconfig.<name>` and `Kconfig.defaults` | Each module owns its tuning defaults; `prj.conf` only overrides project-specific values and Kconfig `choice` symbols |
 | Credentials | Wi-Fi: `wifi_credentials` NVS backend. Memfault: git-ignored `overlay-app-memfault-project-info.conf` | Never in source control |
 | Partitioning | Legacy Partition Manager (`pm_static_<board>.yml`) | NCS v2.6.4 predates the DTS fixed-partitions migration (NCS v3.3+) |
@@ -109,6 +110,7 @@ network        ──Zbus(NETWORK_CHAN)─▶ app_https_client
 network        ──Zbus(NETWORK_CHAN)─▶ app_mqtt_client
 network        ──Zbus(NETWORK_CHAN)─▶ ntp
 network        ──Zbus(WIFI_CHAN)────▶ (no subscribers — L2-only, reserved for future consumers)
+app_wifi_prov_over_ble ──Zbus(BLE_CHAN)──▶ network [defers STA reconnect while a BLE client is connected]
 button         ──Zbus(BUTTON_CHAN)──▶ app_memfault (core)
 button         ──Zbus(BUTTON_CHAN)──▶ app_memfault (ota_triggers)
 heap_monitor   ──direct call────────▶ Memfault metrics API (no Zbus)

@@ -7,6 +7,7 @@
 #ifndef WIFI_UTILS_H
 #define WIFI_UTILS_H
 
+#include <stdbool.h>
 #include <zephyr/kernel.h>
 #include <zephyr/net/net_mgmt.h>
 
@@ -33,15 +34,11 @@ void wifi_print_dhcp_ip(struct net_if *iface, struct net_mgmt_event_callback *cb
 const char *wifi_utils_get_last_ssid(void);
 
 /**
- * @brief Request connection using stored Wi-Fi credentials.
+ * @brief Check whether any Wi-Fi credentials are stored.
  *
- * Triggers NET_REQUEST_WIFI_CONNECT_STORED when supported, so the station
- * automatically connects to previously stored networks.
- *
- * @return 0 on success, -EALREADY if a connection attempt is already in progress,
- *         or a negative errno code on failure.
+ * @return true if at least one SSID is stored in the wifi_credentials backend
  */
-int wifi_utils_auto_connect_stored(void);
+bool wifi_utils_has_stored_credentials(void);
 
 /**
  * @brief Set Wi-Fi channel for raw packet operations

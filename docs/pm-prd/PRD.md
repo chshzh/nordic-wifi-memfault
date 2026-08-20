@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault (Memfault Wi-Fi Observability Sample) |
-| Version | 2026-08-20-14-10 |
+| Version | 2026-08-20-14-56 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -20,6 +20,8 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-20-14-56 | **Simplified Wi-Fi reconnect retry to a flat interval, by request**: removed the capped exponential backoff added in 2026-07-24-11-30 (5 s ×3 quick retries, then 30→60→120→300 s cap). The quick 5 s first attempt after a disconnect is unchanged; every subsequent retry now uses a flat 180 s (3 min) interval instead of escalating. Simpler and easier to reason about; no field data suggested the escalating tiers were needed. See [network-module.md](../dev-specs/network-module.md) Changelog for the implementation detail. |
+| 2026-08-20-14-47 | **Internal architecture refactor, no behavior/requirement change**: STA auto-reconnect (backoff retry + boot-time auto-connect using stored Wi-Fi credentials) moved from `wifi_prov_over_ble.c` into the always-compiled `network` module, so it no longer silently disappears if `CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED` is ever disabled in favor of `wifi cred shell`-only provisioning. A new `BLE_CHAN` Zbus channel lets `network` still avoid racing an active BLE provisioning session's own connect attempt, without depending on the BLE module at compile time. See [network-module.md](../dev-specs/network-module.md) and [app-wifi-prov-ble-module.md](../dev-specs/app-wifi-prov-ble-module.md) for detail. Build-verified clean on nRF7002DK (RAM 99.55%, unchanged within 8 B noise). |
 | 2026-08-20-14-10 | **Removed all SoftAP scaffolding** — this sample only uses Wi-Fi STA mode. Deleted the dormant `network/Kconfig` SoftAP options (`SOFTAP_SSID`, `SOFTAP_PASSWORD`, `SOFTAP_CHANNEL`, `SOFTAP_BAND_*`, `SOFTAP_REG_DOMAIN`), `net_event_mgmt.c`'s SoftAP event handlers/station tracking, and `wifi_utils.c`'s `wifi_run_softap_mode()`/`wifi_set_softap()`/`wifi_set_reg_domain()`/DHCP-server helpers and the unused `wifi_utils_ensure_gateway_softap_credentials()` — all gated behind `CONFIG_WIFI_NM_WPA_SUPPLICANT_AP`, which was never selected anywhere in this project, so none of it was ever compiled in (confirmed by an unchanged flash size after removal, within noise: 849560 B → 849576 B). Build-verified clean on nRF7002DK. |
 | 2026-08-20-13-20 | **Zbus event redesign**: `WIFI_STA_CONNECTED` (misleadingly named — actually fired on IP assignment, not L2 association) and dead `WIFI_DNS_READY` removed from `wifi_msg_type`; connectivity-gated behavior (Memfault upload, OTA-on-connect, NTP sync, BLE status, HTTPS/MQTT clients) now driven by `NETWORK_CHAN`'s `NETWORK_READY`/`NETWORK_NOT_READY` instead. FR-002's acceptance criteria reworded to avoid naming an internal enum. See [network-module.md](../dev-specs/network-module.md) for detail. |
 | 2026-02-06-00-00 | Initial draft (legacy `pm/PRD.md`, single-board nRF7002DK, wifi/button module split) |
@@ -168,7 +170,7 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 |---|---|
 | Boot to Wi-Fi connect attempt | Immediate (no artificial boot delay in current `network` module) |
 | Button press → published Zbus event | < 200 ms (state machine is interrupt-driven) |
-| Wi-Fi reconnect after brief outage | Automatic — capped exponential backoff (5 s ×3 quick retries, then 30 → 60 → 120 → 300 s); no hardware-validated SLA measured yet |
+| Wi-Fi reconnect after brief outage | Automatic — quick 5 s first retry after disconnect, then a flat 180 s (3 min) retry interval; no hardware-validated SLA measured yet |
 
 ### 4.2 Reliability
 

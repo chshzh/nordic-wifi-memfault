@@ -9,6 +9,7 @@
 #include <zephyr/net/net_if.h>
 #include <supp_events.h>
 #include <zephyr/net/socket.h>
+#include <net/wifi_mgmt_ext.h>
 #include <inttypes.h>
 #include <errno.h>
 #include <zephyr/zbus/zbus.h>
@@ -23,6 +24,28 @@ LOG_MODULE_REGISTER(net_event_mgmt, CONFIG_WIFI_MODULE_LOG_LEVEL);
 ZBUS_CHAN_DEFINE(WIFI_CHAN, struct wifi_msg, NULL, NULL, ZBUS_OBSERVERS_EMPTY, ZBUS_MSG_INIT(0));
 ZBUS_CHAN_DEFINE(NETWORK_CHAN, struct network_msg, NULL, NULL, ZBUS_OBSERVERS_EMPTY,
 		 ZBUS_MSG_INIT(0));
+/* Defined here (rather than in wifi_prov_over_ble.c) because this module's STA
+ * reconnect logic is the consumer and must keep compiling/working regardless
+ * of whether CONFIG_WIFI_STA_PROV_OVER_BLE_ENABLED is set; wifi_prov_over_ble.c
+ * publishes to it only when compiled in.
+ */
+ZBUS_CHAN_DEFINE(BLE_CHAN, struct ble_msg, NULL, NULL, ZBUS_OBSERVERS_EMPTY, ZBUS_MSG_INIT(0));
+
+/* Tracks whether a BLE client is currently connected, so STA reconnect can
+ * avoid racing a BLE provisioning session's own connect attempts. Defaults to
+ * "not connected" when wifi_prov_over_ble is not compiled in.
+ */
+static bool ble_client_connected;
+
+static void ble_chan_listener_cb(const struct zbus_channel *chan)
+{
+	const struct ble_msg *msg = zbus_chan_const_msg(chan);
+
+	ble_client_connected = (msg->type == BLE_CLIENT_CONNECTED);
+}
+
+ZBUS_LISTENER_DEFINE(net_event_mgmt_ble_listener, ble_chan_listener_cb);
+ZBUS_CHAN_ADD_OBS(BLE_CHAN, net_event_mgmt_ble_listener, 0);
 
 static void publish_wifi_event(enum wifi_msg_type type, int error_code)
 {
@@ -80,7 +103,7 @@ static bool network_connected;
  * Armed on L2 connect success and on lease loss (ADDR_DEL); cancelled on
  * DHCP_BOUND and on DISCONNECT_RESULT. On expiry it issues
  * NET_REQUEST_WIFI_DISCONNECT, which produces a DISCONNECT_RESULT that
- * re-arms whichever module owns STA reconnect (wifi_prov_over_ble).
+ * re-arms this module's own STA reconnect logic below.
  */
 static void l3_dhcp_watchdog_handler(struct k_work *work);
 
@@ -121,6 +144,89 @@ static inline void l3_dhcp_watchdog_cancel(void)
 {
 }
 #endif /* CONFIG_WIFI_MODULE_STA_DHCP_TIMEOUT_SEC > 0 */
+
+/* STA auto-reconnect. This module owns the only NET_REQUEST_WIFI_CONNECT_STORED
+ * call path in the app, so boot-time auto-connect and reconnect-after-disconnect
+ * work regardless of which credential-entry mechanism (BLE provisioning,
+ * wifi_cred_shell, static config) is enabled.
+ * First attempt after a disconnect fires quickly (WIFI_RECONNECT_DELAY_SEC);
+ * every subsequent retry uses a flat WIFI_RECONNECT_RETRY_SEC interval.
+ */
+#define WIFI_RECONNECT_DELAY_SEC 5
+#define WIFI_RECONNECT_RETRY_SEC 180U
+
+/* Sized to accommodate NET_REQUEST_WIFI_CONNECT_STORED's full connect chain
+ * (net_mgmt -> wifi mgmt handler -> nrf700x driver -> hostap/wpa_supplicant
+ * event loop, which itself calls zsock_select()/poll() internally) - this
+ * needs comparable headroom to CONFIG_WPA_SUPP_THREAD_STACK_SIZE elsewhere in
+ * this project. A 4096 B queue previously overflowed with "Stack overflow
+ * (context area not valid)" inside zsock_poll_internal() when this work ran
+ * on it (originally discovered while this logic lived in wifi_prov_over_ble.c).
+ */
+#define NET_CONNECT_STACK_SIZE     8192
+#define NET_CONNECT_WORKQ_PRIORITY 5
+
+K_THREAD_STACK_DEFINE(net_connect_stack_area, NET_CONNECT_STACK_SIZE);
+static struct k_work_q net_connect_work_q;
+static struct k_work_delayable wifi_connect_work;
+static bool wifi_reconnect_pending;
+
+static void wifi_connect_work_handler(struct k_work *work)
+{
+	int err;
+	struct net_if *iface = net_if_get_default();
+	struct wifi_iface_status status = {0};
+	int status_rc = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status, sizeof(status));
+	bool wifi_is_connected = (status_rc == 0 && status.state >= WIFI_STATE_ASSOCIATED);
+	bool wifi_is_connecting = (status_rc == 0 && status.state > WIFI_STATE_DISCONNECTED &&
+				   status.state < WIFI_STATE_ASSOCIATED);
+	bool reconnect_cycle_active = wifi_reconnect_pending;
+
+	if (wifi_is_connected) {
+		wifi_reconnect_pending = false;
+		return;
+	}
+	if (!wifi_utils_has_stored_credentials()) {
+		LOG_WRN("No stored WiFi credentials, skipping reconnect");
+		wifi_reconnect_pending = false;
+		return;
+	}
+	/*
+	 * If a BLE client is actively connected, it may be in the middle of
+	 * provisioning and driving its own internal reconnect - don't race it
+	 * with a second NET_REQUEST_WIFI_CONNECT_STORED call. Reschedule as a
+	 * fallback; this module's own NET_EVENT_WIFI_CONNECT_RESULT handler
+	 * will cancel this work if reconnect succeeds first.
+	 */
+	if (ble_client_connected) {
+		LOG_INF("BLE client connected, deferring connect attempt");
+		k_work_reschedule_for_queue(&net_connect_work_q, &wifi_connect_work,
+					    K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
+		return;
+	}
+	if (wifi_is_connecting) {
+		LOG_DBG("WiFi connection in progress (state %d)", status.state);
+	} else {
+		LOG_INF("WiFi credentials detected, attempting to connect");
+		err = net_mgmt(NET_REQUEST_WIFI_CONNECT_STORED, iface, NULL, 0);
+		if (err) {
+			LOG_WRN("WiFi connection request failed: %d", err);
+		} else {
+			LOG_INF("WiFi connection request sent");
+		}
+	}
+	if (reconnect_cycle_active) {
+		k_work_reschedule_for_queue(&net_connect_work_q, &wifi_connect_work,
+					    K_SECONDS(WIFI_RECONNECT_RETRY_SEC));
+		LOG_INF("WiFi still disconnected, retrying in %u seconds",
+			WIFI_RECONNECT_RETRY_SEC);
+	}
+}
+
+void net_event_mgmt_request_connect(void)
+{
+	k_work_reschedule_for_queue(&net_connect_work_q, &wifi_connect_work, K_SECONDS(2));
+}
 
 /* Function declarations */
 
@@ -177,6 +283,14 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb, uint3
 			 * DHCP binds.
 			 */
 			l3_dhcp_watchdog_arm();
+			/* Genuine success - clear reconnect state and cancel any
+			 * pending retry. A failed/timed-out attempt (status != 0,
+			 * handled below) must NOT do this, otherwise a single
+			 * failed attempt mid-retry-cycle would silently end all
+			 * further reconnect attempts.
+			 */
+			wifi_reconnect_pending = false;
+			k_work_cancel_delayable(&wifi_connect_work);
 		} else {
 			/* Decode common error codes */
 			switch (status->status) {
@@ -282,6 +396,25 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb, uint3
 		network_connected = false;
 		publish_wifi_event(WIFI_STA_DISCONNECTED, status ? status->status : -1);
 		publish_network_ready(false);
+
+		/*
+		 * status == 0 (intentional/locally-generated) is ambiguous: it's
+		 * what a BLE provisioning session does before a WiFi scan, but
+		 * it's also what this module's own L3 DHCP watchdog gets back
+		 * from its own NET_REQUEST_WIFI_DISCONNECT above. Only defer to
+		 * the BLE provisioner when a client is actually connected and
+		 * could be driving that disconnect itself - otherwise nothing
+		 * else ever reconnects and the device is stuck offline forever.
+		 */
+		if (status && status->status == 0 && ble_client_connected) {
+			LOG_INF("WiFi disconnected (intentional), deferring "
+				"reconnect to BLE provisioner");
+		} else if (!wifi_reconnect_pending) {
+			wifi_reconnect_pending = true;
+			k_work_reschedule_for_queue(&net_connect_work_q, &wifi_connect_work,
+						    K_SECONDS(WIFI_RECONNECT_DELAY_SEC));
+			LOG_INF("WiFi disconnected, scheduling reconnect");
+		}
 	} break;
 
 	default:
@@ -393,6 +526,21 @@ int init_network_events(void)
 	net_mgmt_init_event_callback(&ipv4_event_cb, l3_ipv4_event_handler, L3_IPV4_EVENT_MASK);
 	net_mgmt_add_event_callback(&ipv4_event_cb);
 	LOG_DBG("Network L3 event handler registered");
+
+	k_work_queue_init(&net_connect_work_q);
+	k_work_queue_start(&net_connect_work_q, net_connect_stack_area,
+			   K_THREAD_STACK_SIZEOF(net_connect_stack_area), NET_CONNECT_WORKQ_PRIORITY,
+			   &(const struct k_work_queue_config){.name = "net_connect_wq"});
+	k_work_init_delayable(&wifi_connect_work, wifi_connect_work_handler);
+
+	if (wifi_utils_has_stored_credentials()) {
+		/* Delayed boot connect (1 s): gives BLE/Memfault/other subsystems
+		 * time to finish their own SYS_INIT before attempting a WiFi
+		 * connection using stored credentials.
+		 */
+		LOG_INF("WiFi credentials exist at boot, scheduling auto-connect");
+		k_work_reschedule_for_queue(&net_connect_work_q, &wifi_connect_work, K_SECONDS(1));
+	}
 
 	LOG_INF("All network event handlers initialized successfully");
 

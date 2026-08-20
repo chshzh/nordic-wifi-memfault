@@ -11,6 +11,7 @@
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/dhcpv4.h>
+#include <net/wifi_credentials.h>
 #include <net/wifi_mgmt_ext.h>
 #include <zephyr/net/wifi_utils.h>
 #include <zephyr/sys/util.h>
@@ -32,29 +33,22 @@ const char *wifi_utils_get_last_ssid(void)
 	return last_connected_ssid;
 }
 
-int wifi_utils_auto_connect_stored(void)
+/* wifi_credentials_is_empty() does not exist in the wifi_credentials library
+ * bundled with NCS v2.6.4; check via wifi_credentials_for_each_ssid() instead.
+ */
+static void mark_credentials_found_cb(void *cb_arg, const char *ssid, size_t ssid_len)
 {
+	ARG_UNUSED(ssid);
+	ARG_UNUSED(ssid_len);
+	*(bool *)cb_arg = true;
+}
 
-#if !defined(CONFIG_WIFI_CREDENTIALS_CONNECT_STORED)
-	return -ENOTSUP;
-#else
-	struct net_if *iface = net_if_get_first_wifi();
-	int ret;
+bool wifi_utils_has_stored_credentials(void)
+{
+	bool found = false;
 
-	if (iface == NULL) {
-		return -ENODEV;
-	}
-
-	ret = net_mgmt(NET_REQUEST_WIFI_CONNECT_STORED, iface, NULL, 0);
-	if (ret == 0) {
-		LOG_INF("Auto-connect request issued for stored Wi-Fi "
-			"credentials");
-	} else if (ret != -EALREADY) {
-		LOG_WRN("Auto-connect request failed: %d", ret);
-	}
-
-	return ret;
-#endif
+	wifi_credentials_for_each_ssid(mark_credentials_found_cb, &found);
+	return found;
 }
 
 int wifi_set_mode(int mode)
