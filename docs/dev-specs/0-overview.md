@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-19-15-50 |
-| PRD Version | 2026-08-19-15-45 |
+| Version | 2026-08-20-11-01 |
+| PRD Version | 2026-08-20-10-59 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -30,6 +30,7 @@
 | 2026-07-24-14-56 | Updated to PRD v2026-07-24-14-56: bug fix for a deferred-logging race that could briefly render bogus 1970 dates around the NTP sync transition, plus `[...] ` bracket formatting to match the original log style. See `ntp-module.md` changelog for detail. |
 | 2026-08-19-15-05 | Updated to PRD v2026-08-19-15-00 ("Wi-Fi reconnect reliability, round 2"). Two independent reconnect-hang bugs fixed in `wifi_prov_over_ble.c` — see [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) Changelog (2026-08-18-18-40, 2026-08-18-22-15) for detail. New opt-in periodic nRF70 CDR collection (`CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC`) added; a companion periodic coredump-retry feature was implemented, found to be both redundant with Memfault's own periodic upload timer and the direct cause of a boot-time newlib-heap assertion loop on nRF7002DK (only ~2 KB RAM headroom on this target), then removed entirely — see [app-memfault-module.md](app-memfault-module.md) Changelog (2026-08-19-10-45 through 2026-08-19-13-00) for the full account, including the RAM-margin postmortem. Also tightened four periodic-interval Kconfig values (Memfault HTTP upload, Memfault heartbeat-force, HTTPS request, MQTT publish) from 900 s to 60 s in `prj.conf` for faster feedback during active development. |
 | 2026-08-19-15-50 | Updated to PRD v2026-08-19-15-45 — **removed nRF54LM20DK + nRF7002EB II support project-wide.** No board definition for this SoC exists anywhere in this NCS v2.6.4 installation; this project's dual-board support was never actually buildable/verifiable in this environment (the persistent, previously-unresolved "BOARD_ROOT environment issue" noted since 2026-07-13 — see `app-memfault-module.md` Open Issues history). Target Board(s) updated to nRF7002DK-only across every spec file; FR-006 (dual-board support) removed from the PRD-to-Spec mapping below since it no longer applies; see [1-architecture.md](1-architecture.md) Changelog for the full list of deleted board/partition/sysbuild files. |
+| 2026-08-20-11-01 | Updated to PRD v2026-08-20-10-59 — removed the `FR-201 SoftAP/P2P` row from the PRD-to-Spec Mapping (§4); the PRD dropped its P2 tier since SoftAP/P2P were already covered as unimplemented scaffolding in PRD §8 Out of Scope, so the separate FR-201 mapping row was redundant here too. |
 
 ---
 
@@ -92,7 +93,6 @@ For the product requirements that drive this design, see [../pm-prd/PRD.md](../p
 | FR-102 Log-state persist/restore across power cycle | app-memfault-module.md, 2-pm-partition.md | Implemented |
 | FR-103 nRF70 CDR persist/restore across power cycle | app-memfault-module.md, 2-pm-partition.md | Implemented |
 | FR-104 NTP time sync | ntp-module.md | Implemented |
-| FR-201 SoftAP/P2P (P2, not implemented) | — | Out of scope (see PRD §8) |
 
 ---
 

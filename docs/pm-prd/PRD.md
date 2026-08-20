@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | Product Name | nordic-wifi-memfault (Memfault Wi-Fi Observability Sample) |
-| Version | 2026-08-19-15-45 |
+| Version | 2026-08-20-10-59 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -32,6 +32,7 @@
 | 2026-07-24-14-56 | **Bug fix**: hardware testing showed a handful of log lines briefly rendering bogus `1970-01-29` dates right around the sync transition, because the formatter checked the *live* sync flag at print time while `CONFIG_LOG_MODE_DEFERRED` formats messages asynchronously after capture. Fixed by tagging the epoch/uptime mode into the raw timestamp value itself at capture time. Also wrapped timestamps in `[...] ` brackets to match the original log style. |
 | 2026-07-28-08-15 | **Bug fix**: the `tcp_work` stack overflow (first patched 2026-07-24 by bumping `CONFIG_NET_TCP_WORKQ_STACK_SIZE` 1024→2048) recurred in the field — 7 crashes on `v2.6.4.1` over 2026-07-27/28, found via Memfault reboot history + the same (still-open) symbolicated crash issue, now faulting within ~104 B of the *2048* top instead of the *1024* top. Bumped again to 4096; RAM headroom unaffected (72.74% used, same as before). Root cause of the growing stack usage not fully isolated — see `docs/dev-specs/3-memopt.md` Open Issues. |
 | 2026-08-19-15-00 | **Wi-Fi reconnect reliability, round 2**: found via UART log analysis after a router power-cycle test — the device could still hang offline indefinitely even with the 2026-07-24-11-30 backoff/watchdog fix in place. Two independent bugs in `wifi_prov_over_ble.c`'s reconnect logic, both now fixed (see [app-wifi-prov-ble-module.md](../dev-specs/app-wifi-prov-ble-module.md) for detail): (1) a disconnect reported as "intentional" (`status == 0`) was always deferred to the BLE provisioner to reconnect, but the L3 DHCP-bound watchdog's own forced disconnect also reports `status == 0` — with no BLE provisioning session active, nothing ever reconnected. (2) a failed connection *attempt* (e.g. an association timeout mid-retry) was mistaken for a successful connection, cancelling the in-progress reconnect backoff and leaving the device offline with no further retries. **New feature**: periodic nRF70 CDR collection (`CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC`, off by default) — a fresh Wi-Fi firmware-stats snapshot is kept ready on a timer instead of only being collected on a Button-1 press or a disconnect event, so whichever CDR upload the Memfault cloud accepts (capped at 1/device/24h) reflects more recent link conditions. A companion periodic coredump-retry feature was prototyped alongside it but removed after it was found to be both redundant (a pending coredump is already retried automatically by Memfault's own periodic upload timer) and the direct cause of a boot-time out-of-RAM assertion loop on nRF7002DK — see `app-memfault-module.md` Changelog for the full RAM postmortem. Also tightened `CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS`, `CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC`, `CONFIG_APP_HTTPS_REQUEST_INTERVAL_SEC`, and `CONFIG_APP_MQTT_CLIENT_PUBLISH_INTERVAL_SEC` from 900 s to 60 s for faster feedback during active development/testing. |
+| 2026-08-20-10-59 | Removed P2 (FR-201, SoftAP/Wi-Fi Direct) — this project is nRF7002DK-only, and SoftAP/P2P were already covered as unimplemented scaffolding in §8 Out of Scope, so a separate "Nice to Have" tier was redundant. **Corrected Buttons & LEDs hardware facts**: nRF7002DK physically has only 2 buttons and 2 LEDs (confirmed against `nrf5340_cpuapp_common.dts`), not the previously documented "4 available" buttons. Removed the Button 3/Button 4 rows from the button behavior table and noted that the button module's `DK_BTN3_MSK`/`DK_BTN4_MSK` tracking and `app_memfault`'s button-3/4 metric/trace handlers are dead code on this board since those buttons don't exist. Also fixed the stale "Buttons 1–4" reference in §6.2 Normal Operation to "Buttons 1–2". |
 | 2026-08-19-15-45 | **Removed nRF54LM20DK + nRF7002EB II support entirely.** This board's SoC (nRF54LM20A) has no board definition anywhere in this NCS v2.6.4 installation (confirmed absent from `zephyr/boards`, `nrf/boards`, `modules/hal/nordic`) — the nRF54L series was introduced in a later NCS release than the one this `ncs264` branch targets. This project's `boards/nrf54lm20dk_nrf54lm20a_cpuapp.conf`/`.overlay` files only ever overrode Kconfig/DTS on top of a base board definition that was never actually present, which is exactly the persistent, previously-unresolved "BOARD_ROOT environment issue" this doc's engineering specs have flagged as an Open Issue since 2026-07-13 — the board build was never actually verified working in this environment, and never could be. **Retired FR-006** (dual-board support — see §3 P0 table, struck through, ID reserved rather than renumbered) and updated every other board-comparison table/note in this document (§1.3, §1.5 A3 dropped, §2.4, §5, §7) to reflect nRF7002DK as the sole target. Deleted board/partition/sysbuild files and updated CI/README/dev-specs — see [1-architecture.md](../dev-specs/1-architecture.md) Changelog for the full technical account. |
 
 ---
@@ -102,10 +103,10 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 
 | Hardware | nRF7002DK |
 |---|---|
-| Buttons used | 2 (Button 1, Button 2) — `DK_BTN1`/`DK_BTN2` |
-| LEDs used | none (no LED module yet) |
+| Buttons used | 2 (of 2 available) — Button 1, Button 2 (`DK_BTN1`/`DK_BTN2`) |
+| LEDs used | 0 (of 2 available) — no LED module yet |
 
-> The button module tracks all 4 `DK_BTN*` GPIOs, but only buttons 1–4 have assigned actions per below; buttons 3/4 exist on the board's DK library mapping and drive Memfault metric/trace demos only.
+> nRF7002DK physically has only 2 buttons and 2 LEDs. The button module's `BUTTON_COUNT` is 4 and it also tracks `DK_BTN3_MSK`/`DK_BTN4_MSK`, and `app_memfault` has handlers for button numbers 3 and 4 (metric increment / trace event demos) — but since buttons 3/4 don't exist on this board, those masks never change and that code path is unreachable on nRF7002DK.
 
 *Button behavior:*
 
@@ -115,8 +116,6 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 | Button 1 / BUTTON 0 | Long (≥ 3 s) | Stack overflow crash demo (recursive Fibonacci) — tests coredump capture |
 | Button 2 / BUTTON 1 | Short (< 3 s) | Trigger Memfault OTA check |
 | Button 2 / BUTTON 1 | Long (≥ 3 s) | Division-by-zero crash demo — tests fault handler |
-| Button 3 | Short | Increment `switch_1_toggle_count` Memfault metric (demo) |
-| Button 4 | Short | Emit `switch_2_toggled` Memfault trace event (demo) |
 
 *LED behavior:* Not implemented in this release (no LED module).
 
@@ -156,12 +155,6 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 | FR-103 | developer | have disconnect-time nRF70 Wi-Fi firmware statistics (CDR) survive a power cycle and be uploaded to Memfault after the device reconnects | I can diagnose Wi-Fi radio/LMAC/UMAC state at the moment of disconnection without physical access to the device | - A short time after Wi-Fi disconnect / network-not-ready, firmware collects fresh nRF70 firmware statistics and saves the raw CDR blob to a dedicated partition on the external SPI NOR flash<br>- On the next Wi-Fi reconnect, the blob is restored so the existing CDR upload path (FR-101) picks it up and uploads it to Memfault, then the partition is erased<br>- Oversized blobs are discarded with a warning, no crash<br>- Feature is Kconfig-gated (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`, default `y`), depends on `CONFIG_NRF70_FW_STATS_CDR_ENABLED`; ported from `nordic-wifi-memfault-main` FR-008 | [app-memfault-module.md](../dev-specs/app-memfault-module.md), [2-pm-partition.md](../dev-specs/2-pm-partition.md) |
 | FR-104 | developer | have the device's clock synchronized to real-world time once connected to Wi-Fi | I can correlate Memfault events and logs with wall-clock time instead of device uptime | - On Wi-Fi connect, the device queries an SNTP server (`CONFIG_NTP_MODULE_SERVER`, default `pool.ntp.org`) and sets the system real-time clock<br>- Failed queries are retried automatically; a successful sync is periodically refreshed to correct clock drift<br>- Reconnecting after a disconnect triggers a fresh sync<br>- Once synced, Memfault events and logs carry a real UTC timestamp instead of only a server ingest-time timestamp (this app has no other real-time source configured)<br>- UART log line timestamps switch from an elapsed `[hh:mm:ss.mmm] ` duration to a calendar UTC string (e.g. `[2026-07-24 14:35:33Z] `) once synced<br>- Feature is Kconfig-gated (`CONFIG_NTP_MODULE_ENABLED`, default `y`); ported from `zego/bricks/ntp` | [ntp-module.md](../dev-specs/ntp-module.md) |
 
-### P2 — Nice to Have
-
-| ID | As a… | I want to… | So that… | Acceptance Criteria | Engineering Spec |
-|---|---|---|---|---|---|
-| FR-201 | developer | have SoftAP or Wi-Fi Direct (P2P) mode available as an alternative to STA | I can demo device-to-device connectivity without an AP | Not implemented — Kconfig/event-handler scaffolding exists but is unused | — |
-
 ---
 
 ## 4. Non-Functional Requirements
@@ -198,7 +191,7 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 
 | Board | Wi-Fi chip | Buttons used | LEDs used | Supported modes |
 |---|---|---|---|---|
-| nRF7002DK | nRF7002 (on-board) | 2 (of 4 available) | 0 (of 2 available) | STA |
+| nRF7002DK | nRF7002 (on-board) | 2 (of 2 available) | 0 (of 2 available) | STA |
 
 > **nRF54LM20DK + nRF7002EB II support removed 2026-08-19** — that board has no board definition
 > in NCS v2.6.4 (the nRF54L series was introduced in a later NCS release). See
@@ -224,7 +217,7 @@ Developers integrating Memfault with Nordic Wi-Fi hardware need a working, curre
 
 ### 6.2 Normal Operation
 
-Device boots, reconnects automatically using stored Wi-Fi credentials, uploads any queued Memfault data, and runs the always-on HTTPS/MQTT clients and heap monitor in the background. Buttons 1–4 provide on-demand heartbeat/OTA/crash-demo/metric actions.
+Device boots, reconnects automatically using stored Wi-Fi credentials, uploads any queued Memfault data, and runs the always-on HTTPS/MQTT clients and heap monitor in the background. Buttons 1–2 provide on-demand heartbeat/OTA/crash-demo actions.
 
 ### 6.3 Mode Selection
 

@@ -5,8 +5,8 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-19-16-05 |
-| PRD Version | 2026-08-19-15-45 |
+| Version | 2026-08-20-11-02 |
+| PRD Version | 2026-08-20-10-59 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
 | Status | Implemented |
@@ -30,6 +30,7 @@
 | 2026-08-19-11-05 | **Partial re-enable, pending hardware confirmation**: measured that each `k_work_delayable` costs exactly 48 B RAM (`(456732-456636)/2` bytes comparing the both-enabled and both-disabled builds). Set only `CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC=900` in `prj.conf`, left `CONFIG_APP_MEMFAULT_COREDUMP_PERIODIC_CHECK_INTERVAL_SEC` at its default `0` (commented out) — this pays for one 48 B struct instead of two. Rebuilt: RAM 99.55%, exactly **2068 B free — only 20 B above the 2048 B newlib floor**. This is not a comfortable margin (a single additional log string or static buffer anywhere in the app could reproduce the 2026-08-19-10-45 bootloop again), so this configuration is **build-verified but not yet hardware-boot-verified** as of this entry — confirm the device boots cleanly on real hardware before relying on it, and treat any future RAM-affecting change on this target as needing a fresh hardware boot test, not just a passing `west build`. |
 | 2026-08-19-13-00 | **Removed periodic coredump retry entirely** (`CONFIG_APP_MEMFAULT_COREDUMP_PERIODIC_CHECK_INTERVAL_SEC`, its work item in `core/memfault_core.c`, and all `prj.conf`/doc references) — this feature does not make sense for coredump data and was redundant even before the RAM cost was considered. Reasons: (1) **A coredump is an immutable, one-time snapshot** frozen at the exact instant of a crash — unlike the live, continuously-changing nRF70 CDR stats, there is nothing to "refresh" by re-checking it periodically; the bytes are identical on every check until it's actually uploaded and erased. (2) **A coredump already lives in flash**, written by the fault handler at crash time (`memfault_flash_coredump_storage.c`) — there was never anything to "collect into RAM" the way `mflt_nrf70_fw_stats_cdr_collect()` actively pulls a live snapshot; the removed work item only ever re-checked a flash header and retried the upload call, never moved any data. (3) **The retry it provided was already redundant**: this app's `CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS=900` (SDK-level, `ports/zephyr/common/memfault_http_periodic_upload.c`, already running as part of the base Memfault integration, zero extra RAM cost) calls `memfault_zephyr_port_post_data()` whenever `memfault_packetizer_data_available()` is true — and the coredump data source (`g_memfault_coredump_data_source`, registered in `memfault_data_packetizer.c`) is one of the sources that function already checks. A pending coredump was therefore **already being retried automatically every 900 s for free**, before this feature ever existed; the dedicated work item duplicated that behavior at a real RAM cost (48 B) this target could not spare (it was the direct cause of the 2026-08-19-10-45 bootloop when combined with the CDR option). Net effect of removal: no loss of functionality, one `k_work_delayable` (48 B) of RAM headroom returned. |
 | 2026-08-19-16-05 | **Removed nRF54LM20DK + nRF7002EB II support project-wide** — see [1-architecture.md](1-architecture.md) Changelog for the full removal. This directly resolves the long-standing Open Issue below about the nRF54LM20DK "BOARD_ROOT environment issue" (first flagged 2026-07-13): that board build was never actually verifiable in this environment because no board definition for it exists anywhere in this NCS v2.6.4 installation — the issue was never going to be "fixed", the board genuinely isn't supported here. `CONFIG_MEMFAULT_NCS_FW_TYPE`/`CONFIG_MEMFAULT_NCS_HW_VERSION` board-conditional defaults simplified to nRF7002DK-only. |
+| 2026-08-20-11-02 | Updated to PRD v2026-08-20-10-59: PRD corrected nRF7002DK's physical button count from 4 to 2. Added a note to the Button Actions table that the `btn == 3`/`btn == 4` branches (`switch_1_toggle_count` metric, `switch_2_toggled` trace) are unreachable dead code on this board, since `button-module.md` never publishes those button numbers here. |
 
 ---
 
@@ -199,8 +200,11 @@ void memfault_metrics_heartbeat_collect_data(void)
 | 1 | Long | `fib(10000)` — deliberate stack overflow to exercise coredump capture |
 | 2 | Long | `i = 1 / 0` (compiler warning suppressed) — deliberate division-by-zero fault |
 | 2 | Short | Handled by `ota_triggers.c`, not `core` — see below |
-| 3 | Short | `MEMFAULT_METRIC_ADD(switch_1_toggle_count, 1)` |
-| 4 | Short | `MEMFAULT_TRACE_EVENT_WITH_LOG(switch_2_toggled, "Switch state: 1")` |
+
+> Button handler also matches `btn == 3` (`MEMFAULT_METRIC_ADD(switch_1_toggle_count, 1)`) and
+> `btn == 4` (`MEMFAULT_TRACE_EVENT_WITH_LOG(switch_2_toggled, ...)`), but **nRF7002DK only has
+> 2 physical buttons** — `button-module.md` never publishes a `button_number` of 3 or 4 on this
+> board, so these branches are unreachable dead code here (see PRD §2.4 Buttons & LEDs).
 
 ### DNS-Wait Upload Flow (`core/memfault_core.c`, `upload_thread_fn`)
 
@@ -212,7 +216,7 @@ sequenceDiagram
     participant SDK as Memfault SDK
 
     Network->>Core: WIFI_CHAN: WIFI_STA_CONNECTED
-    Core->>Core: wifi_connected = true; k_sem_give(upload_sem)
+    Core->>Core: wifi_connected = true, k_sem_give(upload_sem)
     Core->>Core: upload_thread_fn wakes (k_sem_take)
     loop every 10s, up to 300s
         Core->>DNS: getaddrinfo("chunks-nrf.memfault.com", "443")
