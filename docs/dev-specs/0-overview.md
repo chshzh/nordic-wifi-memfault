@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-11-01 |
+| Version | 2026-08-20-11-12 |
 | PRD Version | 2026-08-20-10-59 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
@@ -31,6 +31,7 @@
 | 2026-08-19-15-05 | Updated to PRD v2026-08-19-15-00 ("Wi-Fi reconnect reliability, round 2"). Two independent reconnect-hang bugs fixed in `wifi_prov_over_ble.c` — see [app-wifi-prov-ble-module.md](app-wifi-prov-ble-module.md) Changelog (2026-08-18-18-40, 2026-08-18-22-15) for detail. New opt-in periodic nRF70 CDR collection (`CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC`) added; a companion periodic coredump-retry feature was implemented, found to be both redundant with Memfault's own periodic upload timer and the direct cause of a boot-time newlib-heap assertion loop on nRF7002DK (only ~2 KB RAM headroom on this target), then removed entirely — see [app-memfault-module.md](app-memfault-module.md) Changelog (2026-08-19-10-45 through 2026-08-19-13-00) for the full account, including the RAM-margin postmortem. Also tightened four periodic-interval Kconfig values (Memfault HTTP upload, Memfault heartbeat-force, HTTPS request, MQTT publish) from 900 s to 60 s in `prj.conf` for faster feedback during active development. |
 | 2026-08-19-15-50 | Updated to PRD v2026-08-19-15-45 — **removed nRF54LM20DK + nRF7002EB II support project-wide.** No board definition for this SoC exists anywhere in this NCS v2.6.4 installation; this project's dual-board support was never actually buildable/verifiable in this environment (the persistent, previously-unresolved "BOARD_ROOT environment issue" noted since 2026-07-13 — see `app-memfault-module.md` Open Issues history). Target Board(s) updated to nRF7002DK-only across every spec file; FR-006 (dual-board support) removed from the PRD-to-Spec mapping below since it no longer applies; see [1-architecture.md](1-architecture.md) Changelog for the full list of deleted board/partition/sysbuild files. |
 | 2026-08-20-11-01 | Updated to PRD v2026-08-20-10-59 — removed the `FR-201 SoftAP/P2P` row from the PRD-to-Spec Mapping (§4); the PRD dropped its P2 tier since SoftAP/P2P were already covered as unimplemented scaffolding in PRD §8 Out of Scope, so the separate FR-201 mapping row was redundant here too. |
+| 2026-08-20-11-12 | **Closed stale Open Issues #1 and #4** (code-driven, not PRD-driven): both described `NETWORK_CHAN`/FR-102/FR-103 as still design-only, but confirmed in `core/memfault_core.c` that `memfault_network_listener` already subscribes to `NETWORK_CHAN` and is compiled in by default (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`/`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE` default `y`) — these issues were simply never closed out after FR-102/FR-103 shipped. Updated the Module Dependency Map's `NETWORK_CHAN` edge to drop the stale `[planned]` tag. See matching fix in [1-architecture.md](1-architecture.md) Changelog. |
 
 ---
 
@@ -105,7 +106,7 @@ network        ──Zbus(WIFI_CHAN)──▶  app_wifi_prov_over_ble
 network        ──Zbus(WIFI_CHAN)──▶  app_https_client
 network        ──Zbus(WIFI_CHAN)──▶  app_mqtt_client
 network        ──Zbus(WIFI_CHAN)──▶  ntp
-network        ──Zbus(NETWORK_CHAN)─▶ app_memfault (core) [planned, FR-102/FR-103]
+network        ──Zbus(NETWORK_CHAN)─▶ app_memfault (core) [FR-102/FR-103, memfault_network_listener]
 button         ──Zbus(BUTTON_CHAN)──▶ app_memfault (core)
 button         ──Zbus(BUTTON_CHAN)──▶ app_memfault (ota_triggers)
 heap_monitor   ──direct call────────▶ Memfault metrics API (no Zbus)
@@ -119,9 +120,9 @@ heap_monitor   ──direct call────────▶ Memfault metrics API
 
 | # | Description | Owner | Target |
 |---|-------------|-------|--------|
-| 1 | `NETWORK_CHAN` currently has no subscribers — `app_memfault` will become its first subscriber once FR-102/FR-103 (log-state/CDR persist-restore) are implemented | — | Phase 3 (FR-102/FR-103) |
+| ~~1~~ | ~~`NETWORK_CHAN` currently has no subscribers — `app_memfault` will become its first subscriber once FR-102/FR-103 (log-state/CDR persist-restore) are implemented~~ — **Resolved**: `app_memfault` subscribes via `memfault_network_listener` (`core/memfault_core.c`), compiled in by default since `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`/`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE` default `y` | — | — |
 | 2 | SoftAP/P2P Kconfig and event-handler scaffolding present in `network` module but unused; decide whether to finish or remove | — | — |
 | 3 | 24-hour soak test and full ZView-based memory measurement pass not yet run on either board (see [3-memopt.md](3-memopt.md)) | — | Next hardware validation pass |
-| 4 | FR-102/FR-103 design ports `nordic-wifi-memfault-main`'s log-state/CDR restore feature; must verify the bundled NCS v2.6.4 Memfault SDK exposes `memfault_log_get_state()`/`MEMFAULT_LOG_RESTORE_STATE` before implementation (see app-memfault-module.md Open Issues) | — | Phase 3 (FR-102/FR-103) |
+| ~~4~~ | ~~FR-102/FR-103 design ports `nordic-wifi-memfault-main`'s log-state/CDR restore feature; must verify the bundled NCS v2.6.4 Memfault SDK exposes `memfault_log_get_state()`/`MEMFAULT_LOG_RESTORE_STATE` before implementation~~ — **Resolved**: confirmed those APIs do **not** exist in the bundled Memfault SDK v1.6.0; implemented via a drain-and-replay approach instead (see `app-memfault-module.md` Open Issues, 2026-07-13-13-31 changelog entry) | — | — |
 
 *(Changelog is maintained at the top of this document.)*
