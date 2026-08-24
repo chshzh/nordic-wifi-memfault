@@ -32,10 +32,9 @@
 - **Wi-Fi provisioning over BLE** — set Wi-Fi credentials from the nRF Wi-Fi Provisioner mobile app, no shell or cable needed.
 - **Crash reporting** — automatic coredump capture and upload to the Memfault dashboard, with two built-in demo crashes (stack overflow, division by zero) to try it out.
 - **OTA updates** — secure MCUboot-based firmware updates delivered via the Memfault cloud, checked on demand, on connect, and periodically.
-- **Metrics & heartbeats** — Wi-Fi signal/channel/AP-vendor, per-thread stack headroom, heap usage, and HTTPS/MQTT success counters, all visible on the Memfault dashboard.
+- **Metrics & heartbeats** — Wi-Fi signal/channel/AP-vendor, per-thread stack headroom, and heap usage, all visible on the Memfault dashboard.
 - **Heap monitor** — tracks system heap and mbedTLS heap usage live and feeds it into Memfault metrics, with a configurable warning threshold.
 - **nRF70 Wi-Fi diagnostics (CDR)** — PHY/LMAC/UMAC firmware statistics uploaded as a Memfault Custom Data Recording for remote link-quality debugging. Collected on Button 1 press, on disconnect, and on every Memfault metrics heartbeat, so a fresh snapshot is ready whenever the next upload fires — the Memfault cloud still accepts at most 1 CDR upload per device per 24 hours regardless of collection frequency (unless [Developer Mode](#developer-notes) is enabled for the device).
-- **Always-on HTTPS/MQTT clients** — periodic HTTPS `HEAD` requests and a TLS MQTT echo test, both used as background connectivity health checks with success/failure metrics.
 
 ### Target Users
 
@@ -131,8 +130,7 @@ nordic-wifi-memfault/
 │       ├── heap_monitor/                       ← System + mbedTLS heap monitor
 │       ├── wifi_prov_over_ble/                 ← BLE Wi-Fi provisioning
 │       ├── app_memfault/                       ← Memfault: core upload, metrics, OTA, nRF70 CDR
-│       ├── app_https_client/                   ← Periodic HTTPS HEAD requests
-│       └── app_mqtt_client/                    ← TLS MQTT echo test
+│       └── ntp/                                ← SNTP time sync
 ├── overlay-app-memfault-project-info.conf      ← Memfault key (git-ignored, from template)
 └── overlay-app-memfault-project-info.conf.template
 ```
@@ -246,8 +244,8 @@ west flash -d build_nrf7002dk
 - **Default runtime state** — with no Wi-Fi credentials stored, the device advertises as `PV<MAC>` for BLE provisioning on every boot; once credentials exist, it reconnects automatically and BLE provisioning remains available for re-provisioning.
 - **Flash partition layout** — see [docs/dev-specs/2-pm-partition.md](docs/dev-specs/2-pm-partition.md); this project stays on the legacy Zephyr Partition Manager (`pm_static_<board>.yml`), not DTS fixed-partitions (NCS v3.3+).
 - **Memfault symbol files** — upload the matching `zephyr.elf` (from your own build, or the release's `*_zephyr.elf`) under **Fleet → Symbol Files** so the dashboard can decode stack traces and coredumps. Without it, coredumps and OTA-related crash traces won't symbolicate.
-- **Log interpretation** — the boot banner prints board name, firmware version (`CONFIG_MEMFAULT_NCS_FW_VERSION`), build date/time, MAC address, and the list of enabled modules — useful for confirming which optional features (HTTPS/MQTT clients, nRF70 CDR) are compiled in.
-- **Metrics reference** — key Memfault metrics: `wifi_rssi`, `wifi_sta_*` (channel/beacon/DTIM/TWT), `wifi_ap_oui_vendor`, `ncs_system_heap_*`, `ncs_mbedtls_heap_*`, `stack_free_*`, `app_https_req_total_count`/`app_https_req_fail_count`, `app_mqtt_echo_total_count`/`app_mqtt_echo_fail_count` — see [docs/dev-specs/app-memfault-module.md](docs/dev-specs/app-memfault-module.md), [docs/dev-specs/heap-monitor-module.md](docs/dev-specs/heap-monitor-module.md).
+- **Log interpretation** — the boot banner prints board name, firmware version (`CONFIG_MEMFAULT_NCS_FW_VERSION`), build date/time, MAC address, and the list of enabled modules — useful for confirming which optional features (nRF70 CDR) are compiled in.
+- **Metrics reference** — key Memfault metrics: `wifi_rssi`, `wifi_sta_*` (channel/beacon/DTIM/TWT), `wifi_ap_oui_vendor`, `ncs_system_heap_*`, `ncs_mbedtls_heap_*`, `stack_free_*` — see [docs/dev-specs/app-memfault-module.md](docs/dev-specs/app-memfault-module.md), [docs/dev-specs/heap-monitor-module.md](docs/dev-specs/heap-monitor-module.md).
 - **OTA versioning** — bump `CONFIG_MEMFAULT_NCS_FW_VERSION` in `prj.conf` before building a release; the device checks for updates on Wi-Fi connect, on Button 2 short-press, and periodically (`CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN`).
 - **Memfault Developer Mode** — `CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS` and `CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC` are set to 900 s (15 min). Uploading metrics/logs more often than every 15 minutes, or uploading more than 1 CDR per device per 24 hours, requires enabling **Developer Mode** for the device in the Memfault dashboard — otherwise the backend silently rate-limits/drops the extra chunks instead of erroring.
 
@@ -268,9 +266,8 @@ The full design documentation lives under `docs/`. Start with [docs/dev-specs/0-
 | [docs/dev-specs/network-module.md](docs/dev-specs/network-module.md) | Wi-Fi STA connectivity, L2/L3 event management |
 | [docs/dev-specs/app-wifi-prov-ble-module.md](docs/dev-specs/app-wifi-prov-ble-module.md) | Wi-Fi credential provisioning via BLE |
 | [docs/dev-specs/app-memfault-module.md](docs/dev-specs/app-memfault-module.md) | Memfault core, metrics, OTA triggers, nRF70 stats CDR |
-| [docs/dev-specs/app-https-client-module.md](docs/dev-specs/app-https-client-module.md) | Always-on periodic HTTPS client |
-| [docs/dev-specs/app-mqtt-client-module.md](docs/dev-specs/app-mqtt-client-module.md) | Always-on TLS MQTT echo client |
 | [docs/dev-specs/heap-monitor-module.md](docs/dev-specs/heap-monitor-module.md) | System/mbedTLS heap tracking, Memfault heap metrics |
+| [docs/dev-specs/ntp-module.md](docs/dev-specs/ntp-module.md) | SNTP time sync |
 
 ---
 

@@ -178,7 +178,7 @@ config NET_SOCKETS_POLL_MAX
 
 # ---------------------------------------------------------------------------
 # DNS resolution
-# Allow concurrent lookups from app_https_client, app_mqtt_client, app_memfault.
+# Allow concurrent lookups from app_memfault and ntp.
 # ---------------------------------------------------------------------------
 config DNS_RESOLVER
 	default y if WIFI_MODULE

@@ -22,8 +22,6 @@ static struct memfault_ncs_metrics_thread stack_metrics_threads[] = {
 	{.thread_name = "nrf70_intr_wq", .key = MEMFAULT_METRICS_KEY(ncs_wifi_intr_unused_stack)},
 	{.thread_name = "nrf70_bh_wq", .key = MEMFAULT_METRICS_KEY(ncs_wifi_bh_unused_stack)},
 	{.thread_name = "mflt_http", .key = MEMFAULT_METRICS_KEY(ncs_mflt_http_unused_stack)},
-	{.thread_name = "mqtt_helper_thread",
-	 .key = MEMFAULT_METRICS_KEY(ncs_mqtt_helper_unused_stack)},
 	{.thread_name = "conn_mgr_monitor",
 	 .key = MEMFAULT_METRICS_KEY(ncs_conn_mgr_monitor_unused_stack)},
 	{.thread_name = "net_socket_service",
@@ -36,14 +34,6 @@ static struct memfault_ncs_metrics_thread stack_metrics_threads[] = {
 	 .key = MEMFAULT_METRICS_KEY(memfault_upload_unused_stack)},
 	{.thread_name = "mflt_ota_triggers_tid",
 	 .key = MEMFAULT_METRICS_KEY(mflt_ota_triggers_unused_stack)},
-#if CONFIG_APP_HTTPS_CLIENT_MODULE
-	{.thread_name = "app_https_client_tid",
-	 .key = MEMFAULT_METRICS_KEY(app_https_client_unused_stack)},
-#endif
-#if CONFIG_APP_MQTT_CLIENT_MODULE
-	{.thread_name = "app_mqtt_client_tid",
-	 .key = MEMFAULT_METRICS_KEY(app_mqtt_client_unused_stack)},
-#endif
 	{.thread_name = "shell_uart", .key = MEMFAULT_METRICS_KEY(ncs_shell_uart_unused_stack)},
 	{.thread_name = "logging", .key = MEMFAULT_METRICS_KEY(ncs_logging_unused_stack)},
 	{.thread_name = "main", .key = MEMFAULT_METRICS_KEY(ncs_main_unused_stack)}};
