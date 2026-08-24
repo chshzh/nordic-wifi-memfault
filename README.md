@@ -34,7 +34,7 @@
 - **OTA updates** — secure MCUboot-based firmware updates delivered via the Memfault cloud, checked on demand, on connect, and periodically.
 - **Metrics & heartbeats** — Wi-Fi signal/channel/AP-vendor, per-thread stack headroom, heap usage, and HTTPS/MQTT success counters, all visible on the Memfault dashboard.
 - **Heap monitor** — tracks system heap and mbedTLS heap usage live and feeds it into Memfault metrics, with a configurable warning threshold.
-- **nRF70 Wi-Fi diagnostics (CDR)** — PHY/LMAC/UMAC firmware statistics uploaded as a Memfault Custom Data Recording for remote link-quality debugging. Collected on Button 1 press, on disconnect, or optionally on a timer (`CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC`) so a fresh snapshot is ready whenever the next upload fires — the Memfault cloud still accepts at most 1 CDR upload per device per 24 hours regardless of collection frequency.
+- **nRF70 Wi-Fi diagnostics (CDR)** — PHY/LMAC/UMAC firmware statistics uploaded as a Memfault Custom Data Recording for remote link-quality debugging. Collected on Button 1 press, on disconnect, or optionally on a timer (`CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC`) so a fresh snapshot is ready whenever the next upload fires — the Memfault cloud still accepts at most 1 CDR upload per device per 24 hours regardless of collection frequency (unless [Developer Mode](#developer-notes) is enabled for the device).
 - **Always-on HTTPS/MQTT clients** — periodic HTTPS `HEAD` requests and a TLS MQTT echo test, both used as background connectivity health checks with success/failure metrics.
 
 ### Target Users
@@ -249,6 +249,7 @@ west flash -d build_nrf7002dk
 - **Log interpretation** — the boot banner prints board name, firmware version (`CONFIG_MEMFAULT_NCS_FW_VERSION`), build date/time, MAC address, and the list of enabled modules — useful for confirming which optional features (HTTPS/MQTT clients, nRF70 CDR) are compiled in.
 - **Metrics reference** — key Memfault metrics: `wifi_rssi`, `wifi_sta_*` (channel/beacon/DTIM/TWT), `wifi_ap_oui_vendor`, `ncs_system_heap_*`, `ncs_mbedtls_heap_*`, `stack_free_*`, `app_https_req_total_count`/`app_https_req_fail_count`, `app_mqtt_echo_total_count`/`app_mqtt_echo_fail_count` — see [docs/dev-specs/app-memfault-module.md](docs/dev-specs/app-memfault-module.md), [docs/dev-specs/heap-monitor-module.md](docs/dev-specs/heap-monitor-module.md).
 - **OTA versioning** — bump `CONFIG_MEMFAULT_NCS_FW_VERSION` in `prj.conf` before building a release; the device checks for updates on Wi-Fi connect, on Button 2 short-press, and periodically (`CONFIG_MEMFAULT_OTA_CHECK_INTERVAL_MIN`).
+- **Memfault Developer Mode** — `CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS` and `CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC` are set to 900 s (15 min). Uploading metrics/logs more often than every 15 minutes, or uploading more than 1 CDR per device per 24 hours, requires enabling **Developer Mode** for the device in the Memfault dashboard — otherwise the backend silently rate-limits/drops the extra chunks instead of erroring.
 
 ---
 
