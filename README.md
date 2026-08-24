@@ -34,7 +34,7 @@
 - **OTA updates** — secure MCUboot-based firmware updates delivered via the Memfault cloud, checked on demand, on connect, and periodically.
 - **Metrics & heartbeats** — Wi-Fi signal/channel/AP-vendor, per-thread stack headroom, heap usage, and HTTPS/MQTT success counters, all visible on the Memfault dashboard.
 - **Heap monitor** — tracks system heap and mbedTLS heap usage live and feeds it into Memfault metrics, with a configurable warning threshold.
-- **nRF70 Wi-Fi diagnostics (CDR)** — PHY/LMAC/UMAC firmware statistics uploaded as a Memfault Custom Data Recording for remote link-quality debugging. Collected on Button 1 press, on disconnect, or optionally on a timer (`CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC`) so a fresh snapshot is ready whenever the next upload fires — the Memfault cloud still accepts at most 1 CDR upload per device per 24 hours regardless of collection frequency (unless [Developer Mode](#developer-notes) is enabled for the device).
+- **nRF70 Wi-Fi diagnostics (CDR)** — PHY/LMAC/UMAC firmware statistics uploaded as a Memfault Custom Data Recording for remote link-quality debugging. Collected on Button 1 press, on disconnect, and on every Memfault metrics heartbeat, so a fresh snapshot is ready whenever the next upload fires — the Memfault cloud still accepts at most 1 CDR upload per device per 24 hours regardless of collection frequency (unless [Developer Mode](#developer-notes) is enabled for the device).
 - **Always-on HTTPS/MQTT clients** — periodic HTTPS `HEAD` requests and a TLS MQTT echo test, both used as background connectivity health checks with success/failure metrics.
 
 ### Target Users

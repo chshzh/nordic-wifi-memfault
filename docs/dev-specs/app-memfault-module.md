@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-13-20 |
+| Version | 2026-08-21-10-09 |
 | PRD Version | 2026-08-20-13-20 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
@@ -20,6 +20,8 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-21-10-09 | **Attempted two follow-up fixes for the `sysworkq` stack overflow (below), both blocked by RAM budget**: build-tested making `collect_nrf70_fw_stats()`'s local `stats` `static` (drops free RAM 2116→1436 B, below the 2048 B newlib floor) and bumping `CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE` 4096→8192 (fails at link time, `region 'RAM' overflowed by 1980 bytes`). Reverted both; this target's actual free RAM (2116 B, only 68 B above the newlib floor) makes either fix unsafe without a memory-optimization pass first. See updated Open Issue below. |
+| 2026-08-21-09-51 | **Removed the dedicated periodic-CDR timer, by request, after a hard-fault investigation** (Memfault trace 10680362446): a coredump showed `sysworkq` (4 KB stack, `CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE=4096`) stack-overflowing (`stack_unused: 0`, corrupted `pc`/`lr`) right after `nrf_wifi_fmac_stats_get: Timed out` / `nRF70 FW stats CDR ready for upload` log lines — this project's own `prj.conf` had `CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC=60`, driving the deep `nrf_wifi_fmac_stats_get()` call chain (plus its stack-local `struct rpu_op_stats`, ~600+ B) on the shared system workqueue every 60 s. Removed `CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC` and its `cdr_periodic_collect_work` entirely (`cdr/nrf70_fw_stats_cdr.c`); `mflt_nrf70_fw_stats_cdr_collect()` is now called directly from `memfault_metrics_heartbeat_collect_data()` (`core/memfault_core.c`) — the same SDK callback already used for metrics collection — so nRF70 FW stats now collect on the same cadence as metrics/log collection (real 3600 s SDK heartbeat, or `CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC` while testing) instead of a separate dedicated timer. **Note**: this still runs on `sysworkq` (same as the real metrics heartbeat callback already did) — it removes the redundant 60 s dedicated timer and its RAM cost, but does not by itself shrink the stack footprint of the `nrf_wifi_fmac_stats_get()` call chain; see Open Issues below. |
 | 2026-08-20-13-20 | **Zbus event redesign**: merged the separate `memfault_wifi_listener` (`WIFI_CHAN`) and `memfault_network_listener` (`NETWORK_CHAN`) into a single `memfault_network_listener` on `NETWORK_CHAN` only — both had been firing in lockstep from the same disconnect event, guarded by the same `log_freeze_scheduled` bool, so the duplication served no purpose. `core` and `ota` (`ota_triggers.c`) now both key off `NETWORK_READY`/`NETWORK_NOT_READY` instead of the misleadingly-named `WIFI_STA_CONNECTED` (which actually fired on IP assignment, not L2 association). See [network-module.md](network-module.md) for the full rationale. |
 | 2026-07-13-11-08 | Replaces `pm/openspec/specs/memfault-integration.md`. Confirmed unchanged core upload/DNS-wait/button-action behavior in `core/memfault_core.c`. Documented NCS v2.6.4-specific API differences: `memfault_metrics_connectivity_connected_state_change()` and `CONFIG_MEMFAULT_METRICS_HEARTBEAT_INTERVAL_SECS` do not exist in the bundled Memfault SDK version; `mflt_nrf70_fw_stats_cdr.c` renamed `nrf70_fw_stats_cdr.c` and ported to `struct rpu_op_stats` / `nrf_wifi_fmac_stats_get()` API. |
 | 2026-07-13-12-22 | Updated to PRD v2026-07-13-12-22: added design for FR-102 (`CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE`) and FR-103 (`CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE`), ported from `nordic-wifi-memfault-main`'s FR-007/FR-008. Design only — not yet implemented on this branch; see Open Issues. |
@@ -98,15 +100,15 @@ discarded with a warning; an nRF70 driver unavailable at collect time returns `-
 flash write. Depends on `CONFIG_NRF70_FW_STATS_CDR_ENABLED`. Ported directly from
 `nordic-wifi-memfault-main` FR-008, unchanged behavior.
 
-**Periodic CDR collection** (`CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC`, default `0`/
-disabled, set to `900` in this project's `prj.conf` as of 2026-08-19-11-05, pending hardware
-boot confirmation — see RAM warning below): a `k_work_delayable` in `cdr/nrf70_fw_stats_cdr.c`
-calls the same `mflt_nrf70_fw_stats_cdr_collect()` used by the Button-1 trigger on a fixed
-interval, independent of button presses or disconnect events, so a CDR blob is normally ready
-whenever any upload (periodic HTTP or on-connect) fires. `-ENODEV` (RPU/WiFi driver not yet up)
-is treated as expected and silent; any other collection failure logs a warning. **The Memfault
-cloud still enforces its own 1-CDR-upload-per-device-per-24h limit regardless of how often this
-collects** — see the CDR Kconfig `WARNING` below.
+**Heartbeat-driven CDR collection** (removed the dedicated periodic timer 2026-08-21, see
+Changelog): `memfault_metrics_heartbeat_collect_data()` (`core/memfault_core.c`) — the Memfault
+SDK's metrics-collection callback — now also calls `mflt_nrf70_fw_stats_cdr_collect()` when
+`CONFIG_NRF70_FW_STATS_CDR_ENABLED`, so a fresh CDR blob is ready on the same cadence as metrics
+collection (the fixed 3600 s SDK heartbeat in production, or
+`CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC` while testing) instead of its own dedicated
+`k_work_delayable`/Kconfig interval. `-ENODEV` (RPU/WiFi driver not yet up) is treated as expected
+and silent; any other collection failure logs a warning. **The Memfault cloud still enforces its
+own 1-CDR-upload-per-device-per-24h limit regardless of collection frequency.**
 
 **No periodic coredump collection** (removed 2026-08-19-13-00, see Changelog): unlike the CDR
 snapshot above, a coredump does not benefit from periodic re-checking. It's an immutable snapshot
@@ -268,9 +270,8 @@ Not SMF. `core` uses a Zbus-listener + dedicated-thread pattern (`memfault_uploa
 | `CONFIG_MEMFAULT_NCS_PROJECT_KEY` | string | set via git-ignored `overlay-app-memfault-project-info.conf` | Memfault project key — never committed |
 | `CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE` | bool | **planned**, n today | [FR-102] Persist Memfault ring-buffer state to `mflt_log_state_partition` on disconnect; restore and upload on next Wi-Fi connect |
 | `CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE` | bool | **planned**, n today | [FR-103] Persist disconnect-time nRF70 CDR blob to `mflt_cdr_state_partition`; restore and upload on next Wi-Fi connect. Depends on `CONFIG_NRF70_FW_STATS_CDR_ENABLED` |
-| `CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC` | int (0–86400) | `0` (disabled); non-zero in current `prj.conf` — see RAM warning below | Collect a fresh nRF70 CDR snapshot every N seconds, independent of Button-1/disconnect triggers. Cloud still caps actual uploads to 1/device/24h regardless. Depends on `CONFIG_NRF70_FW_STATS_CDR_ENABLED` |
 
-> **RAM warning**: this option adds one static `k_work_delayable` (measured 48 B). A previously-implemented sibling option for periodic coredump retry was removed entirely (see Changelog 2026-08-19-13-00) after it, combined with this one, caused a boot-time newlib-heap assertion loop on nRF7002DK (2020 B free vs. a 2048 B floor) — that removal was not just a RAM workaround, the feature itself was redundant (see Overview). Re-verify actual free RAM on hardware before enabling anything else RAM-resident on this target (see [3-memopt.md](3-memopt.md)).
+> **Removed 2026-08-21**: `CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC` (its dedicated `k_work_delayable` was implicated in a `sysworkq` stack-overflow hard fault — see Changelog). nRF70 FW stats CDR collection now piggybacks on `memfault_metrics_heartbeat_collect_data()` instead, with no separate interval to configure.
 
 ---
 
@@ -293,16 +294,16 @@ contract (`memfault_metrics_heartbeat_collect_data`).
 | **FR-102** Restored log blob size mismatch or truncation | Blob magic/version/entry-count invalid, or replay would read past `payload_len` | Blob discarded (or replay stopped early), no crash |
 | **FR-103** nRF70 driver unavailable at persist time | `mflt_nrf70_fw_stats_cdr_persist_to_flash()` returns `-ENODEV` | Warning logged; no flash write performed |
 | **FR-103** Restored CDR blob oversized | Blob size exceeds `NRF70_FW_STATS_BLOB_MAX_SIZE` | Blob discarded with a warning |
-| Periodic CDR collection fires before RPU/WiFi driver is up | `mflt_nrf70_fw_stats_cdr_collect()` returns `-ENODEV` | Silent (expected at early boot); next periodic tick retries |
-| Periodic CDR collection fires while a previous snapshot is still unuploaded | `s_cdr_data_ready` already `true` | Warning logged, snapshot overwritten (newest always wins, same as the Button-1 path) |
+| Heartbeat-driven CDR collection fires before RPU/WiFi driver is up | `mflt_nrf70_fw_stats_cdr_collect()` returns `-ENODEV` | Silent (expected at early boot); next heartbeat retries |
+| Heartbeat-driven CDR collection fires while a previous snapshot is still unuploaded | `s_cdr_data_ready` already `true` | Warning logged, snapshot overwritten (newest always wins, same as the Button-1 path) |
 ---
 
 ## Memory Estimate
 
 | Resource | Value | Notes |
 |----------|-------|-------|
-| Flash | ~120 KB total (core+metrics+OTA+CDR) | Per legacy architecture estimate; whole-app build measured at FLASH 91.03% / RAM 99.55% (2068 B free) on nRF7002DK as of 2026-08-19-13-00, with `CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC` enabled (non-zero) and no coredump periodic option (removed, see Changelog) |
-| RAM (static) | ~46 KB | Per legacy estimate. The one remaining periodic option (CDR) costs 48 B (one `k_work_delayable`) — 2068 B free, only 20 B above the 2048 B newlib floor. **Do not add any further RAM-resident feature to this app** without freeing real margin first (see Open Issues, [3-memopt.md](3-memopt.md)) |
+| Flash | ~120 KB total (core+metrics+OTA+CDR) | Per legacy architecture estimate |
+| RAM (static) | ~46 KB | Per legacy estimate. The dedicated periodic-CDR `k_work_delayable` (48 B) was removed 2026-08-21 (see Changelog), freeing that RAM back up — build-verified clean, but re-measure actual free RAM on hardware before treating that margin as available for new features (see Open Issues, [3-memopt.md](3-memopt.md)) |
 | Stack | `CONFIG_MEMFAULT_UPLOAD_THREAD_STACK_SIZE` + `CONFIG_MEMFAULT_OTA_THREAD_STACK_SIZE` | Two dedicated `K_THREAD_DEFINE` threads |
 | Coredump storage | 64 KB | `memfault_storage` (nRF7002DK) — see [2-pm-partition.md](2-pm-partition.md) |
 
@@ -319,7 +320,7 @@ contract (`memfault_metrics_heartbeat_collect_data`).
 | Button 2 long | `Division by zero will now be triggered` | duration ≥ long-press threshold |
 | OTA check | `Starting Memfault OTA check (<context>)` | button / connect / periodic trigger |
 | **FR-102** Log restore | `=== [LOG RESTORE] pre-disconnect logs above \| live session below ===` in Memfault cloud log view | after reconnect following a power cycle with a persisted blob |
-| Periodic CDR collection | `nRF70 FW stats CDR ready for upload (N bytes)` | Every `CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC`, once RPU/WiFi driver is up |
+| Heartbeat-driven CDR collection | `nRF70 FW stats CDR ready for upload (N bytes)` | Every metrics heartbeat (3600 s, or `CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC` while testing), once RPU/WiFi driver is up |
 
 ---
 
@@ -330,8 +331,8 @@ contract (`memfault_metrics_heartbeat_collect_data`).
 - [ ] Re-run the memory estimate against a live NCS v2.6.4 build on nRF7002DK (see [3-memopt.md](3-memopt.md)).
 - [x] **FR-102/FR-103**: confirmed `memfault_log_get_state()`/`memfault_log_restore_state()` do **not** exist in the Memfault SDK v1.6.0 bundled with NCS v2.6.4; implemented FR-102 via a drain-and-replay approach (`memfault_log_read()` + `memfault_log_save_preformatted()`) instead of a raw-state copy — see the trade-off noted above.
 - [x] **FR-102/FR-103**: confirmed the external-flash driver (`flash_area_*` on `MX25R64` via SPI) works from `on_connect()`/the disconnect work item, and the new `mflt_log_state_partition`/`mflt_cdr_state_partition` regions do not collide with `mcuboot_secondary` — build-verified on nRF7002DK (FLASH 90.26%, RAM 98.75%).
-- [ ] **RAM headroom critical (99.55% / 2068 B free on nRF7002DK, CDR periodic collection enabled, no other periodic options)**. Confirmed on real hardware: a previous configuration that additionally enabled a (since-removed) periodic coredump-retry option dropped free RAM below `CONFIG_NEWLIB_LIBC_MIN_REQUIRED_HEAP_SIZE` (2048 B) and the device hard-looped on a boot-time assertion in `newlib/libc-hooks.c` — it never reached application code. `west build`'s "RAM: XX% used" summary does **not** catch this; it's a link-time-silent, runtime-only failure that only showed up flashing real hardware. The current config (CDR periodic collection only) is build-verified at 2068 B free (20 B margin) — treat this margin as fragile: any further RAM-resident addition to this app needs a fresh [3-memopt.md](3-memopt.md) pass first to find real margin, then a hardware boot test to confirm — do not trust the linker's "% used" figure alone on this target.
-- [ ] Confirm on real hardware that the current build (CDR periodic collection enabled, 2068 B free) boots cleanly — not yet hardware-boot-verified as of 2026-08-19-13-00.
+- [x] **RAM headroom critical (99.55% / 2068 B free on nRF7002DK measured 2026-08-19)**: was specifically about the dedicated periodic-CDR `k_work_delayable` (48 B); that option was removed entirely 2026-08-21 (see Changelog), so the 48 B is freed. Still re-verify actual free RAM on hardware (see [3-memopt.md](3-memopt.md)) before relying on any specific margin figure — `west build`'s "RAM: XX% used" summary does not catch a newlib-heap-floor boot assertion, which is runtime-only and was previously reproduced on real hardware from a different (also-removed) periodic option.
+- [ ] **`sysworkq` stack overflow found via Memfault hard-fault trace 10680362446** (2026-08-21) — **root cause not yet fixed, blocked on RAM budget**: `cdr/nrf70_fw_stats_cdr.c`'s `collect_nrf70_fw_stats()` still calls the deep `nrf_wifi_fmac_stats_get()` chain with a stack-local `struct rpu_op_stats` (~600+ B) directly on `sysworkq` (`CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE=4096`) — removing the dedicated periodic timer (this entry's Changelog) only cut how often this path runs (hourly heartbeat instead of a 60 s dedicated timer), it did not shrink the call's stack footprint or move it off `sysworkq`. Two candidate fixes were build-tested 2026-08-21 and **both currently fail** because this target has only 2116 B free RAM (99.54% used) — just 68 B above the `CONFIG_NEWLIB_LIBC_MIN_REQUIRED_HEAP_SIZE=2048` boot-assertion floor: (1) making `stats` `static` (safe re: concurrency, already serialized by `ctx->rpu_lock`) moves it from transient stack to permanent `.bss`, dropping free RAM to 1436 B — below the floor, very likely reproducing the newlib-heap bootloop documented in Changelog 2026-08-19-10-55/-11-05; (2) bumping `CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE` 4096→8192 fails outright at link time (`region 'RAM' overflowed by 1980 bytes`), and even a much smaller bump would still drop below the 2048 B floor. **A dedicated memory-optimization pass (see [3-memopt.md](3-memopt.md)) to free real RAM margin is a prerequisite for either fix** — do not attempt either in isolation without first freeing at least ~700 B–1 KB.
 
 ---
 

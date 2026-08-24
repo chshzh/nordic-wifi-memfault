@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Project | nordic-wifi-memfault |
-| Version | 2026-08-20-14-47 |
+| Version | 2026-08-21-09-51 |
 | PRD Version | 2026-08-20-14-47 |
 | NCS Version | v2.6.4 |
 | Target Board(s) | nRF7002DK |
@@ -20,6 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
+| 2026-08-21-09-51 | **Removed the dedicated periodic-CDR timer** (`CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC`, added 2026-08-19-10-45), by request, after a Memfault hard-fault trace (10680362446) showed a `sysworkq` stack overflow immediately following an nRF70 FW stats collection log line — this project's `prj.conf` had that timer set to 60 s, running the deep `nrf_wifi_fmac_stats_get()` chain on the shared system workqueue every minute. nRF70 FW stats CDR collection now happens from `memfault_metrics_heartbeat_collect_data()` (same cadence as metrics/log collection) instead of its own timer — code-driven, not PRD-driven. See [app-memfault-module.md](app-memfault-module.md) Changelog for the full account and a remaining open issue (the FMAC call chain's stack footprint on `sysworkq` itself is unchanged). |
 | 2026-08-20-14-47 | Updated to PRD v2026-08-20-14-47 — **decoupled STA reconnect from BLE provisioning**: moved reconnect/boot-auto-connect ownership from `wifi_prov_over_ble.c` into the always-compiled `network` module, using a new `BLE_CHAN` Zbus channel so `network` can still avoid racing an active BLE provisioning session without a compile-time dependency on that module. Reconnect now works whether credentials are entered via BLE provisioning or `wifi cred shell`. Updated the Module Dependency Map with the new `wifi_prov_over_ble --BLE_CHAN--> network` edge. See `network-module.md` and `app-wifi-prov-ble-module.md` Changelogs for the full account. |
 | 2026-08-20-14-10 | Updated to PRD v2026-08-20-14-10 — **removed all SoftAP scaffolding** (Kconfig options, `net_event_mgmt.c`/`wifi_utils.c` handlers). Closes Open Issue #2 (below) as "removed" rather than "complete". Module Dependency Map's `network-module.md` description updated to drop the "SoftAP groundwork" mention. |
 | 2026-08-20-13-20 | **Zbus event redesign**: `NETWORK_CHAN` (`NETWORK_READY`/`NETWORK_NOT_READY`) is now the channel every connectivity-gated module subscribes to, replacing `WIFI_CHAN`'s misleadingly-named `WIFI_STA_CONNECTED` (which actually fired on IP assignment, not L2 association) and dead `WIFI_DNS_READY`. `WIFI_CHAN` is now L2-only with zero subscribers. Updated Module Dependency Map. See `network-module.md` Changelog for the full rationale and blast radius. |

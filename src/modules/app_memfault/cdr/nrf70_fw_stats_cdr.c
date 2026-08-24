@@ -128,28 +128,6 @@ unlock:
 	return ret;
 }
 
-#if CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC > 0
-static void cdr_periodic_collect_work_fn(struct k_work *work);
-static K_WORK_DELAYABLE_DEFINE(cdr_periodic_collect_work, cdr_periodic_collect_work_fn);
-
-static void cdr_periodic_collect_work_fn(struct k_work *work)
-{
-	ARG_UNUSED(work);
-
-	int err = mflt_nrf70_fw_stats_cdr_collect();
-
-	/* -ENODEV means the RPU/WiFi driver isn't up yet (e.g. early boot) -
-	 * expected and quiet, the next tick will retry.
-	 */
-	if (err && err != -ENODEV) {
-		LOG_WRN("Periodic nRF70 FW stats CDR collection failed: %d", err);
-	}
-
-	k_work_reschedule(&cdr_periodic_collect_work,
-			  K_SECONDS(CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC));
-}
-#endif
-
 int mflt_nrf70_fw_stats_cdr_init(void)
 {
 	static bool initialized = false;
@@ -162,12 +140,6 @@ int mflt_nrf70_fw_stats_cdr_init(void)
 	}
 	initialized = true;
 	LOG_INF("nRF70 FW stats CDR module initialized");
-#if CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC > 0
-	LOG_INF("Periodic nRF70 FW stats CDR collection every %d s",
-		CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC);
-	k_work_reschedule(&cdr_periodic_collect_work,
-			  K_SECONDS(CONFIG_NRF70_FW_STATS_CDR_PERIODIC_INTERVAL_SEC));
-#endif
 	return 0;
 }
 

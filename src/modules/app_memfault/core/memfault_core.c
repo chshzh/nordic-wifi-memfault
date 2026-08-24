@@ -17,7 +17,7 @@
 #if CONFIG_APP_MEMFAULT_LOG_STATE_RESTORE
 #include "memfault_log_state_restore.h"
 #endif
-#if CONFIG_APP_MEMFAULT_CDR_STATE_RESTORE
+#if CONFIG_NRF70_FW_STATS_CDR_ENABLED
 #include "../cdr/nrf70_fw_stats_cdr.h"
 #endif
 
@@ -163,6 +163,22 @@ void memfault_metrics_heartbeat_collect_data(void)
 	memfault_ncs_metrics_collect_data();
 #endif
 	mflt_wifi_metrics_collect();
+
+#if CONFIG_NRF70_FW_STATS_CDR_ENABLED
+	/* Piggyback on the same cadence as metrics/log collection (real
+	 * 3600 s SDK heartbeat, or CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_
+	 * INTERVAL_SEC while testing) instead of a separate dedicated timer -
+	 * one less periodic work item competing for system workqueue stack.
+	 */
+	int cdr_err = mflt_nrf70_fw_stats_cdr_collect();
+
+	/* -ENODEV means the RPU/WiFi driver isn't up yet (e.g. early boot) -
+	 * expected and quiet, the next heartbeat will retry.
+	 */
+	if (cdr_err && cdr_err != -ENODEV) {
+		LOG_WRN("nRF70 FW stats CDR collection failed: %d", cdr_err);
+	}
+#endif
 }
 
 #if defined(CONFIG_POSIX_API)
