@@ -22,9 +22,11 @@
 #endif
 
 #include <errno.h>
+#include <time.h>
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/posix/time.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/zbus/zbus.h>
 #include <zephyr/dfu/mcuboot.h>
@@ -58,6 +60,29 @@ LOG_MODULE_REGISTER(memfault_core, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 static K_SEM_DEFINE(upload_sem, 0, 2);
 static volatile bool wifi_connected;
 
+/* Logs the wall-clock UTC time of each Memfault upload attempt, then posts
+ * the data. CLOCK_REALTIME is only meaningful once ntp_module has synced it
+ * (see src/modules/ntp/ntp.c) -- before that it reflects raw uptime, so the
+ * printed date/time is not real-world accurate until NTP sync completes.
+ */
+static void memfault_post_data_now(void)
+{
+	struct timespec tspec;
+
+	if (clock_gettime(CLOCK_REALTIME, &tspec) == 0) {
+		struct tm tm_buf;
+		struct tm *tm = gmtime_r(&tspec.tv_sec, &tm_buf);
+
+		if (tm) {
+			LOG_INF("Memfault upload at %04d-%02d-%02d %02d:%02d:%02dZ",
+				tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour,
+				tm->tm_min, tm->tm_sec);
+		}
+	}
+
+	memfault_zephyr_port_post_data();
+}
+
 #if CONFIG_APP_MEMFAULT_HEARTBEAT_FORCE_INTERVAL_SEC > 0
 /* Testing/debugging aid: the Memfault SDK version bundled with NCS v2.6.4 has
  * a fixed 3600 s metrics heartbeat interval (no MEMFAULT_METRICS_HEARTBEAT_
@@ -86,7 +111,7 @@ static void force_upload_now(void)
 		return;
 	}
 
-	memfault_zephyr_port_post_data();
+	memfault_post_data_now();
 	k_mutex_unlock(&tls_heap_lock);
 }
 
@@ -240,7 +265,7 @@ static void on_connect(void)
 		return;
 	}
 
-	memfault_zephyr_port_post_data();
+	memfault_post_data_now();
 	k_mutex_unlock(&tls_heap_lock);
 }
 
@@ -374,7 +399,7 @@ static void memfault_button_listener(const struct zbus_channel *chan)
 				memfault_metrics_heartbeat_debug_trigger();
 				if (k_mutex_lock(&tls_heap_lock,
 						 TLS_HEAP_LOCK_TIMEOUT) == 0) {
-					memfault_zephyr_port_post_data();
+					memfault_post_data_now();
 					k_mutex_unlock(&tls_heap_lock);
 				} else {
 					LOG_WRN("TLS heap busy, upload skipped");
