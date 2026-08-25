@@ -83,6 +83,6 @@ void mflt_wifi_metrics_collect(void)
 	 * not reported here on this SDK version.
 	 */
 
-	LOG_INF("WiFi metrics collected: RSSI=%d dBm, Channel=%u, OUI=%s", status.rssi,
+	LOG_DBG("WiFi metrics collected: RSSI=%d dBm, Channel=%u, OUI=%s", status.rssi,
 		status.channel, oui);
 }

@@ -168,7 +168,7 @@ int mflt_nrf70_fw_stats_cdr_collect(void)
 		return -ENODATA;
 	}
 	s_cdr_data_ready = true;
-	LOG_INF("nRF70 FW stats CDR ready for upload (%zu bytes)", s_nrf70_fw_stats_blob_size);
+	LOG_DBG("nRF70 FW stats CDR ready for upload (%zu bytes)", s_nrf70_fw_stats_blob_size);
 	return 0;
 }
 
