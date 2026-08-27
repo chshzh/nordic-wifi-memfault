@@ -70,6 +70,16 @@ config MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS
 # ---------------------------------------------------------------------------
 # Coredump
 # ---------------------------------------------------------------------------
+# Left off deliberately. Full thread stacks do NOT fit here: the 21 threads
+# total ~92 KiB of stack (BT RX alone is 22000 B and is a hard requirement --
+# see wifi_prov_over_ble/Kconfig.defaults), while the memfault_storage
+# partition is 64 KiB. Enabling it truncates the coredump partway through the
+# stacks and drops the trailing regions, including the 5160 B .data region.
+#
+# It is also not needed for stack watermarks: MEMFAULT_COREDUMP_COMPUTE_THREAD_
+# STACK_USAGE (default y) records per-thread unused bytes in a 128 B array that
+# always fits. That mechanism was silently defeated by CONFIG_STACK_SENTINEL --
+# now disabled in prj.conf, see the comment there and Memfault issue 1805279755.
 config MEMFAULT_COREDUMP_FULL_THREAD_STACKS
 	default n
 
