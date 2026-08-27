@@ -1,0 +1,68 @@
+From ccd398459bc940ea23ca91b0a162dbadbbd1cdb2 Mon Sep 17 00:00:00 2001
+From: Charlie Shao <charlie.shao@nordicsemi.no>
+Date: Thu, 27 Aug 2026 10:01:04 +0200
+Subject: [PATCH] zephyr: Fix dangling scan_res2->res on scan-result alloc
+ failure
+
+Backport of upstream commit 581f6709e2cb6dead8223660168a0b4f4fa04096
+(Maochen Wang, NXP), "[noup] zephyr: Fix hang issue when access wrong
+memory", merged into sdk-hostap in Jun 2024 -- already present in NCS
+v3.1.0+ but missing on this v2.6.4 branch's pinned hostap revision
+(hostap_2_11_devel-ncs1-60-ge080aa8d0).
+
+In wpa_drv_zep_event_proc_scan_res(), os_realloc_array() may move the
+scan-result array, freeing the old block and returning a new one in
+`tmp`. If the subsequent os_zalloc(scan_res_len) then fails, the error
+path jumps to `err` without storing `tmp` back into
+if_ctx->scan_res2->res, leaving that field pointing at the block realloc
+already freed (and leaking `tmp`). The dangling pointer is later passed
+to os_free() by wpa_scan_results_free(), i.e. a double free.
+
+Upstream commit message:
+> During stress test, console hang and the log shows '<err> wpa_supp:
+> wpa_drv_zep_event_proc_scan_res: Failed to alloc scan results
+> (511 bytes)'.
+> In wpa_drv_zep_event_proc_scan_res, if_ctx->scan_res2->res is copied
+> to wpa_scan_res **tmp and freed then, the wpa_scan_res *sr alloc failed
+> and directly return, and if_ctx->scan_res2->res is not updated.
+> When process next one in scan table, if_ctx->scan_res2->res will be
+> used again, and the memory may already be used by other call, and this
+> may cause hardfault. Should update if_ctx->scan_res2->res in alloc
+> failed case.
+
+Note the upstream hunk replaced a bare `return;` with
+`if_ctx->scan_res2->res = tmp; goto err;`. This branch already has the
+`goto err;` (so the semaphore/in-progress flag is released correctly);
+only the write-back was missing, so just that line is added here.
+
+Observed in the field via Memfault (Issue 1805279755, trace
+10713699686): device F4CE36001360 running v2.6.4.8 hit
+"ASSERTION FAIL [chunk_used(h, c)] @ zephyr/lib/os/heap.c:175 --
+unexpected heap state (double-free?) for memory at 0x20035980" on the
+z_wpas_start thread, immediately after
+"wpa_drv_zep_event_proc_scan_res: Failed to alloc scan results(776
+bytes)". The faulting frame is wpa_scan_results_free() at
+driver_common.c:22 -- os_free(res->res), i.e. the array pointer itself,
+after the per-entry loop completed at i == res->num == 2. Two results
+had been stored successfully and the third event's 776-byte os_zalloc
+failed, which is exactly this bug. Trigger was a weak-signal (-86 dBm)
+WPA3-SAE reconnect storm that exhausted the libc malloc arena.
+---
+ src/drivers/driver_zephyr.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/drivers/driver_zephyr.c b/src/drivers/driver_zephyr.c
+index 34c0ef162..cb12fa4f4 100644
+--- a/src/drivers/driver_zephyr.c
++++ b/src/drivers/driver_zephyr.c
+@@ -362,6 +362,7 @@ void wpa_drv_zep_event_proc_scan_res(struct zep_drv_if_ctx *if_ctx,
+ 	struct wpa_scan_res *sr = os_zalloc(scan_res_len);
+ 	if (!sr) {
+ 		wpa_printf(MSG_ERROR, "%s: Failed to alloc scan results(%d bytes)\n", __func__, scan_res_len);
++		if_ctx->scan_res2->res = tmp;
+ 		goto err;
+ 	}
+ 
+-- 
+2.50.1 (Apple Git-155)
+
