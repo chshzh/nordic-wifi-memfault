@@ -25,6 +25,7 @@
 #include <ux.h>
 #include "../messages.h"
 #include "net_event_mgmt.h"
+#include "../app_memfault/metrics/app_memfault_wifi_metrics.h"
 #if CONFIG_ZEGO_WIFI_BLE_PROV
 #include <wifi_ble_prov.h>
 #endif
@@ -83,8 +84,8 @@ void zego_on_net_event_dhcp_bound(enum zego_wifi_mode mode, const char *ip_addr,
 				  const char *mac_addr, const char *ssid)
 {
 	ARG_UNUSED(ip_addr);
-	ARG_UNUSED(mac_addr);
-	ARG_UNUSED(ssid);
+
+	mflt_wifi_metrics_report_ssid_bssid(ssid, mac_addr);
 
 #if CONFIG_ZEGO_WIFI_BLE_PROV
 	struct wifi_msg wmsg = {
