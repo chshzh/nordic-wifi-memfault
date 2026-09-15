@@ -10,6 +10,7 @@
 
 #include <memfault/metrics/metrics.h>
 #include <stdio.h>
+#include <string.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/net/net_if.h>
@@ -17,6 +18,37 @@
 #include <zephyr/net/wifi_mgmt.h>
 
 LOG_MODULE_REGISTER(wifi_metrics, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
+
+void mflt_wifi_metrics_report_ssid_bssid(const char *ssid, const char *bssid)
+{
+	static char last_ssid[33];
+	static char last_bssid[18];
+	static bool has_prev;
+
+	if (!ssid || !bssid) {
+		return;
+	}
+
+	MEMFAULT_METRIC_SET_STRING(wifi_ssid, ssid);
+	MEMFAULT_METRIC_SET_STRING(wifi_bssid, bssid);
+
+	if (has_prev) {
+		if (strcmp(ssid, last_ssid) != 0) {
+			MEMFAULT_METRIC_ADD(wifi_ssid_change_count, 1);
+			LOG_INF("WiFi SSID changed: %s -> %s", last_ssid, ssid);
+		}
+		if (strcmp(bssid, last_bssid) != 0) {
+			MEMFAULT_METRIC_ADD(wifi_bssid_change_count, 1);
+			LOG_INF("WiFi BSSID changed: %s -> %s", last_bssid, bssid);
+		}
+	}
+
+	strncpy(last_ssid, ssid, sizeof(last_ssid) - 1);
+	last_ssid[sizeof(last_ssid) - 1] = '\0';
+	strncpy(last_bssid, bssid, sizeof(last_bssid) - 1);
+	last_bssid[sizeof(last_bssid) - 1] = '\0';
+	has_prev = true;
+}
 
 void mflt_wifi_metrics_collect(void)
 {
@@ -71,6 +103,24 @@ void mflt_wifi_metrics_collect(void)
 	snprintf(oui, sizeof(oui), "%02x:%02x:%02x", status.bssid[0], status.bssid[1],
 		 status.bssid[2]);
 	MEMFAULT_METRIC_SET_STRING(wifi_ap_oui, oui);
+
+	/* Heartbeat fallback for wifi_ssid/wifi_bssid: catches roams that don't
+	 * produce a fresh connect event, e.g. a reassociation that keeps the
+	 * same IP. Re-setting an unchanged value is a no-op on the Memfault
+	 * side (latest-value-wins), and the change counters only increment on
+	 * an actual diff, so this is safe to call every heartbeat.
+	 */
+	char ssid[WIFI_SSID_MAX_LEN + 1];
+	size_t ssid_len = MIN(status.ssid_len, WIFI_SSID_MAX_LEN);
+
+	memcpy(ssid, status.ssid, ssid_len);
+	ssid[ssid_len] = '\0';
+
+	char bssid[18];
+	snprintf(bssid, sizeof(bssid), "%02x:%02x:%02x:%02x:%02x:%02x", status.bssid[0],
+		 status.bssid[1], status.bssid[2], status.bssid[3], status.bssid[4],
+		 status.bssid[5]);
+	mflt_wifi_metrics_report_ssid_bssid(ssid, bssid);
 
 	MEMFAULT_METRIC_SET_UNSIGNED(wifi_primary_channel, status.channel);
 	MEMFAULT_METRIC_SET_SIGNED(wifi_sta_rssi, status.rssi);

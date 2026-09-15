@@ -16,9 +16,11 @@
 #include <zephyr/net/wifi_utils.h>
 #include <zephyr/sys/util.h>
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "wifi_utils.h"
+#include "../app_memfault/metrics/wifi_metrics.h"
 
 LOG_MODULE_REGISTER(wifi_utils, CONFIG_WIFI_MODULE_LOG_LEVEL);
 
@@ -163,6 +165,13 @@ int wifi_print_status(void)
 		LOG_INF("Channel: %d", status.channel);
 		LOG_INF("Security: %s", wifi_security_txt(status.security));
 		LOG_INF("RSSI: %d dBm", status.rssi);
+
+		char bssid_str[18];
+
+		snprintf(bssid_str, sizeof(bssid_str), "%02x:%02x:%02x:%02x:%02x:%02x",
+			 status.bssid[0], status.bssid[1], status.bssid[2], status.bssid[3],
+			 status.bssid[4], status.bssid[5]);
+		mflt_wifi_metrics_report_ssid_bssid(last_connected_ssid, bssid_str);
 	} else {
 		last_connected_ssid[0] = '\0';
 	}

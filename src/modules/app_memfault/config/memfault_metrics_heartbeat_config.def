@@ -35,6 +35,17 @@ MEMFAULT_METRICS_KEY_DEFINE(wifi_beacon_interval, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(wifi_dtim_interval, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(wifi_twt_capable, kMemfaultMetricType_Unsigned)
 
+/* Full SSID/BSSID of the connected AP, set on every connect event (not just
+ * at heartbeat), plus counters that increment when the value differs from
+ * the previous connection - distinguishes AP roam (same SSID, new BSSID)
+ * from a network change (new SSID). Complements the SDK's built-in
+ * wifi_ap_oui (vendor-prefix-only) metric.
+ */
+MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_ssid, 32)
+MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_bssid, sizeof("00:00:00:00:00:00") - 1)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_ssid_change_count, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_bssid_change_count, kMemfaultMetricType_Unsigned)
+
 /* Network thread metrics - stack usage monitoring */
 MEMFAULT_METRICS_KEY_DEFINE(ncs_mflt_http_unused_stack, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(ncs_conn_mgr_monitor_unused_stack, kMemfaultMetricType_Unsigned)
