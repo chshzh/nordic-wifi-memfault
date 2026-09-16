@@ -2,9 +2,9 @@ name: Validation
 
 on:
   push:
-    branches: [ ncs264 ]
+    branches: [ ncs-v2.6.4 ]
   pull_request:
-    branches: [ ncs264 ]
+    branches: [ ncs-v2.6.4 ]
 
 # Cancel any in-progress run for the same branch/PR to avoid wasting CI minutes.
 concurrency:
@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 env:
-  # This branch (ncs264) targets NCS v2.6.4; west.yml correctly pins
+  # This branch (ncs-v2.6.4) targets NCS v2.6.4; west.yml correctly pins
   # sdk-nrf to v2.6.4 so CI's `west update` fetches matching sources.
   NCS_VERSION: v2.6.4
   # Zephyr SDK version bundled with NCS v2.6.4 (confirmed from a local

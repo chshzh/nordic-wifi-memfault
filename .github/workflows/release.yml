@@ -343,7 +343,7 @@ jobs:
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -z "$PREV_TAG" ]; then
             echo "First release — no previous tag found"
-            echo "Initial release of nordic-wifi-memfault (ncs264 branch)" > /tmp/changelog.txt
+            echo "Initial release of nordic-wifi-memfault (ncs-v2.6.4 branch)" > /tmp/changelog.txt
           else
             echo "Generating changelog from $PREV_TAG to ${{ steps.ver.outputs.VERSION }}"
             git log --pretty=format:"- %s (%h)" ${PREV_TAG}..HEAD > /tmp/changelog.txt
@@ -370,7 +370,7 @@ jobs:
           cat > /tmp/release-body.txt <<EOF
           ## Nordic Wi-Fi Memfault Release ${VER}
 
-          > Built with NCS ${{ env.NCS_VERSION }} on the \`ncs264\` branch — version format is \`v<ncs-version>.<build>\` (e.g. \`v2.6.4.0\`), where the major/minor/patch matches the NCS version this firmware is based on. This project targets nRF7002DK only — nRF54LM20DK + nRF7002EB II support has been removed (that board has no board definition in NCS v2.6.4).
+          > Built with NCS ${{ env.NCS_VERSION }} on the \`ncs-v2.6.4\` branch — version format is \`v<ncs-version>.<build>\` (e.g. \`v2.6.4.0\`), where the major/minor/patch matches the NCS version this firmware is based on. This project targets nRF7002DK only — nRF54LM20DK + nRF7002EB II support has been removed (that board has no board definition in NCS v2.6.4).
 
           ### 📦 Firmware Files
 
@@ -383,9 +383,9 @@ jobs:
           - \`.signed.bin\` — OTA image for Memfault over-the-air update via MCUboot
           - \`.elf\` — Symbol file for Memfault crash decoding and coredump analysis
 
-          > Terraforma-project builds are not yet available on the \`ncs264\` branch — see [nordic-wifi-memfault-terraforma](https://github.com/chshzh/nordic-wifi-memfault-terraforma) for the (currently NCS v3.x-only) Terraforma release flow.
+          > Terraforma-project builds are not yet available on the \`ncs-v2.6.4\` branch — see [nordic-wifi-memfault-terraforma](https://github.com/chshzh/nordic-wifi-memfault-terraforma) for the (currently NCS v3.x-only) Terraforma release flow.
 
-          For flashing and connection instructions, see the [Evaluator Quick Start guide](https://github.com/chshzh/nordic-wifi-memfault/blob/ncs264/README.md#evaluator-quick-start) in the README.
+          For flashing and connection instructions, see the [Evaluator Quick Start guide](https://github.com/chshzh/nordic-wifi-memfault/blob/ncs-v2.6.4/README.md#evaluator-quick-start) in the README.
 
           ### 📝 Changes Since Last Release
 

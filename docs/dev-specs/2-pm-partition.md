@@ -20,7 +20,7 @@
 
 | Version | Summary of changes |
 |---|---|
-| 2026-07-13-11-08 | Migrated from legacy docs; layout taken from `pm_static_nrf7002dk_nrf5340_cpuapp.yml` and `pm_static_nrf54lm20dk_nrf54lm20a_cpuapp.yml` (both current on `ncs264` branch) |
+| 2026-07-13-11-08 | Migrated from legacy docs; layout taken from `pm_static_nrf7002dk_nrf5340_cpuapp.yml` and `pm_static_nrf54lm20dk_nrf54lm20a_cpuapp.yml` (both current on `ncs-v2.6.4` branch) |
 | 2026-07-13-12-22 | Updated to PRD v2026-07-13-12-22: added planned external-flash partitions `mflt_log_state_partition` (12 KB) and `mflt_cdr_state_partition` (8 KB) on both boards for FR-102/FR-103 (ported from `nordic-wifi-memfault-main`'s `mflt_log_state_partition`/`mflt_cdr_state_partition`). Design only — not yet added to `pm_static_*.yml`; carved from each board's unused `external_flash` region. |
 | 2026-07-13-13-31 | `mflt_log_state_partition` (12 KB) and `mflt_cdr_state_partition` (8 KB) added to both `pm_static_*.yml` files, carved from the tail of each board's `external_flash` region. Build-verified on nRF7002DK (FLASH 90.26%, RAM 98.75%). |
 | 2026-08-19-15-55 | **Removed nRF54LM20DK + nRF7002EB II section entirely** — that board has no board definition in NCS v2.6.4 (see [1-architecture.md](1-architecture.md) Changelog for the full project-wide removal). Deleted `pm_static_nrf54lm20dk_nrf54lm20a_cpuapp.yml` and its `sysbuild/mcuboot/boards/` overlay files. Project now has a single flash layout (nRF7002DK). |
@@ -30,7 +30,7 @@
 ## Overview
 
 **This project stays on the legacy Zephyr Partition Manager (PM)**, not the DTS
-fixed-partitions scheme — NCS v2.6.4 (the SDK version pinned for this `ncs264` branch)
+fixed-partitions scheme — NCS v2.6.4 (the SDK version pinned for this `ncs-v2.6.4` branch)
 predates the DTS-based partitioning migration that NCS v3.3+ uses. Layouts below reflect
 `pm_static_<board>.yml` at the project root plus `sysbuild/mcuboot/` for the bootloader image.
 

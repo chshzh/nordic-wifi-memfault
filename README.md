@@ -1,6 +1,6 @@
 # nordic-wifi-memfault sample
 
-[![Validation](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/validation.yml/badge.svg?branch=ncs264)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/validation.yml)
+[![Validation](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/validation.yml/badge.svg?branch=ncs-v2.6.4)](https://github.com/chshzh/nordic-wifi-memfault/actions/workflows/validation.yml)
 [![Latest Release](https://img.shields.io/github/v/release/chshzh/nordic-wifi-memfault?label=Release&color=brightgreen)](https://github.com/chshzh/nordic-wifi-memfault/releases/latest)
 [![License](https://img.shields.io/badge/License-LicenseRef--Nordic--5--Clause-blue.svg)](LICENSE)
 [![NCS Version](https://img.shields.io/badge/NCS-v2.6.4-green.svg)](https://www.nordicsemi.com/Products/Development-software/nRF-Connect-SDK)
@@ -20,11 +20,11 @@
 
 > **nRF54LM20DK + nRF7002EB II support has been removed.** That board's SoC (nRF54LM20A) has
 > no board definition anywhere in NCS v2.6.4 — the nRF54L series was introduced in a later NCS
-> release than the one this `ncs264` branch targets, so this board was never actually
+> release than the one this `ncs-v2.6.4` branch targets, so this board was never actually
 > buildable/verifiable in this environment. See [docs/dev-specs/1-architecture.md](docs/dev-specs/1-architecture.md)
 > Changelog for the full removal history.
 
-> This `ncs264` branch targets **NCS v2.6.4** and uses the legacy underscore board-target format shown above (not the newer `nrf7002dk/nrf5340/cpuapp` hardware-model format used on NCS v2.7+).
+> This `ncs-v2.6.4` branch targets **NCS v2.6.4** and uses the legacy underscore board-target format shown above (not the newer `nrf7002dk/nrf5340/cpuapp` hardware-model format used on NCS v2.7+).
 
 ### Features
 
@@ -137,7 +137,7 @@ nordic-wifi-memfault/
 
 ### Workspace Setup
 
-West workspace is driven by [west.yml](west.yml), which correctly pins `sdk-nrf` to `v2.6.4` on this branch. This `ncs264` branch is typically developed and built directly inside an existing **NCS v2.6.4** installation (`/opt/nordic/ncs/v2.6.4/`), but a fresh `west init` (Method 2 below) also works and fetches the matching v2.6.4 sources. Release tags (e.g. `3.2.0`, `3.1.3`) follow project semantic versioning, independent of the NCS version — check the branch/README, not the tag, to know which NCS version a build targets.
+West workspace is driven by [west.yml](west.yml), which correctly pins `sdk-nrf` to `v2.6.4` on this branch. This `ncs-v2.6.4` branch is typically developed and built directly inside an existing **NCS v2.6.4** installation (`/opt/nordic/ncs/v2.6.4/`), but a fresh `west init` (Method 2 below) also works and fetches the matching v2.6.4 sources. Release tags (e.g. `3.2.0`, `3.1.3`) follow project semantic versioning, independent of the NCS version — check the branch/README, not the tag, to know which NCS version a build targets.
 
 Use nRF Connect for VS Code or a shell initialized with the NCS toolchain.
 
@@ -150,7 +150,7 @@ cd /opt/nordic/ncs/v2.6.4   # your existing NCS v2.6.4 workspace root
 
 git clone https://github.com/chshzh/nordic-wifi-memfault.git
 cd nordic-wifi-memfault
-git checkout ncs264
+git checkout ncs-v2.6.4
 
 # This app is built in place; no west.yml manifest switch or `west update` is required
 # because it lives inside an NCS tree that already has `nrf`, `zephyr`, etc. checked out.
@@ -165,7 +165,7 @@ Follow the [custom repository guide](https://docs.nordicsemi.com/bundle/nrf-conn
 ##### Option B: CLI
 
 ```sh
-west init -m https://github.com/chshzh/nordic-wifi-memfault.git --mr ncs264 <workspace-dir>
+west init -m https://github.com/chshzh/nordic-wifi-memfault.git --mr ncs-v2.6.4 <workspace-dir>
 cd <workspace-dir>
 west update
 ```
