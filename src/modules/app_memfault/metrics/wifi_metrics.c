@@ -29,16 +29,16 @@ void mflt_wifi_metrics_report_ssid_bssid(const char *ssid, const char *bssid)
 		return;
 	}
 
-	MEMFAULT_METRIC_SET_STRING(wifi_ssid, ssid);
-	MEMFAULT_METRIC_SET_STRING(wifi_bssid, bssid);
+	MEMFAULT_METRIC_SET_STRING(wifi_ap_ssid, ssid);
+	MEMFAULT_METRIC_SET_STRING(wifi_ap_bssid, bssid);
 
 	if (has_prev) {
 		if (strcmp(ssid, last_ssid) != 0) {
-			MEMFAULT_METRIC_ADD(wifi_ssid_change_count, 1);
+			MEMFAULT_METRIC_ADD(wifi_ap_ssid_change_count, 1);
 			LOG_INF("WiFi SSID changed: %s -> %s", last_ssid, ssid);
 		}
 		if (strcmp(bssid, last_bssid) != 0) {
-			MEMFAULT_METRIC_ADD(wifi_bssid_change_count, 1);
+			MEMFAULT_METRIC_ADD(wifi_ap_bssid_change_count, 1);
 			LOG_INF("WiFi BSSID changed: %s -> %s", last_bssid, bssid);
 		}
 	}
@@ -104,9 +104,9 @@ void mflt_wifi_metrics_collect(void)
 		 status.bssid[2]);
 	MEMFAULT_METRIC_SET_STRING(wifi_ap_oui, oui);
 
-	/* Heartbeat fallback for wifi_ssid/wifi_bssid: catches roams that don't
-	 * produce a fresh connect event, e.g. a reassociation that keeps the
-	 * same IP. Re-setting an unchanged value is a no-op on the Memfault
+	/* Heartbeat fallback for wifi_ap_ssid/wifi_ap_bssid: catches roams that
+	 * don't produce a fresh connect event, e.g. a reassociation that keeps
+	 * the same IP. Re-setting an unchanged value is a no-op on the Memfault
 	 * side (latest-value-wins), and the change counters only increment on
 	 * an actual diff, so this is safe to call every heartbeat.
 	 */

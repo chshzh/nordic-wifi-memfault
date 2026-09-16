@@ -13,8 +13,8 @@ void mflt_wifi_metrics_collect(void);
  * the Wi-Fi connect event (wifi_print_status()) and every heartbeat
  * (mflt_wifi_metrics_collect()) as a fallback for roams that don't produce a
  * fresh connect event. Records the values as metrics and bumps
- * wifi_ssid_change_count / wifi_bssid_change_count if they differ from the
- * previously reported values.
+ * wifi_ap_ssid_change_count / wifi_ap_bssid_change_count if they differ from
+ * the previously reported values.
  */
 void mflt_wifi_metrics_report_ssid_bssid(const char *ssid, const char *bssid);
 

@@ -41,10 +41,10 @@ MEMFAULT_METRICS_KEY_DEFINE(wifi_twt_capable, kMemfaultMetricType_Unsigned)
  * from a network change (new SSID). Complements the SDK's built-in
  * wifi_ap_oui (vendor-prefix-only) metric.
  */
-MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_ssid, 32)
-MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_bssid, sizeof("00:00:00:00:00:00") - 1)
-MEMFAULT_METRICS_KEY_DEFINE(wifi_ssid_change_count, kMemfaultMetricType_Unsigned)
-MEMFAULT_METRICS_KEY_DEFINE(wifi_bssid_change_count, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_ap_ssid, 32)
+MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_ap_bssid, sizeof("00:00:00:00:00:00") - 1)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_ap_ssid_change_count, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_ap_bssid_change_count, kMemfaultMetricType_Unsigned)
 
 /* Network thread metrics - stack usage monitoring */
 MEMFAULT_METRICS_KEY_DEFINE(ncs_mflt_http_unused_stack, kMemfaultMetricType_Unsigned)
