@@ -16,10 +16,10 @@ MEMFAULT_METRICS_KEY_DEFINE(mflt_log_buf_bytes_used, kMemfaultMetricType_Unsigne
  * from a network change (new SSID). Complements the SDK's built-in
  * wifi_ap_oui (vendor-prefix-only) metric.
  */
-MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_ssid, 32)
-MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_bssid, sizeof("00:00:00:00:00:00") - 1)
-MEMFAULT_METRICS_KEY_DEFINE(wifi_ssid_change_count, kMemfaultMetricType_Unsigned)
-MEMFAULT_METRICS_KEY_DEFINE(wifi_bssid_change_count, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_ap_ssid, 32)
+MEMFAULT_METRICS_STRING_KEY_DEFINE(wifi_ap_bssid, sizeof("00:00:00:00:00:00") - 1)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_ap_ssid_change_count, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_ap_bssid_change_count, kMemfaultMetricType_Unsigned)
 
 /* Heap metrics — driven by app_memfault_memonitor_metrics.c via MEMONITOR_CHAN */
 #if CONFIG_ZEGO_MEMONITOR && CONFIG_ZEGO_MEMONITOR_HEAP_MONITOR
