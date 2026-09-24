@@ -195,13 +195,26 @@ void memfault_metrics_heartbeat_collect_data(void)
 	 * INTERVAL_SEC while testing) instead of a separate dedicated timer -
 	 * one less periodic work item competing for system workqueue stack.
 	 */
-	int cdr_err = mflt_nrf70_fw_stats_cdr_collect();
-
-	/* -ENODEV means the RPU/WiFi driver isn't up yet (e.g. early boot) -
-	 * expected and quiet, the next heartbeat will retry.
+	/* Skip while WiFi is down/reconnecting: the real (SDK-internal) 3600 s
+	 * heartbeat is not gated by connection state and can land in the middle
+	 * of a reconnect. nrf_wifi_fmac_stats_get()'s deep call chain (600+ B
+	 * stack-local struct) then runs on sysworkq at the same time as the
+	 * reconnect's own net_mgmt/wpa_supp work, which has overflowed sysworkq
+	 * (4096 B, no headroom to grow - see prj.conf) and caused a Hard Fault
+	 * (Memfault issue #1805270367). The RPU is also busy re-associating in
+	 * this window, so the stats-get call would just time out anyway.
 	 */
-	if (cdr_err && cdr_err != -ENODEV) {
-		LOG_WRN("nRF70 FW stats CDR collection failed: %d", cdr_err);
+	if (!wifi_connected) {
+		LOG_DBG("WiFi not connected, skipping nRF70 FW stats CDR collection");
+	} else {
+		int cdr_err = mflt_nrf70_fw_stats_cdr_collect();
+
+		/* -ENODEV means the RPU/WiFi driver isn't up yet (e.g. early boot) -
+		 * expected and quiet, the next heartbeat will retry.
+		 */
+		if (cdr_err && cdr_err != -ENODEV) {
+			LOG_WRN("nRF70 FW stats CDR collection failed: %d", cdr_err);
+		}
 	}
 #endif
 }
