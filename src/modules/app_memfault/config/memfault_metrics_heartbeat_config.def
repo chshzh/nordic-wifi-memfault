@@ -4,6 +4,18 @@
 
 MEMFAULT_METRICS_KEY_DEFINE(switch_1_toggle_count, kMemfaultMetricType_Unsigned)
 
+/* Pre-existing gap fixed in passing: app_https_client.c and app_mqtt_client.c
+ * already reference these four keys (MEMFAULT_METRIC_SET_UNSIGNED calls),
+ * but none were defined here. Both modules are disabled by default
+ * (CONFIG_APP_HTTPS_CLIENT_MODULE / CONFIG_APP_MQTT_CLIENT_MODULE = n), so
+ * this was never caught by a normal build - discovered while verifying the
+ * sync_successful/sync_failure change added to those same two files.
+ */
+MEMFAULT_METRICS_KEY_DEFINE(app_https_req_total_count, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(app_https_req_fail_count, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(app_mqtt_echo_total_count, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(app_mqtt_echo_fail_count, kMemfaultMetricType_Unsigned)
+
 /* Heap metrics */
 #if CONFIG_HEAPS_MONITOR
 #if CONFIG_HEAP_MEM_POOL_SIZE > 0
