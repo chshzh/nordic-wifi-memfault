@@ -18,4 +18,10 @@ void mflt_wifi_metrics_collect(void);
  */
 void mflt_wifi_metrics_report_ssid_bssid(const char *ssid, const char *bssid);
 
+/* Increment wifi_disconnect_count by 1. Called from the network module's
+ * NET_EVENT_WIFI_DISCONNECT_RESULT handler every time the STA link drops,
+ * regardless of reason.
+ */
+void mflt_wifi_metrics_record_disconnect(void);
+
 #endif /* WIFI_METRICS_H */

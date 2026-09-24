@@ -19,6 +19,20 @@
 
 LOG_MODULE_REGISTER(wifi_metrics, CONFIG_APP_MEMFAULT_MODULE_LOG_LEVEL);
 
+void mflt_wifi_metrics_record_disconnect(void)
+{
+	MEMFAULT_METRIC_ADD(wifi_disconnect_count, 1);
+}
+
+/* wifi_connected_time_ms bookkeeping: mflt_wifi_metrics_collect() below is
+ * called once per heartbeat. Each call while connected adds the elapsed time
+ * since the *previous* call to the running heartbeat total. was_connected_
+ * last_sample guards against crediting the gap as connected time when a
+ * reconnect follows one or more disconnected heartbeats.
+ */
+static int64_t last_sample_uptime_ms;
+static bool was_connected_last_sample;
+
 void mflt_wifi_metrics_report_ssid_bssid(const char *ssid, const char *bssid)
 {
 	static char last_ssid[33];
@@ -57,19 +71,30 @@ void mflt_wifi_metrics_collect(void)
 
 	if (!iface) {
 		LOG_WRN("No network interface found");
+		was_connected_last_sample = false;
 		return;
 	}
 
 	if (net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status,
 		     sizeof(struct wifi_iface_status))) {
 		LOG_WRN("Failed to get WiFi interface status");
+		was_connected_last_sample = false;
 		return;
 	}
 
 	if (status.state != WIFI_STATE_COMPLETED || status.iface_mode != WIFI_MODE_INFRA) {
 		LOG_DBG("WiFi not connected in station mode, skipping metrics");
+		was_connected_last_sample = false;
 		return;
 	}
+
+	int64_t now_ms = k_uptime_get();
+
+	if (was_connected_last_sample) {
+		MEMFAULT_METRIC_ADD(wifi_connected_time_ms, (uint32_t)(now_ms - last_sample_uptime_ms));
+	}
+	last_sample_uptime_ms = now_ms;
+	was_connected_last_sample = true;
 
 	const char *link_mode_str = status.link_mode == WIFI_0    ? "802.11"
 				    : status.link_mode == WIFI_1  ? "802.11b"

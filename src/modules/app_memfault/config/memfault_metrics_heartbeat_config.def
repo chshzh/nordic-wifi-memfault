@@ -35,6 +35,15 @@ MEMFAULT_METRICS_KEY_DEFINE(wifi_beacon_interval, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(wifi_dtim_interval, kMemfaultMetricType_Unsigned)
 MEMFAULT_METRICS_KEY_DEFINE(wifi_twt_capable, kMemfaultMetricType_Unsigned)
 
+/* WiFi disconnect/connected-time tracking (see metrics/wifi_metrics.c).
+ * Both reset to 0 each heartbeat period, per standard Memfault heartbeat
+ * metric semantics: wifi_disconnect_count is the number of STA disconnects
+ * since the last heartbeat, wifi_connected_time_ms is the milliseconds spent
+ * associated+DHCP-completed during that same period.
+ */
+MEMFAULT_METRICS_KEY_DEFINE(wifi_disconnect_count, kMemfaultMetricType_Unsigned)
+MEMFAULT_METRICS_KEY_DEFINE(wifi_connected_time_ms, kMemfaultMetricType_Unsigned)
+
 /* Full SSID/BSSID of the connected AP, set on every connect event (not just
  * at heartbeat), plus counters that increment when the value differs from
  * the previous connection - distinguishes AP roam (same SSID, new BSSID)

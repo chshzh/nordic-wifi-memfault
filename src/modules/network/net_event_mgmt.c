@@ -15,6 +15,7 @@
 #include <zephyr/zbus/zbus.h>
 
 #include "../messages.h"
+#include "../app_memfault/metrics/wifi_metrics.h"
 
 #include "net_event_mgmt.h"
 #include "wifi_utils.h"
@@ -394,6 +395,7 @@ static void l2_wifi_conn_event_handler(struct net_mgmt_event_callback *cb, uint3
 		 */
 		l3_dhcp_watchdog_cancel();
 		network_connected = false;
+		mflt_wifi_metrics_record_disconnect();
 		publish_wifi_event(WIFI_STA_DISCONNECTED, status ? status->status : -1);
 		publish_network_ready(false);
 
